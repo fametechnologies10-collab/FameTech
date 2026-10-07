@@ -1,0 +1,11 @@
+-- ============================================================================
+-- 20260710b_shop_utilities_toggle.sql
+-- Utility Bills (Phase D): per-shop participation toggle for storefront
+-- utilities. Default TRUE (participate) — the feature is globally dark behind
+-- storefront_utilities_enabled='false' + utility_bills_enabled='false', so no
+-- shop exposes anything until the owner flips the global gates. Owners can
+-- opt their storefront out via shop settings (existing shop settings routes;
+-- shop_profiles already carries per-shop feature columns like ussd_active and
+-- airtime_fee_* — a dedicated column is the established precedent).
+-- ============================================================================
+ALTER TABLE public.shop_profiles ADD COLUMN IF NOT EXISTS utilities_enabled boolean NOT NULL DEFAULT true;

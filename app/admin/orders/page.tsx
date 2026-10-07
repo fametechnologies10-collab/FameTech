@@ -1,0 +1,1515 @@
+'use client'
+
+import { useEffect, useState, Fragment, useMemo, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog'
+import {
+    Search,
+    MoreVertical,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    RefreshCw,
+    Download,
+    ChevronDown,
+    User,
+    Package,
+    Phone,
+    FileText,
+    Loader2,
+    Calendar as CalendarIcon,
+    Trash2,
+    AlertTriangle
+} from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { Label } from '@/components/ui/label'
+import { shouldShowRefundOverlay, REFUND_OVERLAY_BADGE_CLASS, getRetryTag } from '@/lib/order-status'
+
+
+
+export default function AdminOrdersPage() {
+    const [orders, setOrders] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [availableNetworkFilter, setAvailableNetworkFilter] = useState('MTN')
+    const [historyNetworkFilter, setHistoryNetworkFilter] = useState('all')
+    const [batches, setBatches] = useState<any[]>([])
+    const [activeTab, setActiveTab] = useState('available')
+    const [historyFilter, setHistoryFilter] = useState('today')
+    const [customStart, setCustomStart] = useState('')
+    const [customEnd, setCustomEnd] = useState('')
+    const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false)
+
+    // Batch pagination state
+    const [batchPage, setBatchPage] = useState(0)
+    const [batchTotalCount, setBatchTotalCount] = useState(0)
+    const [hasMoreBatches, setHasMoreBatches] = useState(true)
+    const BATCHES_PER_PAGE = 50
+
+    // Download protection states
+    const [isDownloading, setIsDownloading] = useState(false)
+    const [lastDownloadTime, setLastDownloadTime] = useState(0)
+    const DOWNLOAD_COOLDOWN = 3000 // 3 seconds cooldown
+
+    // Always-fresh refs so realtime/interval handlers see latest state without re-subscribing
+    const fetchOrdersRef = useRef<typeof fetchOrders>(null as any)
+    const fetchBatchesRef = useRef<typeof fetchBatches>(null as any)
+    const liveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [searchTerm])
+
+    useEffect(() => {
+        const loadInitialData = async () => {
+            setLoading(true)
+            await Promise.all([fetchOrders(), fetchBatches(0, true)])
+            setLoading(false)
+        }
+        loadInitialData()
+    }, [])
+
+    // Keep refs current so closures below always call the latest version
+    useEffect(() => { fetchOrdersRef.current = fetchOrders })
+    useEffect(() => { fetchBatchesRef.current = fetchBatches })
+
+    // Realtime subscription — auto-updates when orders or batches change in DB
+    useEffect(() => {
+        const triggerLiveRefresh = () => {
+            if (liveDebounceRef.current) clearTimeout(liveDebounceRef.current)
+            liveDebounceRef.current = setTimeout(() => {
+                fetchOrdersRef.current(true)
+                fetchBatchesRef.current(0, true, false)
+            }, 1000)
+        }
+
+        const channel = supabase
+            .channel('orders-admin-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, triggerLiveRefresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'download_batches' }, triggerLiveRefresh)
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Refresh when tab becomes visible or window regains focus
+    useEffect(() => {
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') {
+                fetchOrdersRef.current(true)
+                fetchBatchesRef.current(0, true, false)
+            }
+        }
+        const onFocus = () => {
+            fetchOrdersRef.current(true)
+            fetchBatchesRef.current(0, true, false)
+        }
+        document.addEventListener('visibilitychange', onVisible)
+        window.addEventListener('focus', onFocus)
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible)
+            window.removeEventListener('focus', onFocus)
+        }
+    }, [])
+
+    // Reset batches when network or date filter changes
+    useEffect(() => {
+        if (loading) return // Avoid double fetch on mount
+        fetchBatches(0, true, false)
+    }, [historyNetworkFilter, historyFilter, customStart, customEnd])
+
+    const fetchOrders = async (force = false) => {
+
+        try {
+            // No cap — the API now pages through ALL pending data orders so the
+            // admin can download the entire queue (Vercel Pro: longer timeouts).
+            const response = await fetch('/api/admin/orders?available=true')
+            if (!response.ok) {
+                const result = await response.json()
+                throw new Error(result.error || 'Failed to fetch orders')
+            }
+            const data = await response.json()
+            const freshOrders = data.orders || []
+
+            setOrders(freshOrders)
+        } catch (error: any) {
+            console.error('Error fetching orders:', error)
+            toast.error(error.message || 'Failed to load orders')
+        }
+    }
+
+    const fetchBatches = async (pageToFetch: number, isNewFilter = false, force = false) => {
+        let startDate = null
+        let endDate = null
+        const today = new Date()
+
+        if (historyFilter === 'today') {
+            startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+        } else if (historyFilter === 'yesterday') {
+            // Start of yesterday
+            const yStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+            // End of yesterday (Start of today)
+            const yEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+            startDate = yStart.toISOString()
+            endDate = yEnd.toISOString()
+        } else if (historyFilter === 'last7days') {
+            startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        } else if (historyFilter === 'custom' && customStart) {
+            startDate = new Date(customStart).toISOString()
+            if (customEnd) {
+                // Set to end of the day
+                const end = new Date(customEnd)
+                end.setHours(23, 59, 59, 999)
+                endDate = end.toISOString()
+            }
+        }
+
+        const offset = pageToFetch * BATCHES_PER_PAGE
+        let url = `/api/admin/batches?limit=${BATCHES_PER_PAGE}&offset=${offset}&network=${historyNetworkFilter}`
+        if (startDate) url += `&startDate=${startDate}`
+        if (endDate) url += `&endDate=${endDate}`
+
+        // Add search term if active tab is downloaded
+        if (activeTab === 'downloaded' && debouncedSearch) {
+            url += `&search=${encodeURIComponent(debouncedSearch)}`
+        }
+
+        // Force is no longer needed since caching is removed, but we keep the parameter for backwards compatibility
+        if (force) {
+            // No-op
+        }
+
+        try {
+            const response = await fetch(url)
+            if (!response.ok) {
+                const result = await response.json()
+                throw new Error(result.error || 'Failed to fetch batches')
+            }
+            const data = await response.json()
+
+            const newBatches = data.batches || []
+            if (isNewFilter) {
+                setBatches(newBatches)
+                setBatchPage(0)
+            } else {
+                setBatches(prev => [...prev, ...newBatches])
+            }
+
+            setBatchTotalCount(data.totalCount || 0)
+            setHasMoreBatches(newBatches.length === BATCHES_PER_PAGE)
+        } catch (error: any) {
+            console.error('Error fetching batches:', error)
+        }
+    }
+
+    const loadMoreBatches = () => {
+        if (hasMoreBatches) {
+            const nextPage = batchPage + 1
+            setBatchPage(nextPage)
+            fetchBatches(nextPage)
+        }
+    }
+
+    const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+        try {
+            const response = await fetch('/api/admin/orders/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderIds: [orderId], status: newStatus })
+            })
+
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error || 'Failed to update status')
+
+            // Remove from available orders if it was there
+            setOrders(prev => prev.filter(o => o.id !== orderId))
+            toast.success(`Order marked as ${newStatus}`)
+
+            // Refresh both orders and batches to reflect the change
+            fetchOrders(true)
+            fetchBatches(0, true, true)
+        } catch (error: any) {
+            console.error('Update status error:', error)
+            toast.error(`Error: ${error.message || 'Failed to update status'}`)
+        }
+    }
+
+    const generateExcelFile = async (ordersToExport: any[], filename: string, mode: 'standard' | 'cost' | 'sales' = 'standard') => {
+        // Perform export - CUSTOM FORMAT (Beneficiary Msisdn / GIGGS)
+        const rows: any[][] = []
+
+        // Data Rows
+        let total = 0
+        ordersToExport.forEach((order: any) => {
+            // Keep leading zero and format as text for Excel
+            const phone = order.phone_number || ''
+            const size = (order.size || '').replace(/GB/i, '').trim()
+
+            const phoneCell = { v: phone, t: 's' }
+
+            if (mode === 'standard') {
+                rows.push([phoneCell, size])
+            } else if (mode === 'cost') {
+                const cost = order.cost_price || 0
+                total += cost
+                rows.push([phoneCell, size, cost])
+            } else if (mode === 'sales') {
+                const sales = order.price || 0
+                total += sales
+                rows.push([phoneCell, size, sales])
+            }
+        })
+
+        // Add Sum Row for cost/sales
+        if (mode !== 'standard') {
+            rows.push(['', 'TOTAL SUM', total])
+        }
+
+        // @ts-ignore
+        const { utils, writeFile } = await import('xlsx-js-style')
+
+        const worksheet = utils.aoa_to_sheet(rows)
+
+        // Styling
+        const range = utils.decode_range(worksheet['!ref'] || 'A1:B1')
+
+        // Set widths
+        worksheet['!cols'] = [
+            { wch: 25 }, // Beneficiary Msisdn
+            { wch: 15 }, // GIGGS
+            { wch: 15 }  // Price/Cost
+        ]
+
+        const PINK_COLOR = 'FF00FF'
+        const BORDER_COLOR = 'CCCCCC'
+
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = utils.encode_cell({ r: R, c: C })
+                if (!worksheet[cell_address]) continue
+
+                // Standard data styling (no headers)
+                worksheet[cell_address].s = {
+                    font: { sz: 12, bold: false, color: { rgb: '000000' } },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: {
+                        bottom: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                        right: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                        left: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                        top: { style: 'thin', color: { rgb: BORDER_COLOR } }
+                    }
+                }
+            }
+        }
+
+        const workbook = utils.book_new()
+        utils.book_append_sheet(workbook, worksheet, "Orders")
+
+        writeFile(workbook, filename)
+    }
+
+    // Refund is issued via a controlled dialog (NO native confirm() — iOS-PWA safe).
+    // handleRefund opens the dialog; submitRefund performs the idempotent server call.
+    const [refundOrder, setRefundOrder] = useState<any | null>(null)
+    const [refundMechanism, setRefundMechanism] = useState<'owner_wallet' | 'paystack'>('owner_wallet')
+    const [refundReason, setRefundReason] = useState('')
+    const [refundBusy, setRefundBusy] = useState(false)
+
+    const handleRefund = (order: any) => {
+        setRefundOrder(order)
+        setRefundMechanism('owner_wallet')
+        setRefundReason('')
+    }
+
+    const submitRefund = async () => {
+        if (!refundOrder || refundBusy) return
+        setRefundBusy(true)
+        try {
+            const isShop = !!refundOrder.shop_order_id
+            const body: any = { orderId: refundOrder.id }
+            if (refundReason.trim()) body.reason = refundReason.trim()
+            if (isShop) body.mechanism = refundMechanism
+            if (refundOrder.status === 'processing') body.confirmProcessing = true
+
+            const response = await fetch('/api/admin/orders/refund', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            })
+            const result = await response.json()
+            if (!response.ok || !result.success) throw new Error(result.error || 'Failed to process refund')
+
+            const outcome = result.data?.outcome
+            if (outcome === 'refund_initiated') {
+                // Paystack refund is async — the order finalizes to 'refunded' via webhook.
+                toast.success('Paystack refund initiated — it completes once Paystack processes it.')
+            } else {
+                setOrders(prev => Array.isArray(prev)
+                    ? prev.map(o => o.id === refundOrder.id ? { ...o, status: 'refunded', payment_status: 'refunded' } : o)
+                    : [])
+                toast.success(outcome === 'already_refunded' ? 'Order already refunded' : 'Order refunded successfully')
+            }
+            setRefundOrder(null)
+            setRefundReason('')
+            fetchOrders(true)
+            fetchBatches(0, true, true)
+        } catch (error: any) {
+            console.error('Refund error:', error)
+            toast.error(error.message || 'Failed to process refund')
+        } finally {
+            setRefundBusy(false)
+        }
+    }
+
+    // Retry is issued via a controlled dialog (NO native confirm() — iOS-PWA safe),
+    // mirroring the refund dialog above. handleRetry opens the dialog; submitRetry
+    // performs the idempotent server call to /api/admin/orders/retry.
+    const [retryTarget, setRetryTarget] = useState<any | null>(null)
+    const [retryBusy, setRetryBusy] = useState(false)
+
+    const handleRetry = (order: any) => {
+        setRetryTarget(order)
+    }
+
+    const submitRetry = async () => {
+        if (!retryTarget || retryBusy) return
+        setRetryBusy(true)
+        try {
+            const response = await fetch('/api/admin/orders/retry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: retryTarget.id }),
+            })
+            const result = await response.json()
+
+            if (!response.ok || !result.success) {
+                const outcome = result.outcome as string | undefined
+                const messages: Record<string, string> = {
+                    insufficient_balance: `Insufficient wallet balance to fund this retry${result.required != null && result.available != null
+                            ? ` — needs GHS ${Number(result.required).toFixed(2)}, wallet has GHS ${Number(result.available).toFixed(2)}`
+                            : ''
+                        }.`,
+                    retry_locked: `This order is locked from further retries after 3 attempts${result.until ? ` — try again after ${new Date(result.until).toLocaleString()}` : ', try again later'
+                        }.`,
+                    retry_too_soon: 'Please wait a few seconds before retrying this order again.',
+                    paystack_refund_no_wallet: "This order was refunded to the customer's card via Paystack — there is no wallet to charge for a retry.",
+                    not_retryable: result.error || 'This order is not in a retryable state.',
+                    admin_only: result.error || 'Only an admin can retry a failed order.',
+                    not_owner: result.error || 'You are not authorized to retry this order.',
+                    duplicate_attempt: 'This retry was already submitted — refresh and check the order status before trying again.',
+                    retry_already_in_progress: 'A previous retry for this order already succeeded or is in progress — refresh to see its current status.',
+                    owner_not_found: 'Could not find the shop owner to fund this retry.',
+                    no_wallet_user: 'This order has no wallet to charge for a retry.',
+                    invalid_charge_amount: 'Could not determine a valid retry price for this order.',
+                    invalid_actor_role: 'You are not authorized to perform this action.',
+                }
+                throw new Error((outcome && messages[outcome]) || result.error || 'Failed to retry order')
+            }
+
+            const data = result.data
+            toast.success(
+                data?.message ||
+                (data?.chargedAmount ? `Retry dispatched — GHS ${Number(data.chargedAmount).toFixed(2)} charged` : 'Order retry dispatched')
+            )
+            setRetryTarget(null)
+            fetchOrders(true)
+            fetchBatches(0, true, true)
+        } catch (error: any) {
+            console.error('Retry error:', error)
+            toast.error(error.message || 'Failed to retry order')
+        } finally {
+            setRetryBusy(false)
+        }
+    }
+
+    const handleExportExcel = async () => {
+        // Check if download is in progress
+        if (isDownloading) {
+            toast.error('Download already in progress. Please wait...')
+            return
+        }
+
+        // Check cooldown period
+        const now = Date.now()
+        const timeSinceLastDownload = now - lastDownloadTime
+        if (timeSinceLastDownload < DOWNLOAD_COOLDOWN) {
+            const remainingSeconds = Math.ceil((DOWNLOAD_COOLDOWN - timeSinceLastDownload) / 1000)
+            toast.error(`Please wait ${remainingSeconds} second(s) before downloading again`)
+            return
+        }
+
+        const pendingOrders = (Array.isArray(filteredOrders) ? filteredOrders : []).filter(o => o.status === 'pending')
+
+        if (pendingOrders.length === 0) {
+            toast.error('No PENDING orders to export')
+            return
+        }
+
+        if (!confirm(`This will export ${pendingOrders.length} pending orders and move them to the "Downloaded" tab. Continue?`)) {
+            return
+        }
+
+        setIsDownloading(true)
+        try {
+            const idempotencyKey = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+            // Detect if all orders have the same network for intelligent labeling
+            const uniqueNetworks = Array.from(new Set(
+                pendingOrders
+                    .map(o => o.network?.toString().trim())
+                    .filter(Boolean)
+            ))
+            const batchNetworkLabel = uniqueNetworks.length === 1 ? uniqueNetworks[0] : 'Multiple'
+
+            const response = await fetch('/api/admin/orders/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderIds: pendingOrders.map((o: any) => o.id),
+                    network: batchNetworkLabel,
+                    idempotencyKey: idempotencyKey
+                })
+            })
+
+            const result = await response.json()
+            if (!response.ok) {
+                // Handle concurrent download error (409)
+                if (response.status === 409) {
+                    toast.error(result.error || 'Some orders are already being downloaded by another admin')
+                    setIsDownloading(false)
+                    return
+                }
+                throw new Error(result.error || 'Failed to create batch')
+            }
+
+            // Get the filename from the backend response (includes admin name)
+            const fileName = result.filename || `ghdata_orders_${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`
+
+            // 3. Perform export - CUSTOM FORMAT (Beneficiary Msisdn / GIGGS)
+            const rows: any[][] = []
+
+            // Data Rows
+            pendingOrders.forEach((order: any) => {
+                // Keep leading zero and format as text for Excel
+                const phone = order.phone_number || ''
+                const size = (order.size || '').replace(/GB/i, '').trim()
+
+                rows.push([{ v: phone, t: 's' }, size])
+            })
+
+            // @ts-ignore
+            const { utils, writeFile } = await import('xlsx-js-style')
+
+            const worksheet = utils.aoa_to_sheet(rows)
+
+            // Styling
+            const range = utils.decode_range(worksheet['!ref'] || 'A1:B1')
+
+            // Set widths
+            worksheet['!cols'] = [
+                { wch: 25 }, // Beneficiary Msisdn
+                { wch: 15 }  // GIGGS
+            ]
+
+            const PINK_COLOR = 'FF00FF'
+            const BORDER_COLOR = 'CCCCCC'
+
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_address = utils.encode_cell({ r: R, c: C })
+                    if (!worksheet[cell_address]) continue
+
+                    worksheet[cell_address].s = {
+                        font: { sz: 12, bold: false, color: { rgb: '000000' } },
+                        alignment: { horizontal: "center", vertical: "center" },
+                        border: {
+                            bottom: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            right: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            left: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            top: { style: 'thin', color: { rgb: BORDER_COLOR } }
+                        }
+                    }
+                }
+            }
+
+            const workbook = utils.book_new()
+            utils.book_append_sheet(workbook, worksheet, "Orders")
+
+            writeFile(workbook, fileName)
+            toast.success('Orders exported and moved to batches')
+
+            setLastDownloadTime(Date.now())
+            fetchOrders()
+            fetchBatches(0, true)
+        } catch (error: any) {
+            console.error('Export error:', error)
+            // Only show error if download actually failed (not after successful download)
+            if (error.message && !error.message.includes('preview') && !error.message.includes('failed')) {
+                toast.error(error.message || 'Failed to export orders')
+            }
+        } finally {
+            setIsDownloading(false)
+        }
+    }
+
+    const reDownloadBatch = async (batch: any) => {
+        try {
+            const response = await fetch(`/api/admin/orders?batchId=${batch.id}`)
+            if (!response.ok) throw new Error('Failed to fetch batch orders')
+            const data = await response.json()
+            const batchOrdersList = data.orders || []
+
+            if (batchOrdersList.length === 0) {
+                toast.error('No orders found in this batch')
+                return
+            }
+
+            // Perform export - CUSTOM FORMAT (Beneficiary Msisdn / GIGGS)
+            const rows: any[][] = []
+
+            // Build Data Rows
+            batchOrdersList.forEach((order: any) => {
+                // Keep leading zero and format as text for Excel
+                const phone = order.phone_number || ''
+                const size = (order.size || '').replace(/GB/i, '').trim()
+
+                rows.push([{ v: phone, t: 's' }, size])
+            })
+
+            // @ts-ignore
+            const { utils, writeFile } = await import('xlsx-js-style')
+            const worksheet = utils.aoa_to_sheet(rows)
+
+            const range = utils.decode_range(worksheet['!ref'] || 'A1:B1')
+            // Set widths
+            worksheet['!cols'] = [{ wch: 25 }, { wch: 15 }]
+
+            // Styling
+            const PINK_COLOR = 'FF00FF'
+            const BORDER_COLOR = 'CCCCCC'
+
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_address = utils.encode_cell({ r: R, c: C })
+                    if (!worksheet[cell_address]) continue
+
+                    worksheet[cell_address].s = {
+                        font: { sz: 12, bold: false, color: { rgb: '000000' } },
+                        alignment: { horizontal: "center", vertical: "center" },
+                        border: {
+                            bottom: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            right: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            left: { style: 'thin', color: { rgb: BORDER_COLOR } },
+                            top: { style: 'thin', color: { rgb: BORDER_COLOR } }
+                        }
+                    }
+                }
+            }
+
+            const workbook = utils.book_new()
+            utils.book_append_sheet(workbook, worksheet, "Orders")
+            writeFile(workbook, batch.filename)
+            toast.success('Batch re-downloaded')
+        } catch (error) {
+            toast.error('Failed to re-download batch')
+        }
+    }
+
+    const handleDownloadAllFiltered = async (exportMode: 'standard' | 'cost' | 'sales' = 'standard') => {
+        if (filteredBatches.length === 0) {
+            toast.error('No batches to download')
+            return
+        }
+
+        const label = exportMode === 'cost' ? 'Cost' : exportMode === 'sales' ? 'Sales' : 'Orders'
+        const toastId = toast.loading(`Preparing ${label} download for ${filteredBatches.length} batches...`)
+
+        try {
+            const batchIds = (Array.isArray(filteredBatches) ? filteredBatches : []).map(b => b.id).join(',')
+            const response = await fetch(`/api/admin/orders?batchIds=${batchIds}`)
+
+            if (!response.ok) throw new Error('Failed to fetch orders')
+            const data = await response.json()
+            const allOrders = data.orders || []
+
+            if (allOrders.length === 0) {
+                toast.error('No orders found in selected batches', { id: toastId })
+                return
+            }
+
+            const prefix = exportMode === 'standard' ? 'ghdata_merged' : `ghdata_${exportMode}`
+            const filename = `${prefix}_${historyFilter}_${new Date().toISOString().substring(0, 10)}.xlsx`
+
+            await generateExcelFile(allOrders, filename, exportMode)
+
+            toast.success(`Downloaded all filtered ${label}`, { id: toastId })
+        } catch (error) {
+            console.error('Bulk download error:', error)
+            toast.error('Failed to download filtered batches', { id: toastId })
+        }
+    }
+
+    // Batch Card Component defined locally to access props/state needs
+    function BatchCard({ batch, onRefund, onFail }: { batch: any, onRefund?: any, onFail?: any }) {
+        const [batchOrders, setBatchOrders] = useState<any[]>([])
+        const [isLoadingOrders, setIsLoadingOrders] = useState(false)
+        const [hasLoaded, setHasLoaded] = useState(false)
+        const [isUpdating, setIsUpdating] = useState(false)
+
+        const loadBatchOrders = async () => {
+            setIsLoadingOrders(true)
+            try {
+                const response = await fetch(`/api/admin/orders?batchId=${batch.id}`)
+                if (response.ok) {
+                    const data = await response.json()
+                    setBatchOrders(data.orders || [])
+                }
+            } catch (error) {
+                console.error('Failed to load batch orders', error)
+            } finally {
+                setIsLoadingOrders(false)
+                setHasLoaded(true)
+            }
+        }
+
+        const onUpdateBatchStatus = async (status: string) => {
+            if (!confirm(`Mark all ${batchOrders.length} orders as ${status}?`)) return
+            setIsUpdating(true)
+            try {
+                const response = await fetch('/api/admin/orders/update-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batchId: batch.id, status })
+                })
+
+                if (!response.ok) throw new Error('Failed to update')
+
+                toast.success('Batch updated successfully')
+                // Refresh local orders
+                const updatedOrders = (Array.isArray(batchOrders) ? batchOrders : []).map(o => ({ ...o, status }))
+                setBatchOrders(updatedOrders)
+                fetchBatches(0, true) // Update global counts if needed
+            } catch (error) {
+                toast.error('Failed to update batch status')
+            } finally {
+                setIsUpdating(false)
+            }
+        }
+
+        const onRefundBatch = async () => {
+            // Load orders first if the card hasn't been expanded yet — need the id list.
+            let idsSource = batchOrders
+            if (!hasLoaded) {
+                setIsLoadingOrders(true)
+                try {
+                    const response = await fetch(`/api/admin/orders?batchId=${batch.id}`)
+                    const data = response.ok ? await response.json() : { orders: [] }
+                    idsSource = data.orders || []
+                    setBatchOrders(idsSource)
+                    setHasLoaded(true)
+                } finally {
+                    setIsLoadingOrders(false)
+                }
+            }
+
+            const ids = idsSource.map((o: any) => o.id)
+            if (ids.length === 0) {
+                toast.error('No orders in this batch to refund')
+                return
+            }
+            if (ids.length > 50) {
+                toast.error('This batch has more than 50 orders — refund in smaller batches or use the main Fulfillment page.')
+                return
+            }
+            if (!confirm(`Refund ${ids.length} order(s) in this batch? Already-completed or already-refunded orders are skipped automatically.`)) return
+
+            setIsUpdating(true)
+            try {
+                const response = await fetch('/api/admin/orders/bulk-refund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderIds: ids, mechanism: 'owner_wallet', confirmProcessing: true }),
+                })
+                const data = await response.json()
+                if (!response.ok || !data.success) throw new Error(data.error || 'Batch refund failed')
+                const s = data.data?.summary ?? { ok: 0, skipped: 0, failed: 0 }
+                toast.success(`Refunded ${s.ok} · skipped ${s.skipped} · failed ${s.failed}`)
+                setBatchOrders(prev => Array.isArray(prev) ? prev.map(o => ({ ...o, status: 'refunded', payment_status: 'refunded' })) : [])
+                fetchBatches(0, true)
+            } catch (error: any) {
+                toast.error(error.message || 'Batch refund failed')
+            } finally {
+                setIsUpdating(false)
+            }
+        }
+
+        const onDeleteFailedOrders = async () => {
+            const failedCount = batchOrders.filter(o => o.status === 'failed').length
+
+            if (failedCount === 0) {
+                toast.error('No failed orders to delete in this batch')
+                return
+            }
+
+            if (!confirm(`Delete ${failedCount} failed order(s)? This will permanently remove them from the system and cannot be undone.`)) return
+
+            setIsUpdating(true)
+            try {
+                const response = await fetch('/api/admin/orders/delete-failed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batchId: batch.id })
+                })
+
+                const result = await response.json()
+                if (!response.ok) throw new Error(result.error || 'Failed to delete')
+
+                toast.success(result.message || 'Failed orders deleted')
+                fetchOrders() // Refresh available orders
+                fetchBatches(0, true) // Refresh batches list
+            } catch (error: any) {
+                toast.error(error.message || 'Failed to delete failed orders')
+            } finally {
+                setIsUpdating(false)
+            }
+        }
+
+        const displayNetwork = useMemo(() => {
+            if (batch.network !== 'Multiple') return batch.network
+            if (batchOrders.length === 0) return 'Multiple'
+            const uniqueNets = Array.from(new Set(batchOrders.map(o => o.network?.toString().trim()).filter(Boolean)))
+            return uniqueNets.length === 1 ? uniqueNets[0] : 'Multiple'
+        }, [batch.network, batchOrders])
+
+        return (
+            <Card className="relative overflow-hidden border border-border flex flex-col h-auto min-h-[300px] max-h-[600px] bg-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 flex-shrink-0">
+                    <div className="flex flex-col overflow-hidden">
+                        <CardTitle className="text-sm font-medium truncate" title={batch.filename}>
+                            {batch.filename}
+                        </CardTitle>
+                        <div className="flex gap-2 mt-1">
+                            <Badge variant="outline" className="w-fit">{displayNetwork}</Badge>
+                            {batch.filename.includes('ghdata_') && !batch.filename.includes('ghdata_orders_') && (
+                                <Badge variant="secondary" className="w-fit text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200">
+                                    Only {batch.filename.split('_')[1]}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+                    <FileText className="w-8 h-8 text-blue-100 dark:text-blue-900 flex-shrink-0" />
+                </CardHeader>
+
+                <CardContent className="flex-1 overflow-hidden flex flex-col py-2">
+                    <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                        <span className="text-xs text-muted-foreground">{formatDate(batch.created_at)}</span>
+                        <span className="text-sm font-bold text-blue-600">{batch.order_count} orders</span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto border rounded-md bg-muted/5 p-2 space-y-2">
+                        {!hasLoaded && !isLoadingOrders ? (
+                            <div className="h-full flex items-center justify-center min-h-[100px]">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={loadBatchOrders}
+                                    className="text-blue-600 hover:text-blue-700 font-bold"
+                                >
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Click to View {batch.order_count} Orders
+                                </Button>
+                            </div>
+                        ) : isLoadingOrders ? (
+                            <div className="h-full flex items-center justify-center min-h-[100px]">
+                                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : hasLoaded && batchOrders.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-xs text-muted-foreground py-10">
+                                No orders found
+                            </div>
+                        ) : (
+                            Array.isArray(batchOrders) && batchOrders.map(order => (
+                                <div key={order.id} className="text-xs p-2 bg-background rounded border flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1">
+                                            <span className="font-bold text-[10px]">{order.users?.first_name} {order.users?.last_name}</span>
+                                            {order.shop_name && (
+                                                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                                    Shop: {order.shop_name}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <span className="font-mono text-xs">{order.phone_number}</span>
+                                        <span className="text-[10px] text-muted-foreground">{order.network} {order.size}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {getStatusBadge(order)}
+                                        {order.payment_status === 'refunded' && order.status !== 'failed' && order.status !== 'refunded' ? (
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500">
+                                                No actions
+                                            </Badge>
+                                        ) : (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 p-0 hover:bg-muted">
+                                                        <MoreVertical className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    {order.payment_status !== 'refunded' && (
+                                                        <>
+                                                            {order.status !== 'processing' && (
+                                                                <DropdownMenuItem onClick={async () => {
+                                                                    await handleUpdateStatus(order.id, 'processing')
+                                                                    // Update local state
+                                                                    setBatchOrders(prev => Array.isArray(prev) ? prev.map(o => o.id === order.id ? { ...o, status: 'processing' } : o) : [])
+                                                                }}>
+                                                                    <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                                                                    Mark as Processing
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            {order.status !== 'failed' && (
+                                                                <DropdownMenuItem onClick={async () => {
+                                                                    await handleUpdateStatus(order.id, 'failed')
+                                                                    // Update local state
+                                                                    setBatchOrders(prev => Array.isArray(prev) ? prev.map(o => o.id === order.id ? { ...o, status: 'failed' } : o) : [])
+                                                                }}>
+                                                                    <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                                                                    Mark as Failed
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            {order.status !== 'completed' && (
+                                                                <DropdownMenuItem onClick={async () => {
+                                                                    await handleUpdateStatus(order.id, 'completed')
+                                                                    // Update local state
+                                                                    setBatchOrders(prev => Array.isArray(prev) ? prev.map(o => o.id === order.id ? { ...o, status: 'completed' } : o) : [])
+                                                                }}>
+                                                                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
+                                                                    Mark as Completed
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                            <DropdownMenuItem onClick={() => handleRefund(order)}>
+                                                                <RefreshCw className="w-4 h-4 mr-2 text-amber-500" />
+                                                                Refund Order
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                    {(order.status === 'failed' || order.status === 'refunded') && (
+                                                        <DropdownMenuItem onClick={() => handleRetry(order)}>
+                                                            <RefreshCw className="w-4 h-4 mr-2 text-blue-500" />
+                                                            Retry Order
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </CardContent>
+
+                <CardFooter className="p-4 pt-2 border-t flex-shrink-0 gap-2">
+                    <Button
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                        onClick={() => onUpdateBatchStatus('completed')}
+                        disabled={isUpdating}
+                    >
+                        {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                        Mark All Completed
+                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-9 w-9">
+                                <MoreVertical className="w-4 h-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onUpdateBatchStatus('processing')}>
+                                <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                                Mark All Processing
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onUpdateBatchStatus('failed')}>
+                                <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                                Mark All Failed
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => reDownloadBatch(batch)}>
+                                <Download className="w-4 h-4 mr-2" />
+                                Re-download
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={onRefundBatch} className="text-amber-600 focus:text-amber-700 focus:bg-amber-50">
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Refund Batch
+                            </DropdownMenuItem>
+                            <div className="h-px bg-border my-1" />
+                            <DropdownMenuItem
+                                onClick={onDeleteFailedOrders}
+                                className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Failed Orders
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </CardFooter>
+            </Card>
+        )
+    }
+
+    const filteredOrders = useMemo(() => {
+        return orders.filter(order => {
+            const matchesSearch =
+                !debouncedSearch ||
+                order.phone_number?.includes(debouncedSearch) ||
+                order.users?.email?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                order.users?.first_name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                order.users?.last_name?.toLowerCase().includes(debouncedSearch.toLowerCase())
+
+            const matchesNetwork = availableNetworkFilter === 'all' || order.network === availableNetworkFilter
+
+            return matchesSearch && matchesNetwork
+        })
+    }, [orders, debouncedSearch, availableNetworkFilter])
+
+    const filteredBatches = useMemo(() => {
+        // Most filtering now happens on server.
+        // We keep this to ensure we always have an array even during loading.
+        return batches || []
+    }, [batches])
+
+    const getStatusBadge = (order: any) => {
+        const status = order?.status
+        const styles: Record<string, string> = {
+            pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+            queued: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+            processing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            refunded: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+        }
+        // Simplified badge for the small list view
+        const retryTag = getRetryTag(order)
+        return (
+            <span className="inline-flex items-center gap-1 flex-wrap">
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${styles[status] || styles.pending}`}>
+                    {status === 'in_review' ? 'Review' : status}
+                </span>
+                {shouldShowRefundOverlay(order) && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${REFUND_OVERLAY_BADGE_CLASS}`}>
+                        Refunded
+                    </span>
+                )}
+                {retryTag && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${retryTag.badge}`}>
+                        {retryTag.label}
+                    </span>
+                )}
+            </span>
+        )
+    }
+
+    // Async Paystack refund state (order status is NOT changed until a refund actually processes).
+    // refund_method lives on the linked shop_orders row (nested in the API payload).
+    const refundStateChip = (order: any) => {
+        const rm = order?.shop_orders?.refund_method ?? order?.refund_method
+        if (order?.status === 'refunded' || !rm) return null
+        const map: Record<string, { label: string; cls: string }> = {
+            paystack: { label: 'Refund pending', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+            paystack_attention: { label: 'Refund: needs attention', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+            paystack_failed: { label: 'Refund failed', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+        }
+        const s = map[rm]
+        if (!s) return null
+        return <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${s.cls}`}>{s.label}</span>
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col items-center gap-4 text-center">
+                <div>
+                    <h1 className="text-2xl font-bold">Orders Management</h1>
+                    <p className="text-muted-foreground">View and manage all customer orders</p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                        onClick={handleExportExcel}
+                        variant="default"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+                        disabled={isDownloading}
+                    >
+                        {isDownloading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Exporting...
+                            </>
+                        ) : (
+                            <>
+                                <Download className="w-4 h-4 mr-2" />
+                                Export to Excel
+                            </>
+                        )}
+                    </Button>
+                    <Button
+                        onClick={() => { fetchOrders(); fetchBatches(0, true); }}
+                        variant="outline"
+                        disabled={loading}
+                        className="transition-all duration-150 active:scale-95 hover:bg-primary/10 active:bg-primary/20 disabled:opacity-70"
+                    >
+                        <RefreshCw className={`w-4 h-4 mr-2 transition-transform ${loading ? 'animate-spin' : 'group-active:rotate-180'}`} />
+                        {loading ? 'Refreshing...' : 'Refresh'}
+                    </Button>
+                </div>
+            </div>
+
+            <Tabs defaultValue="available" value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                    <TabsTrigger value="available">Available ({orders.length})</TabsTrigger>
+                    <TabsTrigger value="downloaded">Downloaded History ({batchTotalCount})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="available" className="space-y-4">
+                    <Card className="border-none shadow-none bg-transparent">
+                        <CardHeader className="px-0 pt-0">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <Input
+                                        id="order-search"
+                                        name="order-search"
+                                        placeholder="Search orders..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-9 bg-secondary/50 border-0 focus-visible:ring-1 focus-visible:ring-purple-500 transition-all rounded-xl"
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {['All', 'MTN', 'Telecel', 'AT-iShare', 'AT-BigTime'].map((network) => (
+                                        <Button
+                                            key={network}
+                                            variant={availableNetworkFilter === (network === 'All' ? 'all' : network) ? 'default' : 'outline'}
+                                            size="sm"
+                                            onClick={() => setAvailableNetworkFilter(network === 'All' ? 'all' : network)}
+                                            className={`transition-all duration-150 active:scale-95 ${availableNetworkFilter === (network === 'All' ? 'all' : network)
+                                                ? network === 'MTN'
+                                                    ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                                    : network === 'Telecel'
+                                                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                                                        : network === 'AT-iShare' || network === 'AT-BigTime'
+                                                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                            : 'bg-primary text-primary-foreground'
+                                                : 'hover:bg-muted'
+                                                }`}
+                                        >
+                                            {network === 'AT-BigTime' ? 'BigTime' : network}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        </CardHeader>
+                    </Card>
+
+                    {filteredOrders.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-12 bg-muted/20 rounded-lg border border-dashed">
+                            <Package className="w-12 h-12 text-muted-foreground/50 mb-4" />
+                            <p className="text-muted-foreground text-center">No orders found matching your criteria.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {Array.isArray(filteredOrders) && filteredOrders.map((order) => (
+                                <Card key={order.id} className="relative overflow-hidden border shadow-sm lg:hover:shadow-md transition-all duration-200">
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <div className="font-mono text-sm text-muted-foreground">
+                                            {order.reference_code}
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            {refundStateChip(order)}
+                                            {getStatusBadge(order)}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4 pt-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                                                <User className="w-4 h-4 text-slate-500" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <p className="text-sm font-semibold">{order.users?.first_name} {order.users?.last_name}</p>
+                                                    {order.shop_name && (
+                                                        <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+                                                            Shop: {order.shop_name}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">{order.users?.email}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                                                <Phone className="w-3 h-3 text-muted-foreground" />
+                                                <span className="font-mono text-xs">{order.phone_number}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                                                <Package className="w-3 h-3 text-muted-foreground" />
+                                                <span className="text-xs font-medium">{order.network} {order.size}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t">
+                                            <p className="text-sm text-muted-foreground">Price</p>
+                                            <p className="font-bold text-lg">{formatCurrency(order.price)}</p>
+                                        </div>
+
+                                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <Clock className="w-3 h-3" />
+                                            {formatDate(order.created_at)}
+                                        </div>
+                                    </CardContent>
+
+                                    <CardFooter className="bg-muted/10 p-4 pt-0 mt-4 flex justify-between items-center border-t border-muted/20">
+                                        <div className="w-full pt-4">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="outline" className="w-full">
+                                                        Actions <ChevronDown className="w-4 h-4 ml-2" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Manage Order</DropdownMenuLabel>
+                                                    {order.status !== 'completed' && (
+                                                        <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'completed')}>
+                                                            <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
+                                                            Mark as Completed
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {order.status !== 'failed' && (
+                                                        <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'failed')}>
+                                                            <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                                                            Mark as Failed
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {order.status !== 'processing' && (
+                                                        <DropdownMenuItem onClick={() => handleUpdateStatus(order.id, 'processing')}>
+                                                            <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                                                            Mark as Processing
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {order.payment_status !== 'refunded' && (
+                                                        <DropdownMenuItem onClick={() => handleRefund(order)}>
+                                                            <RefreshCw className="w-4 h-4 mr-2 text-amber-500" />
+                                                            Refund Order
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {(order.status === 'failed' || order.status === 'refunded') && (
+                                                        <DropdownMenuItem onClick={() => handleRetry(order)}>
+                                                            <RefreshCw className="w-4 h-4 mr-2 text-blue-500" />
+                                                            Retry Order
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="downloaded" className="space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4 justify-between">
+                        <div className="relative flex-1 max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                                id="batch-search-history"
+                                name="batch-search-history"
+                                placeholder="Search batches by phone, ref..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 bg-secondary/50 border-0 focus-visible:ring-1 focus-visible:ring-purple-500 transition-all rounded-xl"
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                            {['All', 'MTN', 'Telecel', 'AT-iShare', 'AT-BigTime'].map((network) => (
+                                <Button
+                                    key={network}
+                                    id={`network-filter-${network.toLowerCase()}`}
+                                    name={`network-filter-${network.toLowerCase()}`}
+                                    variant={historyNetworkFilter === (network === 'All' ? 'all' : network) ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setHistoryNetworkFilter(network === 'All' ? 'all' : network)}
+                                    className={`transition-all duration-150 active:scale-95 text-[10px] h-8 ${historyNetworkFilter === (network === 'All' ? 'all' : network)
+                                        ? network === 'MTN'
+                                            ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                            : network === 'Telecel'
+                                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                                : network === 'AT-iShare' || network === 'AT-BigTime'
+                                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                    : 'bg-primary text-primary-foreground'
+                                        : 'hover:bg-muted'
+                                        }`}
+                                >
+                                    {network === 'AT-BigTime' ? 'BigTime' : network}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between gap-4 items-center">
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-background border-dashed"
+                                onClick={() => handleDownloadAllFiltered('standard')}
+                                disabled={filteredBatches.length === 0}
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download ({batchTotalCount})
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+                                onClick={() => handleDownloadAllFiltered('cost')}
+                                disabled={filteredBatches.length === 0}
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Cost
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800"
+                                onClick={() => handleDownloadAllFiltered('sales')}
+                                disabled={filteredBatches.length === 0}
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Sales
+                            </Button>
+                        </div>
+                        <div className="flex items-center space-x-1 bg-muted/50 p-1 rounded-lg">
+                            {['today', 'yesterday', 'all'].map((filter) => (
+                                <button
+                                    key={filter}
+                                    onClick={() => setHistoryFilter(filter)}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${historyFilter === filter
+                                        ? 'bg-background shadow text-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                >
+                                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setIsCustomDialogOpen(true)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${historyFilter === 'custom'
+                                    ? 'bg-background shadow text-foreground'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                            >
+                                {historyFilter === 'custom' && customStart && customEnd
+                                    ? `${new Date(customStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${new Date(customEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                                    : 'Custom'}
+                            </button>
+                        </div>
+                    </div>
+                    {filteredBatches.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-12 bg-muted/20 rounded-lg border border-dashed">
+                            <Download className="w-12 h-12 text-muted-foreground/50 mb-4" />
+                            <p className="text-muted-foreground text-center">No download history found.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {Array.isArray(batches) && batches.map((batch) => (
+                                    <BatchCard key={batch.id} batch={batch} onRefund={handleRefund} onFail={handleUpdateStatus} />
+                                ))}
+                            </div>
+
+                            {hasMoreBatches && (
+                                <div className="flex justify-center py-8">
+                                    <Button
+                                        onClick={loadMoreBatches}
+                                        disabled={loading}
+                                        variant="outline"
+                                        className="min-w-[200px] rounded-xl"
+                                    >
+                                        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                        Load More Batches ({batches.length} of {batchTotalCount})
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </TabsContent>
+            </Tabs>
+
+            <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
+                <DialogContent className="sm:max-w-sm" aria-describedby="date-range-description">
+                    <DialogHeader>
+                        <DialogTitle>Select Date Range</DialogTitle>
+                        <DialogDescription id="date-range-description">
+                            Choose a start and end date to filter history.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="start">Start Date</Label>
+                            <Input
+                                id="start-date"
+                                name="start-date"
+                                type="date"
+                                value={customStart}
+                                onChange={(e) => setCustomStart(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="end">End Date</Label>
+                            <Input
+                                id="end-date"
+                                name="end-date"
+                                type="date"
+                                value={customEnd}
+                                onChange={(e) => setCustomEnd(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCustomDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => {
+                            if (customStart && customEnd) {
+                                setHistoryFilter('custom')
+                                setIsCustomDialogOpen(false)
+                            } else {
+                                toast.error('Please select both dates')
+                            }
+                        }}>Apply Filter</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Refund dialog — controlled, iOS-PWA safe (no native confirm) */}
+            <Dialog open={!!refundOrder} onOpenChange={(o) => { if (!o && !refundBusy) { setRefundOrder(null); setRefundReason('') } }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Refund order</DialogTitle>
+                        <DialogDescription>
+                            {refundOrder?.reference_code ? `Ref ${refundOrder.reference_code} · ` : ''}GHS {Number(refundOrder?.price ?? 0).toFixed(2)}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        {refundOrder?.status === 'processing' && (
+                            <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2.5">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>This order is <b>processing</b> — the supplier may already have delivered it. Refunding now risks paying out on a delivered order.</span>
+                            </div>
+                        )}
+                        {refundOrder?.shop_order_id ? (
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Refund method</label>
+                                <Select value={refundMechanism} onValueChange={(v) => setRefundMechanism(v as 'owner_wallet' | 'paystack')}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="owner_wallet">Credit cost to shop owner&apos;s wallet (keep profit)</SelectItem>
+                                        <SelectItem value="paystack">Refund guest via Paystack (reverse profit)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">The buyer&apos;s wallet will be credited GHS {Number(refundOrder?.price ?? 0).toFixed(2)}.</p>
+                        )}
+                        <textarea
+                            value={refundReason}
+                            onChange={(e) => setRefundReason(e.target.value)}
+                            placeholder="Reason (optional)…"
+                            rows={2}
+                            className="w-full text-sm rounded-md border border-input bg-background px-2.5 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => { setRefundOrder(null); setRefundReason('') }} disabled={refundBusy}>Cancel</Button>
+                        <Button variant="destructive" onClick={submitRefund} disabled={refundBusy}>
+                            {refundBusy ? 'Processing…' : 'Confirm refund'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Retry dialog — controlled, iOS-PWA safe (no native confirm) */}
+            <Dialog open={!!retryTarget} onOpenChange={(o) => { if (!o && !retryBusy) setRetryTarget(null) }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Retry order</DialogTitle>
+                        <DialogDescription>
+                            {retryTarget?.reference_code ? `Ref ${retryTarget.reference_code} · ` : ''}Status: {retryTarget?.status}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        {retryTarget?.status === 'refunded' ? (
+                            <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2.5">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>This order was refunded — retrying will charge <b>today&apos;s price</b> to the {retryTarget?.shop_order_id ? "shop owner's" : "buyer's"} wallet. The exact amount charged will be confirmed after the retry succeeds.</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-2.5">
+                                <RefreshCw className="w-4 h-4 mt-0.5 shrink-0" />
+                                <span>This order failed and was never refunded — retrying re-dispatches it at no charge.</span>
+                            </div>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                            Retry attempts used: <b>{retryTarget?.retry_count ?? 0} / 3</b>
+                            {(retryTarget?.retry_count ?? 0) >= 3 ? ' — further retries are locked for 24h after the last attempt.' : ''}
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setRetryTarget(null)} disabled={retryBusy}>Cancel</Button>
+                        <Button onClick={submitRetry} disabled={retryBusy}>
+                            {retryBusy ? 'Retrying…' : 'Confirm retry'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
+}

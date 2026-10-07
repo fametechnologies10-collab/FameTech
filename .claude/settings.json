@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(claude plugin list)"
+    ]
+  }
+}

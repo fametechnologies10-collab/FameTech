@@ -1,0 +1,51 @@
+-- supabase/migrations/20260914b_subagent_upline_shop_optional.sql
+-- =============================================================================
+-- Plan 3 Task 4 — recruiter-created sub-agents
+-- (docs/superpowers/specs/2026-09-14-subagent-auth-design.md, C1/C2).
+--
+-- The ORIGINAL sub_agents schema (20260701_sub_agents.sql) requires
+-- upline_shop_id NOT NULL — every sub was tied to a Lead's STOREFRONT, because
+-- the retired chain-split invite model recruited through a shop invite link
+-- (shop_invites.shop_id -> sub_agents.upline_shop_id).
+--
+-- Plan 3's recruiter model recruits from the MAIN dashboard: any agent/dealer
+-- can recruit a sub-agent directly by name/email/phone, whether or not they
+-- own a shop_profile at all (shop_profiles.owner_id is opt-in — see
+-- supabase/shop_schema.sql, `owner_id UUID ... UNIQUE NOT NULL` on
+-- shop_profiles itself, not on every agent/dealer user). Task 4's creation
+-- route (app/api/dashboard/subagents/route.ts, via lib/sub-agent-create.ts)
+-- resolves the recruiter relationship entirely through upline_user_id (added
+-- in 20260907_sub_agent_account_edge.sql) and never has a shop_id to supply.
+-- Without this migration, the inherited NOT NULL constraint on
+-- upline_shop_id would hard-block every direct-recruit creation by a
+-- shop-less recruiter with a NOT NULL violation.
+--
+-- Relaxing it to nullable is the minimum fix: upline_shop_id remains fully
+-- populated and load-bearing for every pre-existing invite-based row and
+-- every RPC/RLS policy that still reads it (sub_agents_lead_read,
+-- shop_wallet_tx_lead_read, credit_lead_margin, etc.) — this migration does
+-- not touch any of those, it only removes the constraint that would reject a
+-- NULL for the new creation path.
+--
+-- KNOWN GAP (not fixed here, out of scope for Task 4): the "sub_agents_lead_read"
+-- RLS policy (20260701_sub_agents.sql) still keys exclusively off
+-- upline_shop_id, so a shop-less recruiter's downline rows are invisible
+-- through RLS. This is not a live vulnerability today: the only reader of a
+-- recruiter's downline built in this plan (GET /api/dashboard/subagents) uses
+-- the service-role client with an explicit upline_user_id = caller filter,
+-- never relying on RLS for that read. A future task should add a
+-- complementary upline_user_id-keyed read policy for defense-in-depth if a
+-- client-side (RLS-scoped) read of this table is ever introduced.
+-- =============================================================================
+
+ALTER TABLE public.sub_agents
+  ALTER COLUMN upline_shop_id DROP NOT NULL;
+
+-- =============================================================================
+-- Apply notes (Manual Action — DO NOT apply until all Plan 3 tasks are done
+-- and the user has given explicit approval to merge/apply, same as
+-- 20260914_subagent_auth.sql):
+--   1. Apply to a Supabase BRANCH first (never prod directly).
+--   2. Run get_advisors — expect zero new RLS/security warnings.
+--   3. Regenerate types/supabase.ts.
+-- =============================================================================

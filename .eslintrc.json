@@ -1,0 +1,41 @@
+{
+  "root": true,
+  "extends": [
+    "next/core-web-vitals"
+  ],
+  "rules": {
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": "off",
+    "@next/next/no-img-element": "off"
+  },
+  "overrides": [
+    {
+      "files": ["app/api/v2/**/*.ts", "app/api/v2/**/*.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/supabase-server",
+                "importNames": ["createRouteClient", "createServerComponentClient"],
+                "message": "v2 developer-API routes must authenticate by API key via validateApiKey() from '@/lib/api-auth', never by cookie/session. middleware.ts skips Supabase session creation for /api/v2/* AND serves open CORS (Access-Control-Allow-Origin: *), so a cookie-authed v2 route would be a CSRF hole. See .claude/skills/kingflexy-developer-api/SKILL.md."
+              },
+              {
+                "name": "next/headers",
+                "importNames": ["cookies"],
+                "message": "v2 developer-API routes must not read cookies — they authenticate by API key via validateApiKey() from '@/lib/api-auth'. See .claude/skills/kingflexy-developer-api/SKILL.md."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["**/lib/supabase-server", "**/lib/supabase-server.ts", "**/supabase-server"],
+                "message": "v2 developer-API routes must authenticate by API key via validateApiKey() from '@/lib/api-auth', never by cookie/session — relative-path imports of supabase-server are blocked for the same reason as the aliased path. See .claude/skills/kingflexy-developer-api/SKILL.md."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

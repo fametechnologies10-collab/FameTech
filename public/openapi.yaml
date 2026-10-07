@@ -1,0 +1,1402 @@
+openapi: 3.0.3
+info:
+  title: KiNG FLEXY GH Developer API
+  version: "2.0.0"
+  description: |
+    The public developer API for KiNG FLEXY GH — Ghana digital services
+    (MTN/Telecel/AirtelTigo data bundles, airtime, results-checker vouchers,
+    MTN AFA registration, utility bill payments, and SMS).
+
+    **v2 is the only live API** — v1 was fully ported and then retired
+    (owner decision, 2026-08-31; all developers were notified and confirmed
+    before the cutover). Every endpoint below lives under `/api/v2`.
+
+    ### Response envelope
+    Every endpoint returns one of two shapes:
+    - Success: `{ "success": true, "data": { ... }, "meta": { "timestamp": "...", "version": "v2" } }`
+    - Error: `{ "success": false, "error": { "code": 400, "message": "..." } }`
+
+    ### Ghana only
+    This platform serves Ghanaian mobile networks and services exclusively
+    (MTN, Telecel, AirtelTigo). There is no coverage outside Ghana.
+
+    ### Network number validation
+    We validate a recipient/beneficiary number's network from its prefix
+    before submitting an order. As of this writing:
+    - **MTN**: 024, 025, 053, 054, 055, 059
+    - **Telecel**: 020, 050
+    - **AirtelTigo**: 026, 027, 056, 057
+
+    These prefix-to-network mappings are **not guaranteed to stay fixed** —
+    Ghanaian operators occasionally get reassigned or new ranges opened by
+    the regulator. Don't hardcode this list into your own client-side
+    validation as a permanent source of truth; treat our API's response as
+    the final word on whether a number/network pairing is accepted, and
+    re-check this document periodically for changes.
+
+    ### Idempotency
+    Every money-moving endpoint accepts a `reference` you choose. Repeating
+    the exact same request with the same reference returns the original
+    order instead of charging again. Reusing a reference against a
+    *different* request body returns `409 Conflict` and your wallet is
+    never touched twice — this is enforced by a global unique constraint,
+    not merely a per-account one, so pick references unlikely to collide
+    with another developer's.
+  contact:
+    name: KiNG FLEXY GH
+    url: https://kingflexygh.com/developers
+
+servers:
+  - url: https://api.kingflexygh.com/api/v2
+    description: Production (only environment — there is no staging/sandbox base URL)
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Account
+    description: Check your own role and expiry status.
+  - name: Data
+    description: Browse packages and purchase MTN/Telecel/AirtelTigo data bundles. Standard key.
+  - name: Wallet
+    description: Check your GHS wallet balance. Standard key.
+  - name: Orders
+    description: Poll the fulfillment status of a data order by reference. Standard key.
+  - name: Airtime
+    description: Top up airtime and track airtime orders at face value, earning a share of our provider's real commission if you're a lifetime agent/dealer. Requires a dedicated Commission Services key.
+  - name: Results Checker
+    description: Sell WAEC/BECE/WASSCE results checker vouchers. Standard key.
+  - name: AFA Registration
+    description: Register an MTN AFA (Authorized Field Agent) — a permanent registration — on behalf of a customer. Standard key.
+  - name: SMS
+    description: Send bulk/transactional SMS and track delivery. Requires a dedicated SMS-type key.
+  - name: Utility Bills (Commission)
+    description: Pay ECG, Ghana Water, DSTV, GOtv, or StarTimes bills and earn commission. Requires a dedicated Commission Services key.
+
+paths:
+  /account/role:
+    get:
+      tags: [Account]
+      operationId: getAccountRole
+      summary: Get your current role and expiry status
+      description: Returns your current role and, for a time-limited dealer/agent, how many days remain before it lapses.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          role: { type: string, example: dealer }
+                          is_active: { type: boolean }
+                          is_permanent: { type: boolean }
+                          expires_at: { type: string, format: date-time, nullable: true }
+                          days_remaining: { type: integer, nullable: true }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /packages:
+    get:
+      tags: [Data]
+      operationId: listPackages
+      summary: List available data packages
+      description: List available data packages with pricing for your account role. Call this first to discover valid network/size combinations before placing orders.
+      parameters:
+        - name: network
+          in: query
+          schema: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime] }
+          description: Case-sensitive network filter.
+        - name: size_gb
+          in: query
+          schema: { type: number }
+          description: Filter by exact GB size, e.g. 5.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          packages:
+                            type: array
+                            items: { $ref: '#/components/schemas/Package' }
+                          total: { type: integer }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /data/purchase:
+    post:
+      tags: [Data]
+      operationId: purchaseDataBundle
+      summary: Purchase a single data bundle
+      description: Purchase a single data bundle for a recipient phone number. Deducts from your wallet atomically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, volume_gb, recipient, reference]
+              properties:
+                network: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime] }
+                volume_gb: { type: number, example: 5 }
+                recipient: { type: string, example: "0551617309", description: "Ghana number, 0XXXXXXXXX" }
+                reference: { type: string, description: "Your idempotency key" }
+      responses:
+        "200":
+          description: Order placed (or idempotent replay of an existing one)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/DataOrder' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /data/bulk:
+    post:
+      tags: [Data]
+      operationId: purchaseDataBulk
+      summary: Purchase up to 100 data bundles in one batch
+      description: |
+        A validation failure (invalid network, package not found, out of
+        stock) rejects the whole batch and nothing is charged. The one
+        exception: an MTN recipient not yet whitelisted with our supplier is
+        skipped individually while the rest of the batch is placed and
+        charged normally (only applies when this optional gate is enabled
+        by an admin).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orders]
+              properties:
+                orders:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [network, volume_gb, recipient, reference]
+                    properties:
+                      network: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime] }
+                      volume_gb: { type: number }
+                      recipient: { type: string }
+                      reference: { type: string }
+      responses:
+        "200":
+          description: Batch placed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orders_placed: { type: integer }
+                          total_cost: { type: number }
+                          new_balance: { type: number }
+                          orders:
+                            type: array
+                            items: { $ref: '#/components/schemas/DataOrder' }
+                          skipped:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                recipient: { type: string }
+                                reason: { type: string }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /data/verify-number:
+    post:
+      tags: [Data]
+      operationId: verifyNumberWhitelist
+      summary: Check a number against Server 1 and Server 2 combined
+      description: |
+        **Server 1 and Server 2 combined:** `allowed: true` when the number
+        is registered on Server 1 or Server 2. Use it as your checkout gate
+        **only when the platform has announced that both servers are
+        accepted** — if only one server is accepted, check that server's
+        endpoint instead. Recommended, not required.
+
+        This endpoint does **not** tell you which server holds the number.
+        For the actual registration state, use
+        `/data/verify-number/server-1` and `/data/verify-number/server-2`.
+
+        The combined result follows the server(s) the platform currently
+        accepts orders on, so it equals "Server 1 or Server 2" only while
+        both are accepted. Watch platform announcements.
+
+        Non-MTN networks always return `allowed: true` immediately (no-op).
+        A number that isn't registered yet is automatically submitted for
+        registration; check again soon. `/data/purchase` independently
+        re-verifies at order time. On an upstream verification outage this
+        endpoint fails open (`allowed: true`) rather than wrongly telling
+        you a real customer is blocked — treat a `true` here as "likely
+        fine to proceed", not as a guarantee the subsequent purchase will
+        succeed.
+
+        Rate limit: 20/min per API key, shared across all three
+        verify-number endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, recipient]
+              properties:
+                network: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime], example: MTN }
+                recipient: { type: string, example: "0551617309", description: "Ghana number, 0XXXXXXXXX" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          recipient: { type: string, example: "0551617309" }
+                          network: { type: string, example: MTN }
+                          allowed: { type: boolean }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /data/verify-number/server-1:
+    post:
+      tags: [Data]
+      operationId: verifyNumberServer1
+      summary: Check whether an MTN number is registered on Server 1
+      description: |
+        **The actual registration state on Server 1** — `allowed` tells you
+        whether this number is registered on Server 1 specifically. Use this
+        endpoint to know which server a number is registered on. A number
+        can be registered on one server and not the other. If only Server 1
+        is currently accepted, use it as your checkout gate.
+
+        Which server(s) the platform currently accepts orders on can change
+        — check platform announcements or ask support.
+
+        A number that isn't registered on Server 1 is automatically
+        submitted for registration; check again soon. Unlike
+        `/data/verify-number`, this endpoint does not fail open: if Server 1
+        can't be reached it returns `502` rather than a guess. Non-MTN
+        networks return `allowed: true` immediately.
+
+        Rate limit: 20/min per API key, shared across all three
+        verify-number endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, recipient]
+              properties:
+                network: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime], example: MTN }
+                recipient: { type: string, example: "0551617309", description: "Ghana number, 0XXXXXXXXX" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          recipient: { type: string, example: "0551617309" }
+                          network: { type: string, example: MTN }
+                          server: { type: integer, enum: [1] }
+                          allowed: { type: boolean }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "502":
+          description: Server 1 could not check this number right now — retry shortly
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+
+  /data/verify-number/server-2:
+    post:
+      tags: [Data]
+      operationId: verifyNumberServer2
+      summary: Check whether an MTN number is registered on Server 2
+      description: |
+        **The actual registration state on Server 2** — `allowed` tells you
+        whether this number is registered on Server 2 specifically. Use this
+        endpoint to know which server a number is registered on. A number
+        can be registered on one server and not the other. If only Server 2
+        is currently accepted, use it as your checkout gate.
+
+        Which server(s) the platform currently accepts orders on can change
+        — check platform announcements or ask support.
+
+        A number that isn't registered on Server 2 is automatically
+        submitted for registration; check again soon. Unlike
+        `/data/verify-number`, this endpoint does not fail open: if Server 2
+        can't be reached it returns `502` rather than a guess. Non-MTN
+        networks return `allowed: true` immediately.
+
+        Rate limit: 20/min per API key, shared across all three
+        verify-number endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, recipient]
+              properties:
+                network: { type: string, enum: [MTN, Telecel, AT-iShare, AT-BigTime], example: MTN }
+                recipient: { type: string, example: "0551617309", description: "Ghana number, 0XXXXXXXXX" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          recipient: { type: string, example: "0551617309" }
+                          network: { type: string, example: MTN }
+                          server: { type: integer, enum: [2] }
+                          allowed: { type: boolean }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "502":
+          description: Server 2 could not check this number right now — retry shortly
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+
+  /wallet/balance:
+    get:
+      tags: [Wallet]
+      operationId: getWalletBalance
+      summary: Get your wallet balance
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          balance: { type: number }
+                          currency: { type: string, example: GHS }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /wallet/topup:
+    post:
+      tags: [Wallet]
+      operationId: walletTopupRemoved
+      summary: "Removed — tombstone endpoint"
+      description: |
+        MoMo wallet top-up via the API was discontinued. This route is kept
+        as a permanent 410 tombstone (not a 404) so a developer who ported
+        their base URL from v1 gets an actionable error instead of "you
+        typed the URL wrong". Top up via the web dashboard instead.
+      responses:
+        "410":
+          description: Gone
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+
+  /orders/{reference}:
+    get:
+      tags: [Orders]
+      operationId: getDataOrderStatus
+      summary: Check a data order's fulfillment status
+      parameters:
+        - $ref: '#/components/parameters/ReferencePath'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/DataOrder' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /airtime/purchase:
+    post:
+      tags: [Airtime]
+      operationId: purchaseAirtime
+      summary: Top up airtime
+      description: |
+        Top up airtime on MTN, Telecel, or AT at face value — no fee is
+        charged, unlike the dashboard/shop airtime products. If you're a
+        lifetime agent or dealer, a share of our provider's real commission on
+        this top-up is credited to your Commission Wallet
+        (`/dashboard/commission`); other roles can still purchase fee-free
+        but earn nothing. Auto-dispatches in the background; poll
+        GET /airtime/orders/{reference} for the final status.
+      security:
+        - CommissionApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [network, beneficiary_phone, amount, reference]
+              properties:
+                network: { type: string, enum: [MTN, Telecel, AT] }
+                beneficiary_phone: { type: string, example: "0551617309" }
+                amount: { type: number, example: 10, description: "What the beneficiary receives — you pay exactly this amount, no fee." }
+                reference: { type: string, minLength: 3, maxLength: 100 }
+      responses:
+        "200":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order_id: { type: string, format: uuid }
+                          reference: { type: string }
+                          status: { type: string, example: pending }
+                          network: { type: string }
+                          beneficiary_phone: { type: string }
+                          airtime_amount: { type: number }
+                          fee_amount: { type: number, description: "Always 0 on this endpoint." }
+                          total_paid: { type: number }
+                          new_balance: { type: number }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /airtime/orders:
+    get:
+      tags: [Airtime]
+      operationId: listAirtimeOrders
+      summary: List your recent airtime orders
+      description: Returns at most 30 records, newest first.
+      security:
+        - CommissionApiKeyAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orders:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                order_id: { type: string, format: uuid }
+                                reference: { type: string }
+                                status: { type: string }
+                                network: { type: string }
+                                airtime_amount: { type: number }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /airtime/orders/{reference}:
+    get:
+      tags: [Airtime]
+      operationId: getAirtimeOrderStatus
+      summary: Check one airtime order's status
+      description: "Status flow: pending → processing → completed | failed | refunded."
+      security:
+        - CommissionApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReferencePath'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order_id: { type: string, format: uuid }
+                          reference: { type: string }
+                          status: { type: string }
+                          network: { type: string }
+                          beneficiary_phone: { type: string }
+                          airtime_amount: { type: number }
+                          fee_amount: { type: number, description: "Always 0 on this product." }
+                          reason: { type: string, description: "Present only when status is refunded — a short, sanitized explanation of why the order failed and was auto-refunded (never raw provider text)." }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /resultschecker/types:
+    get:
+      tags: [Results Checker]
+      operationId: listResultsCheckerTypes
+      summary: List voucher types with your role-based price and stock
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          types:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                type_id: { type: string, format: uuid }
+                                name: { type: string, example: "WAEC BECE" }
+                                price: { type: number }
+                                available_count: { type: integer }
+                                is_active: { type: boolean }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /resultschecker/purchase:
+    post:
+      tags: [Results Checker]
+      operationId: purchaseResultsCheckerVouchers
+      summary: Buy voucher(s)
+      description: Stock is checked BEFORE your wallet is touched — insufficient stock is rejected upfront, never charged then refunded. Vouchers are returned directly in this response; there is no separate "retrieve voucher" call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [typeId, quantity, reference]
+              properties:
+                typeId: { type: string, format: uuid, description: "From GET /resultschecker/types" }
+                quantity: { type: integer, minimum: 1 }
+                reference: { type: string }
+                recipientPhone: { type: string, description: "Optional courtesy SMS delivery — no fallback if omitted" }
+                recipientEmail: { type: string, format: email, description: "Optional courtesy email delivery — no fallback if omitted" }
+      responses:
+        "200":
+          description: Purchased
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order: { $ref: '#/components/schemas/RcOrder' }
+                          vouchers:
+                            type: array
+                            items: { $ref: '#/components/schemas/RcVoucher' }
+                          new_balance: { type: number }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /resultschecker/orders:
+    get:
+      tags: [Results Checker]
+      operationId: listResultsCheckerOrders
+      summary: List your recent results checker orders
+      description: Returns at most 30 records, newest first.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orders:
+                            type: array
+                            items: { $ref: '#/components/schemas/RcOrder' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /resultschecker/orders/{reference}:
+    get:
+      tags: [Results Checker]
+      operationId: getResultsCheckerOrderStatus
+      summary: Look up one order, including its vouchers again
+      parameters:
+        - $ref: '#/components/parameters/ReferencePath'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order: { $ref: '#/components/schemas/RcOrder' }
+                          vouchers:
+                            type: array
+                            items: { $ref: '#/components/schemas/RcVoucher' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /afa/register:
+    post:
+      tags: [AFA Registration]
+      operationId: registerAfa
+      summary: Submit an MTN AFA (Authorized Field Agent) registration — permanent, no expiry
+      description: |
+        Requires a valid Ghana Card and a supported region. Carries Ghana
+        Card KYC data — send it only over HTTPS, which is all this API
+        accepts. `reference` is GLOBAL across every developer, not scoped to
+        your account — a reference already taken by anyone returns 409,
+        never a silent success.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference, full_name, phone, id_type, id_number, date_of_birth, region, location]
+              properties:
+                reference: { type: string, minLength: 3, maxLength: 100 }
+                full_name: { type: string, maxLength: 100 }
+                phone: { type: string, example: "0551617309" }
+                id_type: { type: string, enum: ["Ghana Card"] }
+                id_number: { type: string, pattern: '^GHA-\d{9}-\d$', example: "GHA-123456789-0" }
+                date_of_birth: { type: string, format: date, description: "Applicant must be 18 or older" }
+                region:
+                  type: string
+                  enum:
+                    - Greater Accra
+                    - Ashanti
+                    - Western
+                    - Eastern
+                    - Central
+                    - Northern
+                    - Volta
+                    - Upper East
+                    - Upper West
+                    - Bono
+                    - Bono East
+                    - Ahafo
+                    - Savannah
+                    - North East
+                    - Oti
+                    - Western North
+                location: { type: string, maxLength: 100 }
+                notes: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order_id: { type: string, format: uuid }
+                          reference: { type: string }
+                          status: { type: string, example: pending }
+                          new_balance: { type: number }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /afa/orders:
+    get:
+      tags: [AFA Registration]
+      operationId: listAfaOrders
+      summary: List your recent AFA registrations
+      description: Returns at most 30 records, newest first.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orders:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id: { type: string, format: uuid }
+                                reference: { type: string }
+                                status: { type: string }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /afa/orders/{reference}:
+    get:
+      tags: [AFA Registration]
+      operationId: getAfaOrderStatus
+      summary: Check one AFA registration's status
+      description: "Status lifecycle: pending → processing → completed | cancelled."
+      parameters:
+        - $ref: '#/components/parameters/ReferencePath'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string, format: uuid }
+                          reference: { type: string }
+                          status: { type: string, enum: [pending, processing, completed, cancelled] }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /sms/send:
+    post:
+      tags: [SMS]
+      operationId: sendSms
+      summary: Send an SMS to one or many recipients
+      description: |
+        Requires an SMS-type API key (`requireKeyType(auth, 'sms')`) — a
+        standard or commission key is rejected with 403. Small sends
+        (≤500 recipients) dispatch immediately; larger sends are queued and
+        processed within a minute.
+      security:
+        - SmsApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, recipients]
+              properties:
+                message: { type: string, minLength: 3, maxLength: 1000 }
+                recipients:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items: { type: string }
+                      maxItems: 10000
+                  description: "Ghana number(s), 0XXXXXXXXX or 233XXXXXXXXX. Duplicates removed automatically."
+                sender: { type: string, description: "Must be one of your approved sender IDs or a pool sender — see GET /sms/senders" }
+                reference: { type: string, maxLength: 100, description: "Optional idempotency key" }
+      responses:
+        "200":
+          description: Sent or queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          campaignId: { type: string, format: uuid }
+                          status: { type: string, example: completed }
+                          recipients: { type: integer }
+                          segments: { type: integer }
+                          creditsCharged: { type: integer }
+                          sender: { type: string }
+                          sent: { type: integer }
+                          failed: { type: integer }
+                          balance: { type: integer }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "402":
+          description: Insufficient SMS credits
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /sms/senders:
+    get:
+      tags: [SMS]
+      operationId: listSmsSenders
+      summary: List sender IDs this key may send under
+      security:
+        - SmsApiKeyAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          mode: { type: string, example: business }
+                          defaultSender: { type: string }
+                          senders:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                sender: { type: string }
+                                type: { type: string, enum: [own, pool] }
+                                isDefault: { type: boolean }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /sms/campaigns:
+    get:
+      tags: [SMS]
+      operationId: listSmsCampaigns
+      summary: List your recent SMS campaigns
+      security:
+        - SmsApiKeyAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: "30 per page."
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, processing, completed, failed, blocked] }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          page: { type: integer }
+                          campaigns:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id: { type: string, format: uuid }
+                                status: { type: string }
+                                recipients_count: { type: integer }
+                                segments: { type: integer }
+                                credits_charged: { type: integer }
+                                sender_used: { type: string }
+                                source: { type: string }
+                                scheduled_at: { type: string, format: date-time, nullable: true }
+                                created_at: { type: string, format: date-time }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /sms/messages/{id}:
+    get:
+      tags: [SMS]
+      operationId: getSmsCampaignStatus
+      summary: Delivery status for a campaign
+      description: Returns the campaign summary, a delivery rollup, and per-recipient statuses (100 per page).
+      security:
+        - SmsApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: The campaignId returned by POST /sms/send.
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, sent, delivered, undelivered, failed, expired, rejected] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          campaign:
+                            type: object
+                            properties:
+                              id: { type: string, format: uuid }
+                              sender_used: { type: string }
+                              recipients_count: { type: integer }
+                              segments: { type: integer }
+                              credits_charged: { type: integer }
+                              status: { type: string }
+                              created_at: { type: string, format: date-time }
+                          delivery:
+                            type: object
+                            additionalProperties: { type: integer }
+                            description: "Per-status count rollup over the WHOLE campaign, uncapped."
+                          messages:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                recipient: { type: string }
+                                status: { type: string }
+                                status_updated_at: { type: string, format: date-time }
+                          page: { type: integer }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /sms/balance:
+    get:
+      tags: [SMS]
+      operationId: getSmsBalance
+      summary: Your SMS credit balance
+      security:
+        - SmsApiKeyAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          credits: { type: integer }
+                          totalPurchased: { type: integer }
+                          totalUsed: { type: integer }
+                          mode: { type: string, example: business }
+                          accountStatus: { type: string }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /utilities/billers:
+    get:
+      tags: [Utility Bills (Commission)]
+      operationId: listUtilityBillers
+      summary: Full biller catalog
+      description: Includes currently disabled billers, so you can build your UI without hardcoding which ones are live.
+      security:
+        - CommissionApiKeyAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          billers:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                key: { type: string, enum: [ecg, ghana_water, dstv, gotv, startimes] }
+                                label: { type: string }
+                                enabled: { type: boolean }
+                                account_label: { type: string }
+                                requires_phone: { type: boolean }
+                                lookup_by: { type: string, enum: [phone, account] }
+                                links_phone_to_account: { type: boolean }
+                                has_amount_due: { type: boolean }
+                          min_amount: { type: number }
+                          max_amount: { type: number }
+                          currency: { type: string, example: GHS }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /utilities/lookup:
+    get:
+      tags: [Utility Bills (Commission)]
+      operationId: lookupUtilityAccount
+      summary: Verify an account before paying
+      security:
+        - CommissionApiKeyAuth: []
+      parameters:
+        - name: biller
+          in: query
+          required: true
+          schema: { type: string, enum: [ecg, ghana_water, dstv, gotv, startimes] }
+        - name: account
+          in: query
+          required: true
+          schema: { type: string, maxLength: 30 }
+          description: "Meter/smartcard/account number. For ecg, pass the phone here too if you have no separate meter number — the query actually runs on phone."
+        - name: phone
+          in: query
+          schema: { type: string, maxLength: 30 }
+          description: "Required for ghana_water. For ecg this is what the lookup actually queries by."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: "For ecg, account_name/account_number/amount_due/bouquet are always null — the real result is in meters[]."
+                        properties:
+                          account_name: { type: string, nullable: true }
+                          account_number: { type: string, nullable: true }
+                          amount_due: { type: number, nullable: true, description: "Negative means a credit balance, not a bill due." }
+                          bouquet: { type: string, nullable: true }
+                          meters:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name: { type: string }
+                                meterNumber: { type: string }
+                                outstanding: { type: number }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "502":
+          description: Billing provider temporarily unreachable — retry shortly, do not treat as "not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+
+  /utilities/pay:
+    post:
+      tags: [Utility Bills (Commission)]
+      operationId: payUtilityBill
+      summary: Pay a bill at face value from your wallet
+      description: |
+        `reference` is a PURE idempotency key, not a distinct-payment key —
+        reusing it (even with a different biller/account/amount) returns the
+        ORIGINAL order and never re-validates against the new values. Use a
+        unique reference per distinct bill.
+      security:
+        - CommissionApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [biller, account, amount]
+              properties:
+                biller: { type: string, enum: [ecg, ghana_water, dstv, gotv, startimes] }
+                account: { type: string, description: "For ecg, the specific meter number from /lookup meters[] — not the phone." }
+                phone: { type: string, description: "Required for ecg and ghana_water." }
+                amount: { type: number, description: "Must be within the live min_amount/max_amount from GET /billers." }
+                reference: { type: string, minLength: 1, maxLength: 64, pattern: '^[a-zA-Z0-9._-]+$' }
+      responses:
+        "200":
+          description: Paid (or idempotent replay)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          reference: { type: string, description: "Our own generated code — save THIS, not the one you sent" }
+                          order_id: { type: string, format: uuid }
+                          status: { type: string, example: pending }
+                          biller: { type: string }
+                          account: { type: string }
+                          amount: { type: number }
+                          commission_share_percent: { type: number }
+                          new_balance: { type: number }
+                          already_processed: { type: boolean, description: "Present only on an idempotent replay, alongside a smaller payload" }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "409":
+          description: "Duplicate order — same biller+account+amount resent within 30s without a reference"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /utilities/orders/{reference}:
+    get:
+      tags: [Utility Bills (Commission)]
+      operationId: getUtilityOrderStatus
+      summary: Poll a utility bill order's status
+      description: "Status flow: pending → processing → completed | failed | refunded."
+      security:
+        - CommissionApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReferencePath'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          reference: { type: string }
+                          status: { type: string }
+                          payment_status: { type: string }
+                          biller: { type: string }
+                          account_number: { type: string }
+                          account_name: { type: string }
+                          amount: { type: number }
+                          commission_earned: { type: number, nullable: true, description: "null until status reaches completed" }
+                          reason: { type: string, description: "Present only when status is refunded — a short, sanitized explanation of why the order failed and was auto-refunded (never raw provider text)." }
+                          created_at: { type: string, format: date-time }
+                          updated_at: { type: string, format: date-time }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Your standard API key, sent RAW (not `Bearer <key>`) — e.g.
+        `Authorization: kf_live_...`. Standard keys work on every endpoint
+        except the SMS, Airtime, and Utility Bills (Commission Services)
+        groups, which require their own key type (see SmsApiKeyAuth /
+        CommissionApiKeyAuth).
+    SmsApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: An SMS-type key (`kf_sms_live_...`). A standard or commission key is rejected here with 403.
+    CommissionApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: A Commission Services key (`kf_cs_live_...`), required for utility bill AND airtime endpoints. No shop required — commission is paid into a dedicated commission wallet, separate from shop earnings. A standard key is rejected here with 403, and this key is rejected with 403 everywhere else.
+
+  parameters:
+    ReferencePath:
+      name: reference
+      in: path
+      required: true
+      schema: { type: string }
+      description: The reference you supplied (or was echoed back) when the order was created.
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    Forbidden:
+      description: Wrong key type for this endpoint, key pending/revoked, role not allowed, or account suspended
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    NotFound:
+      description: Resource not found, or not owned by this account
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    Conflict:
+      description: Duplicate reference reused against a different request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+    RateLimited:
+      description: Rate limit exceeded for this endpoint
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiErrorEnvelope' }
+
+  schemas:
+    ApiSuccessEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { type: object }
+        meta:
+          type: object
+          properties:
+            timestamp: { type: string, format: date-time }
+            version: { type: string, enum: [v2] }
+
+    ApiErrorEnvelope:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: integer }
+            message: { type: string }
+
+    Package:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        network: { type: string }
+        size: { type: string, example: "5GB" }
+        volume_gb: { type: number }
+        price: { type: number }
+        currency: { type: string, example: GHS }
+
+    DataOrder:
+      type: object
+      properties:
+        order_id: { type: string, format: uuid }
+        reference: { type: string }
+        status: { type: string, enum: [pending, queued, processing, completed, failed, refunded] }
+        network: { type: string }
+        size: { type: string }
+        recipient: { type: string }
+        price: { type: number }
+        source: { type: string, example: api }
+        new_balance: { type: number }
+        created_at: { type: string, format: date-time }
+
+    RcOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string }
+        status: { type: string }
+        type_name: { type: string }
+        quantity: { type: integer }
+        unit_price: { type: number }
+        total_paid: { type: number }
+
+    RcVoucher:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        pin: { type: string, example: "1234-5678-9012" }
+        serial_number: { type: string, example: "SN-000123" }

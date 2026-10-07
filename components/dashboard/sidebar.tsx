@@ -1,0 +1,852 @@
+'use client'
+
+import Link from 'next/link'
+import Image from 'next/image'
+import { BrandLogo, BrandTitle } from '@/components/ui/brand'
+import { usePathname } from 'next/navigation'
+import { useAuth } from '@/contexts/auth-context'
+import { useUI } from '@/contexts/ui-context'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { formatCurrency } from '@/lib/utils'
+import {
+    LayoutDashboard,
+    Package,
+    ShoppingCart,
+    Wallet,
+    User,
+    MessageSquare,
+    Bell,
+    Send,
+    Users,
+    ChevronLeft,
+    ChevronRight,
+    ChevronDown,
+    LogOut,
+    Loader2,
+    Settings,
+    Shield,
+    Crown,
+    Star,
+    BadgeCheck,
+    UserCircle,
+    Plus,
+    Activity,
+    Banknote,
+    Store,
+    Tag,
+    Phone,
+    FileText,
+    Code2,
+    Key,
+    Gem,
+    Smartphone,
+    CreditCard,
+    Hourglass,
+    Lightbulb,
+    ListChecks,
+    Wifi,
+    Percent,
+    UserPlus
+} from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { usePageAccess } from '@/hooks/use-page-access'
+import { differenceInDays } from 'date-fns'
+import { useAdminCounts } from '@/hooks/use-admin-counts'
+
+// Short deliberately: worst case after creating a shop is the "My Shop" nav
+// item lags up to this long (self-heals on the next reload), which is an
+// acceptable tradeoff for cutting a redundant query on every sidebar mount.
+const SHOP_EXISTENCE_CACHE_TTL_MS = 2 * 60 * 1000
+
+export const userNavItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard/upgrade', label: 'Role Upgrade', icon: Crown },
+    { href: '/dashboard/data-packages', label: 'Data Bundles', icon: Package },
+    { href: '/dashboard/airtime', label: 'Airtime & Mashup', icon: Phone },
+    { href: '/dashboard/utilities', label: 'Utility Bills', icon: Lightbulb },
+    { href: '/dashboard/results-checker', label: 'Results Checker', icon: FileText },
+    { href: '/dashboard/my-orders', label: 'Order History', icon: ShoppingCart },
+    { href: '/dashboard/wallet', label: 'Top Up Wallet', icon: Wallet },
+    { href: '/dashboard/transactions', label: 'My Activities', icon: Activity },
+    { href: '/dashboard/complaints', label: 'Support & Complaints', icon: MessageSquare },
+    { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
+    { href: '/dashboard/profile', label: 'My Profile', icon: User },
+    { href: '/dashboard/afa-orders', label: 'AFA Registration', icon: BadgeCheck },
+    { href: '/dashboard/sms', label: 'SMS Platform', icon: Send },
+    { href: '/dashboard/api', label: 'Developer API', icon: Code2 },
+    { href: '/dashboard/commission', label: 'Commission Wallet', icon: Percent },
+]
+
+export const adminNavItems = [
+    { href: '/admin', label: 'Admin Dashboard', icon: Shield },
+    { href: '/admin/top-up', label: 'Top-Up', icon: Wallet },
+    { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
+    { href: '/admin/orders/bulk-update', label: 'Bulk Order Update', icon: ListChecks },
+    { href: '/admin/results-checker', label: 'WAEC R•C Management', icon: FileText },
+    { href: '/admin/ussd', label: 'USSD Management', icon: Smartphone },
+    { href: '/admin/fulfillment', label: 'Fulfillment', icon: Activity },
+    { href: '/admin/ishare', label: 'iShare Center', icon: Wifi },
+    { href: '/admin/number-registration', label: 'Number Registration', icon: Hourglass },
+    { href: '/admin/datagod', label: 'DataGod Terminal', icon: Activity },
+    { href: '/admin/airtime', label: 'Airtime & Mashup', icon: Phone },
+    { href: '/admin/utilities', label: 'Utilities', icon: Lightbulb },
+    { href: '/admin/shops', label: 'Shops', icon: Store },
+    { href: '/admin/shops/withdrawals', label: 'Shop Withdrawals', icon: Banknote },
+    { href: '/admin/shop-sms', label: 'Shop SMS', icon: MessageSquare },
+    { href: '/admin/sms-platform', label: 'SMS Platform', icon: Send },
+    { href: '/admin/afa-management', label: 'AFA Management', icon: BadgeCheck },
+    { href: '/admin/roles', label: 'Role Management', icon: Users },
+    { href: '/admin/users', label: 'Users', icon: Users },
+    { href: '/admin/packages', label: 'Packages', icon: Package },
+    { href: '/admin/mtn-mashup', label: 'MTN Mashup', icon: Package },
+    { href: '/admin/complaints', label: 'Complaints', icon: MessageSquare },
+    { href: '/admin/website-requests', label: 'Website Requests', icon: Code2 },
+    { href: '/admin/announcements', label: 'Announcements', icon: Bell },
+    { href: '/admin/sms-broadcast', label: 'SMS Broadcast', icon: MessageSquare },
+    { href: '/admin/finance', label: 'Finance', icon: Banknote },
+    { href: '/admin/payments', label: 'Payments Center', icon: CreditCard },
+    { href: '/admin/momo-claims', label: 'MoMo Claims', icon: Wallet },
+    { href: '/admin/ussd-refunds', label: 'USSD Refunds', icon: Wallet },
+    { href: '/admin/profits-history', label: 'Profits History', icon: Wallet },
+    { href: '/admin/api-keys', label: 'API Keys', icon: Key },
+    { href: '/admin/terms', label: 'Terms & Policies', icon: FileText },
+    { href: '/admin/settings', label: 'Settings', icon: Settings },
+]
+
+export const shopNavItems = [
+    { href: '/dashboard/shop', label: 'My Store', icon: Store },
+    { href: '/dashboard/shop/orders', label: 'Store Orders', icon: ShoppingCart },
+    { href: '/dashboard/shop/pricing', label: 'Store Pricing', icon: Tag },
+    { href: '/dashboard/shop/setup', label: 'Shop Profile', icon: Settings },
+    { href: '/dashboard/shop/withdraw', label: 'Withdraw', icon: Banknote },
+    { href: '/dashboard/shop/setup', label: 'Create Store', icon: Store },
+]
+
+import { roleConfig } from '@/lib/roles'
+
+export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY8X8nUkNgYATUiOY5gXAb' }: { communityLink?: string }) {
+    const pathname = usePathname()
+    const { dbUser, isAdmin, isSubAdmin, signOut, isSigningOut } = useAuth()
+    const { isInternalSidebarOpen, closeSidebar, isCollapsed, toggleCollapse } = useUI()
+    const { isPageAccessible, loading: pageAccessLoading } = usePageAccess()
+    // Remove local state: const [isCollapsed, setIsCollapsed] = useState(false)
+    const [walletBalance, setWalletBalance] = useState(0)
+    const [isShopOpen, setIsShopOpen] = useState(false)
+    const [hasShop, setHasShop] = useState<boolean | null>(null)
+    const { counts: adminCounts } = useAdminCounts()
+
+    // Calculate days remaining for agents
+    const calculateDaysRemaining = () => {
+        if (!dbUser?.agent_expires_at || dbUser?.role !== 'agent') return null
+        const now = new Date()
+        const expiresAt = new Date(dbUser.agent_expires_at)
+        const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return daysRemaining > 0 ? daysRemaining : 0
+    }
+
+    const calculateDealerDaysRemaining = () => {
+        if (!(dbUser as any)?.dealer_expires_at || dbUser?.role !== 'dealer') return null
+        const now = new Date()
+        const expiresAt = new Date((dbUser as any).dealer_expires_at)
+        const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return daysRemaining > 0 ? daysRemaining : 0
+    }
+
+    const daysRemaining = calculateDaysRemaining()
+    const dealerDaysRemaining = calculateDealerDaysRemaining()
+
+    // Fetch wallet balance + subscribe to real-time updates
+    useEffect(() => {
+        if (!dbUser?.id) return
+
+        // Initial fetch
+        const fetchBalance = async () => {
+            const { data } = await (supabase
+                .from('wallets')
+                .select('balance')
+                .eq('user_id', dbUser.id)
+                .single() as any)
+            if (data) setWalletBalance(data.balance || 0)
+        }
+        fetchBalance()
+
+        // Real-time subscription — fires instantly on any balance change
+        const channel = supabase
+            .channel(`sidebar-wallet-${dbUser.id}`)
+            .on(
+                'postgres_changes' as any,
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'wallets',
+                    filter: `user_id=eq.${dbUser.id}`,
+                },
+                (payload: any) => {
+                    if (payload.new?.balance !== undefined) {
+                        setWalletBalance(payload.new.balance)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [dbUser?.id])
+
+    // Auto-open My Shop dropdown when on any /dashboard/shop/* page
+    useEffect(() => {
+        if (pathname?.startsWith('/dashboard/shop')) {
+            setIsShopOpen(true)
+        }
+    }, [pathname])
+
+    // Fetch shop existence
+    // EGRESS: this is a pure existence boolean that only changes when the user
+    // creates a shop — a rare, explicit action — yet was refetched uncached on
+    // every sidebar mount (1,873 req/day measured 2026-09-24, the largest
+    // shop_profiles query shape after real per-order checks). sessionStorage
+    // (not an in-memory cache) survives a full page reload, which a module-scope
+    // cache would not. Scoped per user id so a shared-device account switch can
+    // never read a stale value for the wrong account.
+    useEffect(() => {
+        const checkShop = async () => {
+            if (!dbUser?.id) return
+            const cacheKey = `kfg_has_shop_${dbUser.id}`
+            try {
+                const cached = sessionStorage.getItem(cacheKey)
+                if (cached) {
+                    const { v, at } = JSON.parse(cached) as { v: boolean; at: number }
+                    if (Date.now() - at < SHOP_EXISTENCE_CACHE_TTL_MS) {
+                        setHasShop(v)
+                        return
+                    }
+                }
+            } catch {}
+            const { data } = await supabase.from('shop_profiles').select('id').eq('owner_id', dbUser.id).maybeSingle()
+            const exists = !!data
+            setHasShop(exists)
+            try { sessionStorage.setItem(cacheKey, JSON.stringify({ v: exists, at: Date.now() })) } catch {}
+        }
+        checkShop()
+    }, [dbUser?.id])
+
+    const isLinkActive = (href: string) => {
+        if (href === '/dashboard' || href === '/admin') {
+            return pathname === href
+        }
+        return pathname?.startsWith(href)
+    }
+
+    // Get role config
+    const userRole = isAdmin ? 'admin' : isSubAdmin ? 'sub-admin' : (dbUser?.role || 'customer') as keyof typeof roleConfig
+    const currentRole = roleConfig[userRole] || roleConfig['customer']
+    const RoleIcon = currentRole.icon
+
+    return (
+        <>
+            {/* Mobile overlay */}
+            {isInternalSidebarOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                    onClick={closeSidebar}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside
+                className={cn(
+                    "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out",
+                    (dbUser?.role === 'agent')
+                        ? "bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 dark:from-yellow-900 dark:via-amber-900 dark:to-yellow-800"
+                        : (dbUser?.role === 'dealer')
+                            ? "bg-gradient-to-br from-violet-600 via-purple-700 to-violet-800"
+                            : "bg-[#E5E7EB] dark:bg-[#000000]",
+                    isCollapsed ? "w-20" : "w-80",
+                    "lg:transform-none",
+                    isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+                )}
+            >
+
+                {/* Logo Header */}
+                <div className="h-20 flex items-center justify-between px-6 border-b border-gray-300 dark:border-gray-800">
+                    <Link href="/dashboard" className="flex items-center gap-3 group">
+                        <div className="relative w-10 h-10 flex-shrink-0 transition-transform group-hover:scale-110">
+                            <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-white/5 border border-white/10">
+                                <BrandLogo width={40} height={40} className="object-contain" />
+                            </div>
+                            {dbUser?.role === 'agent' && (
+                                <Crown className="absolute -top-4 -left-3 w-6 h-6 text-black fill-black -rotate-[25deg] drop-shadow-md z-10" />
+                            )}
+                            {dbUser?.role === 'dealer' && (
+                                <Gem className="absolute -top-4 -left-3 w-6 h-6 text-violet-300 fill-violet-300 -rotate-[15deg] drop-shadow-md z-10" />
+                            )}
+                        </div>
+                        {!isCollapsed && (
+                            <div className="flex flex-col transition-transform group-hover:scale-105">
+                                <BrandTitle className="text-base font-bold tracking-tight text-black dark:text-white font-display drop-shadow-sm" />
+                                <span className="text-[11px] font-medium text-[#E60000] -mt-1 tracking-widest drop-shadow-sm">TECHNOLOGIES</span>
+                            </div>
+                        )}
+                    </Link>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={toggleCollapse}
+                        className="hidden lg:flex text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-300 dark:hover:bg-gray-800 w-8 h-8 rounded-full"
+                    >
+                        {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={closeSidebar}
+                        className="lg:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white w-8 h-8"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </Button>
+                </div>
+
+                {/* Profile Widget - Premium Card Style */}
+                {!isCollapsed && dbUser && (
+                    <div className={cn(
+                        "mx-4 mt-6 p-4 rounded-2xl border shadow-lg",
+                        dbUser?.role === 'agent'
+                            ? "bg-[#FFCE00] border-black/10"
+                            : dbUser?.role === 'dealer'
+                                ? "bg-gradient-to-br from-violet-700 to-purple-800 border-violet-500/30"
+                                : "bg-gradient-to-br from-gray-200/90 to-gray-300 dark:from-gray-800/90 dark:to-gray-900 border-gray-400/50 dark:border-gray-700/50"
+                    )}>
+                        {/* User Info Row */}
+                        <div className="flex items-center gap-3.5 mb-4">
+                            {/* Avatar with Role Icon */}
+                            <div
+                                className={cn(
+                                    "relative w-12 h-12 rounded-full flex items-center justify-center text-white shadow-md ring-2 ring-white/20",
+                                    dbUser?.role === 'admin' ? "bg-[#E60000]" :
+                                    dbUser?.role === 'sub-admin' ? "bg-[#FACC15]" :
+                                    dbUser?.role === 'agent' ? "bg-[#25D366]" :
+                                    dbUser?.role === 'dealer' ? "bg-[#7C3AED]" :
+                                    dbUser?.role === 'subagent' ? "bg-[#0D9488]" : "bg-[#0056B3]"
+                                )}
+                            >
+                                <RoleIcon className="w-6 h-6" />
+                                <div
+                                    className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-gray-200 dark:border-gray-900 bg-white dark:bg-gray-800"
+                                >
+                                    <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                                </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5 flex-wrap">
+                                    {dbUser?.role === 'agent' ? (
+                                        <>
+                                            {dbUser?.first_name} {dbUser?.last_name}
+                                            {daysRemaining !== null && (
+                                                <span className={cn(
+                                                    "text-xs font-bold px-1.5 py-0.5 rounded ml-1",
+                                                    daysRemaining <= 3
+                                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                        : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                                )}>
+                                                    {daysRemaining}d
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : dbUser?.role === 'dealer' ? (
+                                        <>
+                                            {dbUser?.first_name} {dbUser?.last_name}
+                                            {dealerDaysRemaining !== null && (
+                                                <span className={cn(
+                                                    "text-xs font-bold px-1.5 py-0.5 rounded ml-1",
+                                                    dealerDaysRemaining <= 3
+                                                        ? "bg-red-200 text-red-800"
+                                                        : "bg-violet-200 text-violet-800"
+                                                )}>
+                                                    {dealerDaysRemaining}d
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <span>{dbUser?.first_name} {dbUser?.last_name}</span>
+                                    )}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span
+                                        className={cn(
+                                            "text-xs font-bold px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 backdrop-blur-sm",
+                                            dbUser?.role === 'admin' ? "text-[#E60000]" :
+                                            dbUser?.role === 'sub-admin' ? "text-[#B59410]" :
+                                            dbUser?.role === 'agent' ? "text-[#25D366]" :
+                                            dbUser?.role === 'dealer' ? "text-[#7C3AED]" :
+                                            dbUser?.role === 'subagent' ? "text-[#0D9488]" : "text-[#0056B3]"
+                                        )}
+                                    >
+                                        {currentRole.label}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Subscription Info for Dealers / Agents / Upgrade for Customers */}
+                        {dbUser?.role === 'dealer' ? (
+                            <div className="mt-3 space-y-2">
+                                {dealerDaysRemaining !== null && (
+                                    <div className="p-3 rounded-xl bg-white/10 border border-white/20">
+                                        <p className="text-xs text-white/70 font-semibold mb-1">
+                                            Dealer Subscription
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <span className={cn(
+                                                "text-base font-semibold",
+                                                dealerDaysRemaining <= 3 ? "text-red-300" : "text-white"
+                                            )}>
+                                                {dealerDaysRemaining} {dealerDaysRemaining === 1 ? 'day' : 'days'}
+                                            </span>
+                                            <span className="text-xs text-white/50">remaining</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <Link href="/dashboard/upgrade" className="block" onClick={closeSidebar}>
+                                    <Button
+                                        size="sm"
+                                        className="w-full h-9 text-xs font-bold bg-white/20 hover:bg-white/30 text-white rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/30"
+                                    >
+                                        <Gem className="w-4 h-4" />
+                                        Renew Dealer Access
+                                    </Button>
+                                </Link>
+                            </div>
+                        ) : dbUser?.role === 'agent' ? (
+                            <div className="mt-3 space-y-2">
+                                {/* Days Remaining Display */}
+                                {daysRemaining !== null && (
+                                    <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-700">
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 font-semibold mb-1">
+                                            Subscription Status
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <span className={cn(
+                                                "text-base font-semibold",
+                                                daysRemaining <= 3 ? "text-red-600 dark:text-red-500" : "text-green-600 dark:text-green-500"
+                                            )}>
+                                                {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}
+                                            </span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">remaining</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Extend Button */}
+                                <Link href="/dashboard/upgrade" className="block" onClick={closeSidebar}>
+                                    <Button
+                                        size="sm"
+                                        className="w-full h-9 text-xs font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <Crown className="w-4 h-4" />
+                                        Extend Subscription
+                                    </Button>
+                                </Link>
+                            </div>
+                        ) : dbUser?.role === 'customer' && (
+                            <Link href="/dashboard/upgrade" className="block mt-3" onClick={closeSidebar}>
+                                <Button
+                                    size="sm"
+                                    className="w-full h-9 text-xs font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Crown className="w-4 h-4" />
+                                    Upgrade to Agent
+                                </Button>
+                            </Link>
+                        )}
+
+                        {/* Wallet Section */}
+                        <div className={cn(
+                            "flex items-center justify-between p-3 rounded-xl border backdrop-blur-md",
+                            dbUser?.role === 'agent'
+                                ? "bg-[#FFCE00] border-black/10"
+                                : dbUser?.role === 'dealer'
+                                    ? "bg-white/10 border-white/20"
+                                    : "bg-gray-300/60 dark:bg-black/40 border-gray-400/30 dark:border-gray-800/50"
+                        )}>
+                            <div>
+                                <p className={cn(
+                                    "text-[10px] uppercase tracking-wider font-bold mb-0.5",
+                                    dbUser?.role === 'agent' ? "text-black" : dbUser?.role === 'dealer' ? "text-white/70" : "text-gray-600 dark:text-gray-400"
+                                )}>Balance</p>
+                                <p className={cn(
+                                    "text-lg font-bold tracking-tight",
+                                    dbUser?.role === 'agent' ? "text-black" : dbUser?.role === 'dealer' ? "text-white" : "text-emerald-600 dark:text-emerald-400"
+                                )}>{formatCurrency(walletBalance)}</p>
+                            </div>
+                            {!(process.env.NEXT_PUBLIC_PAYMENT_MAINTENANCE_MODE === 'true' && !isAdmin) && isPageAccessible('/dashboard/wallet') && (
+                                <Link href="/dashboard/wallet">
+                                    <Button
+                                        size="sm"
+                                        className={cn(
+                                            "h-8 px-3 text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-95",
+                                            dbUser?.role === 'dealer'
+                                                ? "bg-violet-400 hover:bg-violet-300 text-white"
+                                                : "bg-yellow-500 hover:bg-yellow-400 text-black"
+                                        )}
+                                    >
+                                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                                        Top Up
+                                    </Button>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )
+                }
+
+                {/* Navigation */}
+                <nav className={cn(
+                    "px-2 py-3 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin scrollbar-track-gray-200 dark:scrollbar-track-gray-900 scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 hover:scrollbar-thumb-gray-500 dark:hover:scrollbar-thumb-gray-600"
+                )}>
+                    {!isCollapsed && (
+                        <p className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1.5 px-2", dbUser?.role === 'dealer' ? "text-white/50" : "text-gray-600 dark:text-gray-500")}>
+                            Menu
+                        </p>
+                    )}
+
+
+                    {(() => {
+                        const visibleNavItems = userNavItems
+                            .filter(item => isPageAccessible(item.href))
+                            .filter(item => !(item.href === '/dashboard/upgrade' && dbUser?.role === 'subagent'))
+
+                        const renderNavItem = (item: typeof userNavItems[number]) => {
+                            const isActive = isLinkActive(item.href)
+                            return (
+                                <Link key={item.href} href={item.href} onClick={() => {
+                                    if (window.innerWidth < 1024) closeSidebar()
+                                }}>
+                                    <div
+                                        className={cn(
+                                            "flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200",
+                                            isActive
+                                                ? dbUser?.role === 'agent'
+                                                    ? "bg-black text-[#FFCE00] shadow-lg"
+                                                    : dbUser?.role === 'dealer'
+                                                        ? "bg-white/20 text-white shadow-lg"
+                                                        : "bg-yellow-500/20 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                                                : dbUser?.role === 'agent'
+                                                    ? "text-black hover:text-[#FFCE00] hover:bg-black/10"
+                                                    : dbUser?.role === 'dealer'
+                                                        ? "text-white/80 hover:text-white hover:bg-white/10"
+                                                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-300/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200",
+                                            isCollapsed && "justify-center px-2"
+                                        )}
+                                    >
+                                        <item.icon className={cn(
+                                            "w-5 h-5 flex-shrink-0",
+                                            isActive && (dbUser?.role === 'agent' ? "text-[#FFCE00]" : dbUser?.role === 'dealer' ? "text-white" : "text-yellow-600 dark:text-yellow-400")
+                                        )} />
+                                        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+                                    </div>
+                                </Link>
+                            )
+                        }
+
+                        // "Sub-Agents" (recruit) renders right after Data Bundles rather than as
+                        // part of userNavItems itself — it needs its own role gate (agent/dealer/
+                        // admin only; a sub-agent can never recruit, spec C1) that doesn't fit the
+                        // plain per-item array the rest of the menu uses.
+                        const splitIndex = visibleNavItems.findIndex(item => item.href === '/dashboard/data-packages')
+                        const beforeRecruit = splitIndex === -1 ? visibleNavItems : visibleNavItems.slice(0, splitIndex + 1)
+                        const afterRecruit = splitIndex === -1 ? [] : visibleNavItems.slice(splitIndex + 1)
+
+                        return (
+                            <>
+                                {beforeRecruit.map(renderNavItem)}
+                                {(isAdmin || dbUser?.role === 'agent' || dbUser?.role === 'dealer') && isPageAccessible('/dashboard/recruit') && (
+                                    <Link href="/dashboard/recruit" onClick={() => {
+                                        if (window.innerWidth < 1024) closeSidebar()
+                                    }}>
+                                        <div
+                                            className={cn(
+                                                "flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200",
+                                                isLinkActive('/dashboard/recruit')
+                                                    ? dbUser?.role === 'agent'
+                                                        ? "bg-black text-[#FFCE00] shadow-lg"
+                                                        : dbUser?.role === 'dealer'
+                                                            ? "bg-white/20 text-white shadow-lg"
+                                                            : "bg-yellow-500/20 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                                                    : dbUser?.role === 'agent'
+                                                        ? "text-black hover:text-[#FFCE00] hover:bg-black/10"
+                                                        : dbUser?.role === 'dealer'
+                                                            ? "text-white/80 hover:text-white hover:bg-white/10"
+                                                            : "text-gray-600 dark:text-gray-400 hover:bg-gray-300/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200",
+                                                isCollapsed && "justify-center px-2"
+                                            )}
+                                        >
+                                            <UserPlus className={cn(
+                                                "w-5 h-5 flex-shrink-0",
+                                                isLinkActive('/dashboard/recruit') && (dbUser?.role === 'agent' ? "text-[#FFCE00]" : dbUser?.role === 'dealer' ? "text-white" : "text-yellow-600 dark:text-yellow-400")
+                                            )} />
+                                            {!isCollapsed && <span className="text-sm font-medium">Sub-Agents</span>}
+                                        </div>
+                                    </Link>
+                                )}
+                                {afterRecruit.map(renderNavItem)}
+                            </>
+                        )
+                    })()}
+
+                    {/* My Shop — conditionally a link or dropdown based on hasShop */}
+                    {(isAdmin || isSubAdmin || dbUser?.role === 'agent' || dbUser?.role === 'dealer' || dbUser?.role === 'customer' || dbUser?.role === 'subagent') && (() => {
+                        const isShopActive = pathname?.startsWith('/dashboard/shop')
+
+                        if (hasShop === false) {
+                            return (
+                                <Link href="/dashboard/shop/setup" onClick={() => {
+                                    if (window.innerWidth < 1024) closeSidebar()
+                                }}>
+                                    <div
+                                        className={cn(
+                                            "flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200 mb-1",
+                                            isShopActive
+                                                ? dbUser?.role === 'agent'
+                                                    ? "bg-black text-[#FFCE00] shadow-lg"
+                                                    : dbUser?.role === 'dealer'
+                                                        ? "bg-white/20 text-white shadow-lg"
+                                                        : "bg-emerald-500/20 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                : dbUser?.role === 'agent'
+                                                    ? "text-black hover:text-[#FFCE00] hover:bg-black/10"
+                                                    : dbUser?.role === 'dealer'
+                                                        ? "text-white/80 hover:text-white hover:bg-white/10"
+                                                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-300/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200",
+                                            isCollapsed && "justify-center px-2"
+                                        )}
+                                    >
+                                        <Store className={cn(
+                                            "w-5 h-5 flex-shrink-0",
+                                            isShopActive && (dbUser?.role === 'agent' ? "text-[#FFCE00]" : dbUser?.role === 'dealer' ? "text-white" : "text-emerald-600 dark:text-emerald-400")
+                                        )} />
+                                        {!isCollapsed && <span className="text-sm font-medium">My Store</span>}
+                                    </div>
+                                </Link>
+                            )
+                        }
+
+                        return (
+                            <div className="mb-1">
+                                {/* Toggle button */}
+                                <button
+                                    onClick={() => setIsShopOpen(prev => !prev)}
+                                    className={cn(
+                                        "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200",
+                                        isShopActive
+                                            ? dbUser?.role === 'agent'
+                                                ? "bg-black text-[#FFCE00] shadow-lg"
+                                                : dbUser?.role === 'dealer'
+                                                    ? "bg-white/20 text-white shadow-lg"
+                                                    : "bg-emerald-500/20 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                            : dbUser?.role === 'agent'
+                                                ? "text-black hover:text-[#FFCE00] hover:bg-black/10"
+                                                : dbUser?.role === 'dealer'
+                                                    ? "text-white/80 hover:text-white hover:bg-white/10"
+                                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-300/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200",
+                                        isCollapsed && "justify-center px-2"
+                                    )}
+                                >
+                                    <Store className={cn(
+                                        "w-5 h-5 flex-shrink-0",
+                                        isShopActive && (
+                                            dbUser?.role === 'agent' ? "text-[#FFCE00]" :
+                                            dbUser?.role === 'dealer' ? "text-white" :
+                                            "text-emerald-600 dark:text-emerald-400"
+                                        )
+                                    )} />
+                                    {!isCollapsed && (
+                                        <>
+                                            <span className="text-sm font-medium flex-1 text-left">My Store</span>
+                                            <ChevronDown
+                                                className={cn(
+                                                    "w-4 h-4 flex-shrink-0 transition-transform duration-200",
+                                                    isShopOpen && "rotate-180"
+                                                )}
+                                            />
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Sub-menu — shown when isShopOpen is true */}
+                                {isShopOpen && (
+                                    <div className={cn(
+                                        "space-y-0.5",
+                                        !isCollapsed && cn(
+                                            "ml-3 pl-2 border-l-2 mt-1",
+                                            dbUser?.role === 'dealer'
+                                                ? "border-violet-400/50"
+                                                : dbUser?.role === 'agent'
+                                                    ? "border-black/30"
+                                                    : "border-emerald-200 dark:border-emerald-800"
+                                        )
+                                    )}>
+                                        {[
+                                            { href: '/dashboard/shop', label: 'Overview', icon: LayoutDashboard },
+                                            { href: '/dashboard/shop/orders', label: 'Orders', icon: ShoppingCart },
+                                            { href: '/dashboard/shop/customers', label: 'Customers', icon: Users },
+                                            { href: '/dashboard/shop/profit-logs', label: 'Profit Logs', icon: Activity },
+                                            { href: '/dashboard/shop/pricing', label: 'Pricing', icon: Tag },
+                                            { href: '/dashboard/shop/sms', label: 'SMS', icon: Send },
+                                            { href: '/dashboard/shop/withdraw', label: 'Withdraw', icon: Banknote },
+                                            { href: '/dashboard/shop/setup', label: 'Shop Profile', icon: Settings },
+                                        ].map(item => {
+                                            const isActive = pathname === item.href
+                                            return (
+                                                <Link key={item.href} href={item.href} onClick={() => {
+                                                    if (window.innerWidth < 1024) closeSidebar()
+                                                }}>
+                                                    <div
+                                                        className={cn(
+                                                            "flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200",
+                                                            isActive
+                                                                ? dbUser?.role === 'agent'
+                                                                    ? "bg-black text-[#FFCE00] font-semibold"
+                                                                    : dbUser?.role === 'dealer'
+                                                                        ? "bg-white/20 text-white font-semibold"
+                                                                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-semibold"
+                                                                : dbUser?.role === 'agent'
+                                                                    ? "text-black hover:text-[#FFCE00] hover:bg-black/10"
+                                                                    : dbUser?.role === 'dealer'
+                                                                        ? "text-white/70 hover:text-white hover:bg-white/10"
+                                                                        : "text-gray-600 dark:text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 hover:text-emerald-600 dark:hover:text-emerald-400",
+                                                            isCollapsed && "justify-center px-2"
+                                                        )}
+                                                    >
+                                                        <item.icon className={cn(
+                                                            "w-5 h-5 flex-shrink-0",
+                                                            isActive && (
+                                                                dbUser?.role === 'agent' ? "text-[#FFCE00]" :
+                                                                dbUser?.role === 'dealer' ? "text-white" :
+                                                                "text-emerald-600 dark:text-emerald-400"
+                                                            )
+                                                        )} />
+                                                        {!isCollapsed && <span className="text-sm font-medium">{item.label}</span>}
+                                                    </div>
+                                                </Link>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })()}
+
+                    {(isAdmin || isSubAdmin) && (
+                        <>
+                            {!isCollapsed && (
+                                <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-500 uppercase tracking-wider mt-4 mb-1.5 px-2">
+                                    Admin
+                                </p>
+                            )}
+                            {adminNavItems.filter(item => {
+                                if (isAdmin) return true
+                                if (isSubAdmin) return item.href === '/admin/orders'
+                                return false
+                            }).map((item) => {
+                                const isActive = isLinkActive(item.href)
+
+                                // Get badge count for this item
+                                let badgeCount = 0
+                                if (item.href === '/admin/orders') badgeCount = adminCounts.pendingOrders
+                                else if (item.href === '/admin/top-up') badgeCount = adminCounts.pendingDebts
+                                else if (item.href === '/admin/fulfillment') badgeCount = adminCounts.pendingFulfillment
+                                else if (item.href === '/admin/shops') badgeCount = adminCounts.pendingShops
+                                else if (item.href === '/admin/shops/withdrawals') badgeCount = adminCounts.pendingWithdrawals
+                                else if (item.href === '/admin/afa-management') badgeCount = adminCounts.pendingAfa
+                                else if (item.href === '/admin/memberships') badgeCount = adminCounts.expiringAgents
+                                else if (item.href === '/admin/complaints') badgeCount = adminCounts.pendingComplaints
+
+                                return (
+                                    <Link key={item.href} href={item.href} onClick={() => {
+                                        if (window.innerWidth < 1024) closeSidebar()
+                                    }}>
+                                        <div
+                                            className={cn(
+                                                "flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all duration-200 relative",
+                                                isActive
+                                                    ? "bg-red-500/20 dark:bg-red-500/10 text-red-600 dark:text-red-400"
+                                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-300/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200",
+                                                isCollapsed && "justify-center px-2"
+                                            )}
+                                        >
+                                            <div className="relative">
+                                                <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-red-600 dark:text-red-400")} />
+                                                {isCollapsed && badgeCount > 0 && (
+                                                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-200 dark:border-slate-900 animate-pulse" />
+                                                )}
+                                            </div>
+                                            {!isCollapsed && (
+                                                <>
+                                                    <span className="text-sm font-medium flex-1">{item.label}</span>
+                                                    {badgeCount > 0 && (
+                                                        <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 rounded-full animate-in zoom-in duration-300 relative">
+                                                            <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20" />
+                                                            <span className="text-[10px] font-medium text-white relative z-10">
+                                                                {badgeCount > 9 ? '9+' : badgeCount}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </Link>
+                                )
+                            })}
+                        </>
+                    )}
+                    {/* WhatsApp Community & Logout Section */}
+                    <div className={cn("mt-4 pt-3 border-t space-y-1 pb-24 md:pb-0", dbUser?.role === 'dealer' ? "border-white/20" : "border-gray-300 dark:border-gray-800")}>
+                        {communityLink && (
+                            <a
+                                href={communityLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                    if (window.innerWidth < 1024) closeSidebar()
+                                }}
+                                className={cn(
+                                    "flex items-center w-full justify-start text-[#25D366] hover:bg-[#25D366]/20 transition-all duration-200 h-10 rounded-lg px-2",
+                                    isCollapsed && "justify-center"
+                                )}
+                            >
+                                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.88 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                                </svg>
+                                {!isCollapsed && <span className="ml-3 text-sm font-medium">Join Community</span>}
+                            </a>
+                        )}
+                        <Button
+                            variant="ghost"
+                            onClick={isSigningOut ? undefined : signOut}
+                            disabled={isSigningOut}
+                            className={cn(
+                                "w-full justify-start h-10 px-2",
+                                dbUser?.role === 'dealer'
+                                    ? "text-white/70 hover:text-white hover:bg-red-500/30"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/20 dark:hover:bg-red-500/10",
+                                isCollapsed && "justify-center"
+                            )}
+                        >
+                            {isSigningOut
+                                ? <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />
+                                : <LogOut className="w-5 h-5 flex-shrink-0" />
+                            }
+                            {!isCollapsed && (
+                                <span className="ml-3 text-sm font-medium">
+                                    {isSigningOut ? 'Signing out…' : 'Logout'}
+                                </span>
+                            )}
+                        </Button>
+                    </div>
+                </nav>
+            </aside >
+        </>
+    )
+}

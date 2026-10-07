@@ -1,0 +1,110 @@
+# Dependencies
+node_modules
+.next
+out
+build
+.vercel
+
+# Local git worktrees (subagent-driven-development scratch workspaces)
+.worktrees/
+
+# Environment
+.env
+.env.local
+.env*.local
+.env.development
+.env.production
+.env.test.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/IDEs
+.DS_Store
+*.pem
+.idea
+.vscode
+.vscode/*
+!.vscode/settings.json
+coverage
+.turbo
+
+# Project specific
+cleanup-git-history.ps1
+kingflexy-mobile/
+
+# Build Info
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+*.csv
+*_audit.*
+*_final.mjs
+check_*.mjs
+
+
+# Audit & Meta Tracking
+all_files*.txt
+list_files.txt
+full_git_status.txt
+full_diff.txt
+git_log_full.txt
+temp_git_status.txt
+test-hooks*.js
+implementation_plan.md
+task.md
+walkthrough.md
+debug-*.ts
+scratch/
+*.mjs
+scratch_*.js
+scratch-*.ts
+scratch-*.js
+
+# Claude Code local settings (personal overrides, not for repo)
+.claude/settings.local.json
+# Claude Code worktrees (temporary agent sandboxes, never commit)
+.claude/worktrees/
+
+# MCP config (contains personal access tokens — never commit)
+.mcp.json
+
+# PWA Generated Files
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/swe-worker-*.js
+public/fallback-*.js
+public/worker-*.js
+public/worker-*.js.map
+design-preview-results-checker.html
+dashboard-design-selector.html
+*.design-preview.html
+modal-designs-preview.html
+
+# Superpowers docs (planning & design artifacts)
+docs/superpowers/plans/
+docs/superpowers/specs/
+
+# Pure-logic test & eval scripts (run locally via `npx tsx`; not tracked in source control)
+scripts/test-*.ts
+scripts/sms-filter-eval.ts
+
+# One-off local diagnostic probes (ad-hoc investigation scratch, not part of the audited probe history)
+scripts/probe-agentportal-aug7-stuck.ts
+scripts/probe-codecraft-wallet.ts
+
+# Diagnostic script OUTPUT — real customer data (phone numbers, shop names), never source
+scripts/probe-results.json
+.redteam_results.json
+
+# Backups of original shop logos taken by scripts/compress-shop-logos.ts --apply
+# (real customer branding assets, and large — restore source only, never tracked)
+scripts/.logo-backups/
+
+# Subagent-driven-development scratch workspace (ledger, briefs, reports, review packages)
+.superpowers/
+.env*
