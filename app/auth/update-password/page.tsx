@@ -17,7 +17,7 @@ import { BackgroundBubbles } from '@/components/background-bubbles'
 import { FloatingWhatsApp } from '@/components/floating-whatsapp'
 import { isStrongPassword, PASSWORD_REQUIREMENTS_MESSAGE } from '@/lib/password-validation'
 
-const RECOVERY_SESSION_KEY = 'kingflexy_password_recovery_active'
+const RECOVERY_SESSION_KEY = 'fametech_password_recovery_active'
 
 function getRecoveryContext() {
     if (typeof window === 'undefined') {

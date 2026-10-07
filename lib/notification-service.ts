@@ -146,7 +146,7 @@ export function balanceUpdatedNotification(amount: number, type: 'credit' | 'deb
 
 export function welcomeNotification(): Omit<NotificationData, 'userId'> {
     return {
-        title: 'Welcome to KiNG FLEXY GH! 🎉',
+        title: 'Welcome to FameTech! 🎉',
         message: 'Your account is ready. Start buying data, airtime, and more at the best rates!',
         type: 'welcome',
         actionUrl: '/dashboard',

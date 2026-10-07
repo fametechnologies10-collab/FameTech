@@ -442,7 +442,7 @@ export default function ShopPricingPage() {
         return null
     }
 
-    const shopUrl = shop ? `https://shop.kingflexygh.com/${shop.shop_slug}` : ''
+    const shopUrl = shop ? `https://shop.fametechgh.com/${shop.shop_slug}` : ''
 
     const copyLink = async () => {
         await navigator.clipboard.writeText(shopUrl)

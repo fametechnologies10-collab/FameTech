@@ -250,7 +250,7 @@ function DocTable({ head, rows }: { head: string[]; rows: (string | React.ReactN
 // developers were notified and confirmed). BASE now points at the ONLY live
 // API surface; every sample below inherits the flip automatically since they
 // all interpolate ${BASE} rather than hardcoding a version.
-const BASE = 'https://api.kingflexygh.com/api/v2'
+const BASE = 'https://api.fametechgh.com/api/v2'
 const KEY = 'kf_live_your_api_key_here'
 const CS_KEY = 'kf_cs_live_your_commission_key_here'
 
@@ -637,7 +637,7 @@ print(r.json())`,
 // because these product sections (Account & Role, Airtime, Results Checker,
 // AFA Registration) were added before the port and this avoids re-touching
 // every sample in this block for a purely cosmetic rename.
-const V2_BASE = 'https://api.kingflexygh.com/api/v2'
+const V2_BASE = 'https://api.fametechgh.com/api/v2'
 const V2_KEY = KEY // same key material — one standard key for the whole v2 API
 
 const ACCOUNT_ROLE_SAMPLES: Record<LangTab, string> = {
@@ -1061,7 +1061,7 @@ export default function DevelopersPage() {
                         </div>
                     </div>
                     <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-3 leading-tight">
-                        KiNG FLEXY GH<br /><span className="text-violet-300">Developer API</span>
+                        FameTech<br /><span className="text-violet-300">Developer API</span>
                     </h1>
                     <p className="text-sm sm:text-lg text-white/75 max-w-xl mb-8">
                         One API for Ghana digital services: data bundles, airtime, bulk SMS, WAEC/BECE results checkers, MTN AFA registration and utility bills. Integrate using your wallet balance and agent pricing. Reselling over USSD? That is supported too.
@@ -1151,7 +1151,7 @@ export default function DevelopersPage() {
                                     <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Getting Your API Key</h3>
                                     <ol className="space-y-2">
                                         {[
-                                            'Log in to your KingFlexyGh account (agent role required)',
+                                            'Log in to your FameTech account (agent role required)',
                                             'Navigate to Dashboard → Developer API',
                                             'Click Generate API Key and accept the policy',
                                             'Copy and store the key — it will not be shown again',
@@ -1292,7 +1292,7 @@ export default function DevelopersPage() {
                                     description="Retrieve your current wallet balance in GHS. Use before large orders to verify you have sufficient funds."
                                     responseBody={`{\n  "success": true,\n  "data": {\n    "balance": 124.50,\n    "currency": "GHS"\n  }\n}`}
                                     notes={[
-                                        'Top up your wallet via the web dashboard at kingflexygh.com/dashboard/wallet.',
+                                        'Top up your wallet via the web dashboard at fametechgh.com/dashboard/wallet.',
                                         'Check balance before bulk orders to prevent partial failures due to insufficient funds.',
                                     ]}
                                     codeSamples={BALANCE_SAMPLES}
@@ -1345,7 +1345,7 @@ export default function DevelopersPage() {
                             <SectionHeading id="airtime" num={5} label="Airtime (v2)" />
                             <p className="text-sm text-slate-500 dark:text-slate-400">
                                 Send MTN, Telecel, or AT airtime to a beneficiary at face value — no fee — on behalf of your customers,
-                                and earn a share of KiNG FLEXY GH&apos;s provider commission on every top-up. This endpoint only accepts a{' '}
+                                and earn a share of FameTech&apos;s provider commission on every top-up. This endpoint only accepts a{' '}
                                 <IC>Commission Services</IC> key (prefix <IC>kf_cs_live_...</IC>); a <IC>standard</IC> key is rejected with{' '}
                                 <IC>403</IC>.
                             </p>
@@ -1357,7 +1357,7 @@ export default function DevelopersPage() {
                                     responseBody={`{\n  "success": true,\n  "data": {\n    "order_id": "uuid-...",\n    "reference": "air_001",\n    "status": "pending",\n    "network": "MTN",\n    "beneficiary_phone": "0551617309",\n    "airtime_amount": 10,\n    "fee_amount": 0,\n    "total_paid": 10,\n    "new_balance": 90\n  }\n}`}
                                     notes={[
                                         'reference is your idempotency key (3–100 chars) — a repeat with the SAME reference and body returns the existing order instead of charging again; a reused reference against a DIFFERENT order returns 409 and your wallet is not charged.',
-                                        'fee_amount is always 0 — the beneficiary receives the full amount at face value; your earnings come from a share of KiNG FLEXY GH\'s own provider commission, credited to your Commission Wallet once the order completes, not deducted from this transaction.',
+                                        'fee_amount is always 0 — the beneficiary receives the full amount at face value; your earnings come from a share of FameTech\'s own provider commission, credited to your Commission Wallet once the order completes, not deducted from this transaction.',
                                         'Rate limit: 10/min.',
                                     ]}
                                     codeSamples={AIRTIME_PURCHASE_SAMPLES}
@@ -1388,7 +1388,7 @@ export default function DevelopersPage() {
                             <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 p-4 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                                 <strong>Vouchers are returned directly in the purchase response</strong> — there is no separate
                                 &quot;retrieve voucher&quot; call. <IC>recipientPhone</IC> / <IC>recipientEmail</IC> are optional
-                                and have no fallback to your own account: omit both and KiNG FLEXY GH sends nothing — you own
+                                and have no fallback to your own account: omit both and FameTech sends nothing — you own
                                 delivering the voucher to your customer.
                             </div>
                             <div className="space-y-6">
@@ -1405,7 +1405,7 @@ export default function DevelopersPage() {
                                     requestBody={`{\n  "typeId": "uuid-of-a-type-from-GET-types",\n  "quantity": 1,\n  "reference": "rc_001",\n  "recipientPhone": "0551617309",\n  "recipientEmail": "customer@example.com"\n}`}
                                     responseBody={`{\n  "success": true,\n  "data": {\n    "order": { "id": "uuid-...", "reference": "rc_001", "status": "completed", "type_name": "WAEC BECE", "quantity": 1, "unit_price": 18, "total_paid": 18 },\n    "vouchers": [ { "id": "uuid-...", "pin": "1234-5678-9012", "serial_number": "SN-000123" } ],\n    "new_balance": 82\n  }\n}`}
                                     notes={[
-                                        'recipientPhone / recipientEmail are OPTIONAL. Pass either (or both) to also have KiNG FLEXY GH deliver the voucher by SMS/email as a courtesy — the vouchers array in this response is always the authoritative copy either way.',
+                                        'recipientPhone / recipientEmail are OPTIONAL. Pass either (or both) to also have FameTech deliver the voucher by SMS/email as a courtesy — the vouchers array in this response is always the authoritative copy either way.',
                                         'reference is your idempotency key — a reused reference against a different order returns 409, wallet untouched.',
                                         'Rate limit: 10/min.',
                                     ]}
@@ -1507,7 +1507,7 @@ export default function DevelopersPage() {
                             <SectionHeading id="utilities" num={9} label="Utility Bills (Commission)" />
                             <p className="text-sm text-slate-500 dark:text-slate-400">
                                 Pay ECG, Ghana Water, DSTV, GOtv, or StarTimes bills at face value on behalf of your customers — and earn a
-                                share of KiNG FLEXY GH&apos;s provider commission on every payment.
+                                share of FameTech&apos;s provider commission on every payment.
                             </p>
                             <div className="rounded-xl border border-violet-200 dark:border-violet-800/50 bg-violet-50 dark:bg-violet-900/15 p-4 text-xs text-violet-800 dark:text-violet-300 leading-relaxed space-y-2">
                                 <p>
@@ -1807,7 +1807,7 @@ export default function DevelopersPage() {
                                 </a>
                             </div>
                             <p className="mt-6 text-xs text-slate-400 dark:text-slate-600">
-                                © {new Date().getFullYear()} KiNG FLEXY TECHNOLOGIES LTD · Need help? Contact support via your dashboard.
+                                © {new Date().getFullYear()} Fame Technologies · Need help? Contact support via your dashboard.
                             </p>
                         </div>
 

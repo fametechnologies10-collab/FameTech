@@ -1017,7 +1017,7 @@ export default function SmsBusinessPage() {
                                 <ul className="text-[11px] text-muted-foreground space-y-1">
                                     <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> Send instantly, no paperwork</li>
                                     <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> KINGFLEXY pool sender ID</li>
-                                    <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> kingflexygh links only</li>
+                                    <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> fametechgh links only</li>
                                     <li className="flex gap-1.5"><ShieldCheck className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> Standard content filtering</li>
                                 </ul>
                             </div>

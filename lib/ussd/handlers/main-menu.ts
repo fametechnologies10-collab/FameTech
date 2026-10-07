@@ -62,8 +62,8 @@ async function getActiveMenuConfig(_supabase: SupabaseClient): Promise<ActiveMen
 
     const helpline = map['ussd_helpline']?.trim()
     const header = helpline
-        ? `Welcome to KFT\nHelp Line: ${helpline}`
-        : 'Welcome to KFT'
+        ? `Welcome to FameTech\nHelp Line: ${helpline}`
+        : 'Welcome to FameTech'
 
     const items: ActiveMenuConfig['items'] = []
     const menuMap: Record<string, 'data' | 'results_checker' | 'afa' | 'airtime' | 'mashup' | 'utility'> = {}
@@ -122,9 +122,9 @@ function promptShopCode(req: HubtelRequest): HubtelResponse {
     const codeState: USSDState = { step: 'shop_code_entry', codeAttempts: 0 }
     return respond(
         req.SessionId,
-        'KiNG FLEXY TECHNOLOGIES\n\nEnter your 4-character\nshop code or 0 to exit:',
+        'Fame Technologies\n\nEnter your 4-character\nshop code or 0 to exit:',
         codeState,
-        'KiNG FLEXY TECHNOLOGIES',
+        'Fame Technologies',
     )
 }
 
@@ -244,7 +244,7 @@ async function handleShopCodeEntry(
     const input = Message.trim()
 
     if (input === '0') {
-        return release(SessionId, 'Thank you for using KiNG FLEXY TECHNOLOGIES. Goodbye!')
+        return release(SessionId, 'Thank you for using Fame Technologies. Goodbye!')
     }
 
     const shop = await resolveShopByCode(supabase, input)
@@ -263,7 +263,7 @@ async function handleShopCodeEntry(
             SessionId,
             `Invalid code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.\n\nEnter your 4-character\nshop code or 0 to exit:`,
             retryState,
-            'KiNG FLEXY TECHNOLOGIES',
+            'Fame Technologies',
         )
     }
 
@@ -289,7 +289,7 @@ export async function handleMainMenu(
     // ── "0. Exit" from the main choice screen only ────────────────────────
     // Service handlers manage their own 0=back logic at every step.
     if (Message.trim() === '0' && state.step === 'main_choice') {
-        return release(SessionId, 'Thank you for using KiNG FLEXY TECHNOLOGIES. Goodbye!')
+        return release(SessionId, 'Thank you for using Fame Technologies. Goodbye!')
     }
 
     // ── Resume flow ────────────────────────────────────────────────────────
@@ -365,7 +365,7 @@ async function showMainMenu(req: HubtelRequest, supabase: SupabaseClient): Promi
     if (menu.items.length === 0) {
         return release(
             req.SessionId,
-            'KiNG FLEXY TECHNOLOGIES\nAll services are currently unavailable. Please try again later.',
+            'Fame Technologies\nAll services are currently unavailable. Please try again later.',
         )
     }
 
@@ -382,7 +382,7 @@ async function handleMainChoice(
     const choice = Message.trim()
 
     if (choice === '0') {
-        return release(SessionId, 'Thank you for using KiNG FLEXY TECHNOLOGIES. Goodbye!')
+        return release(SessionId, 'Thank you for using Fame Technologies. Goodbye!')
     }
 
     const menuMap = state.menuMap ?? {}

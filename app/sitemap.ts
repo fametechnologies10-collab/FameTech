@@ -5,8 +5,8 @@ import { DEVELOPER_PRODUCTS } from '@/lib/developer-products'
 export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const mainDomain = 'https://kingflexygh.com'
-    const shopDomain = 'https://shop.kingflexygh.com'
+    const mainDomain = 'https://fametechgh.com'
+    const shopDomain = 'https://shop.fametechgh.com'
 
     // Static pages for the main domain
     const staticPages: MetadataRoute.Sitemap = [

@@ -145,7 +145,7 @@ export function buildStorefrontSlides(ctx: StorefrontSlideContext): PromoSlide[]
     // Migrated verbatim from the old static card (ShopStorefront.tsx:1006-1041) —
     // same gating, same WhatsApp-first/tel-fallback request link.
     if (ctx.ownerRole === 'agent' || ctx.ownerRole === 'dealer') {
-        const requestMessage = `Hi! I saw your shop "${ctx.shopName}" on KiNG FLEXY GH and I'd like to become a Sub-Agent under you. I understand this means I get my own shop, set my own prices, and resell data bundles, AFA registrations, results checker vouchers and more. Can you help me get set up?`
+        const requestMessage = `Hi! I saw your shop "${ctx.shopName}" on FameTech and I'd like to become a Sub-Agent under you. I understand this means I get my own shop, set my own prices, and resell data bundles, AFA registrations, results checker vouchers and more. Can you help me get set up?`
         const requestHref = contactHref(ctx, requestMessage)
         slides.push({
             id: 'become-subagent',
@@ -202,7 +202,7 @@ export function buildStorefrontSlides(ctx: StorefrontSlideContext): PromoSlide[]
             label: 'Chat for Help',
             href: contactHref(
                 ctx,
-                `Hi! I need help with an order/purchase on your shop "${ctx.shopName}" on KiNG FLEXY GH.`,
+                `Hi! I need help with an order/purchase on your shop "${ctx.shopName}" on FameTech.`,
             ),
         },
         accentColor,

@@ -84,7 +84,7 @@ export default function ShopCustomersPage() {
         toast.success('Customer list updated')
     }
 
-    const shopUrl = shopSlug ? `https://shop.kingflexygh.com/${shopSlug}` : ''
+    const shopUrl = shopSlug ? `https://shop.fametechgh.com/${shopSlug}` : ''
     const shareText = `🛍️ Buy affordable data bundles, airtime & vouchers from ${shopName || 'my shop'}: ${shopUrl}`
 
     const copyLink = async () => {

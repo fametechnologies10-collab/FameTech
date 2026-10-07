@@ -1304,7 +1304,7 @@ export default function AuthPage() {
                                 </Link>
                             </Button>
                             <a
-                                href="https://kingflexygh.com/shop/felix-s-shop"
+                                href="https://fametechgh.com/shop/felix-s-shop"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="h-10 flex items-center justify-center gap-1.5 text-xs font-bold rounded-xl px-3 bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm hover:shadow-md hover:from-amber-400 hover:to-orange-400 active:scale-[0.98] transition-all duration-200"

@@ -22,7 +22,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     const whatsappAdminNumber = adminSettings.whatsapp_admin_number || ''
     const whatsappCommunityLink = adminSettings.whatsapp_community_link || 'https://chat.whatsapp.com/FC6jYV3VDEQ4MmdTXiFqDV?mode=gi_t'
     const whatsappChannelLink = adminSettings.whatsapp_channel_link || 'https://whatsapp.com/channel/0029Vb7HTfx47XeIZz7ht232'
-    const guestUrl = adminSettings.guest_storefront_url || 'https://kingflexygh.com/shop/felix-s-shop'
+    const guestUrl = adminSettings.guest_storefront_url || 'https://fametechgh.com/shop/felix-s-shop'
 
     return (
         <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-y-auto">

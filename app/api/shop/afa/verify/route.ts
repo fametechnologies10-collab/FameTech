@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     if (host.includes('localhost') || host.includes('127.0.0.1')) {
         targetBaseUrl = host.startsWith('shop.') ? `${protocol}://${host}` : `${protocol}://shop.${host}`
     } else {
-        targetBaseUrl = 'https://shop.kingflexygh.com'
+        targetBaseUrl = 'https://shop.fametechgh.com'
     }
 
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'

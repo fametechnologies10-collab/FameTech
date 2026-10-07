@@ -158,11 +158,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 })
     }
 
-    // SECURITY: sub-agent accounts must sign in at agent.kingflexygh.com, not
+    // SECURITY: sub-agent accounts must sign in at agent.fametechgh.com, not
     // the main apex. Scoped to the two literal production apex hostnames only
     // (never a suffix/endsWith match) — previews, localhost, and every
-    // subdomain (including agent.kingflexygh.com itself) must keep working.
-    const PROD_APEX_HOSTS = ['kingflexygh.com', 'www.kingflexygh.com']
+    // subdomain (including agent.fametechgh.com itself) must keep working.
+    const PROD_APEX_HOSTS = ['fametechgh.com', 'www.fametechgh.com']
     const requestHost = request.headers.get('host') || ''
     if (PROD_APEX_HOSTS.includes(requestHost)) {
       const supabaseAdmin = createServerClient()
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
         // session this user has on every device (the default 'global' scope would).
         await supabase.auth.signOut({ scope: 'local' })
         return NextResponse.json(
-          { error: 'Sub-agent accounts sign in at agent.kingflexygh.com, not here.' },
+          { error: 'Sub-agent accounts sign in at agent.fametechgh.com, not here.' },
           { status: 403 },
         )
       }

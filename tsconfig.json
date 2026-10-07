@@ -38,7 +38,7 @@
   "exclude": [
     "node_modules",
     "scripts",
-    "kingflexy-mobile",
+    "fametech-mobile",
     "scratch"
   ]
 }

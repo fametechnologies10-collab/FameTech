@@ -123,9 +123,9 @@ export async function POST(request: NextRequest) {
                 const untilTxt = suspendedUntil
                     ? ` until ${new Date(suspendedUntil).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`
                     : ''
-                msg = `KiNG FLEXY GH: Your account has been suspended${untilTxt}.${reason ? ' Reason: ' + reason + '.' : ''} Contact support if you believe this is an error.`
+                msg = `FameTech: Your account has been suspended${untilTxt}.${reason ? ' Reason: ' + reason + '.' : ''} Contact support if you believe this is an error.`
             } else {
-                msg = `KiNG FLEXY GH: Your account has been reactivated. Welcome back!`
+                msg = `FameTech: Your account has been reactivated. Welcome back!`
             }
             await sendSMS({ recipient: phone, message: msg })
                 .catch((e) => console.error('[Admin] suspension SMS failed:', e))

@@ -299,7 +299,7 @@ export default function DownloadPage() {
                                         Click the icon and select <strong>&quot;Install&quot;</strong>. The app will be added to your desktop and Start menu.
                                     </StepItem>
                                     <StepItem step={3} title="Launch Like Any App">
-                                        Find <strong>KiNG FLEXY GH</strong> in your Start menu or desktop and launch it. It will open in its own window — no browser UI!
+                                        Find <strong>FameTech</strong> in your Start menu or desktop and launch it. It will open in its own window — no browser UI!
                                     </StepItem>
                                 </div>
 
@@ -331,7 +331,7 @@ export default function DownloadPage() {
                                 No APK downloads needed. Just share this link and they can install instantly from their browser!
                             </p>
                             <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 inline-flex items-center gap-2 text-sm font-mono">
-                                <span>kingflexygh.com/download</span>
+                                <span>fametechgh.com/download</span>
                             </div>
                         </div>
                     </div>

@@ -337,7 +337,7 @@ export default function WebsiteRequestPage() {
                                 value={referenceSites}
                                 onChange={e => setReferenceSites(e.target.value.slice(0, 300))}
                                 maxLength={300}
-                                placeholder="e.g. jumia.com.gh, or “something like kingflexygh.com”"
+                                placeholder="e.g. jumia.com.gh, or “something like fametechgh.com”"
                                 className={cn(fieldClass, 'mt-1.5')}
                             />
                         </div>
@@ -439,7 +439,7 @@ export default function WebsiteRequestPage() {
                             />
                             <span className="text-xs leading-relaxed text-muted-foreground">
                                 This is a genuine project I want to move forward with, and I&apos;m happy for the
-                                KiNG FLEXY GH team to contact me about it.
+                                FameTech team to contact me about it.
                             </span>
                         </label>
 

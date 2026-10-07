@@ -8,7 +8,7 @@ import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
 // GhData retired status-polling entirely (confirmed live: /orders?id= now returns
 // "This status-polling endpoint has been disabled") — this webhook is the only way
 // GhData order status reaches us. Registered at their Agent Portal → API Configuration
-// → Webhooks, destination https://www.kingflexygh.com/api/webhooks/ghdata.
+// → Webhooks, destination https://www.fametechgh.com/api/webhooks/ghdata.
 
 const GHDATA_WEBHOOK_SECRET = process.env.GHDATA_WEBHOOK_SECRET || ''
 

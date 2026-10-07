@@ -113,7 +113,7 @@ After creating your account on [cron-job.org](https://cron-job.org), follow thes
 1. **Click "Create Cron Job"**: Look for the big blue button on your dashboard.
 2. **Title**: Give it a clear name (e.g., `GHData: Sync Moolre Withdrawals`).
 3. **URL**: Enter the full production URL for the specific endpoint:
-    - Example: `https://www.kingflexygh.com/api/cron/sync-moolre-withdrawals`
+    - Example: `https://www.fametechgh.com/api/cron/sync-moolre-withdrawals`
     - *Make sure you use `https://` and change the last part of the URL for each job.*
 4. **Schedule**: Select "User-defined" and set the interval as specified in the table above:
     - For "Every 10 min", set minutes to `*/10`.

@@ -770,7 +770,7 @@ export default function ShopSetupPage() {
         )
     }
 
-    const shopUrl = form.shop_slug ? `https://shop.kingflexygh.com/${form.shop_slug}` : ''
+    const shopUrl = form.shop_slug ? `https://shop.fametechgh.com/${form.shop_slug}` : ''
     const dividerList = showAllDividers ? DIVIDER_PRESETS : POPULAR_DIVIDERS
     const platform = detectPlatform(form.community_link)
 
@@ -893,8 +893,8 @@ export default function ShopSetupPage() {
                     <h1 className="text-2xl font-black tracking-tight">Shop Setup Wizard</h1>
                     <p className="text-sm text-muted-foreground mt-1">
                         {existingShopId
-                            ? "Let's finish getting your KiNGFLEXYGH storefront ready."
-                            : "Let's get your KiNGFLEXYGH storefront live."}
+                            ? "Let's finish getting your FameTech storefront ready."
+                            : "Let's get your FameTech storefront live."}
                     </p>
                 </div>
                 {completedSteps.length > 0 && activeStep > 0 && (
@@ -967,7 +967,7 @@ export default function ShopSetupPage() {
                         <div>
                             <Label htmlFor="shop_slug">Shop URL Slug *</Label>
                             <div className="flex items-center gap-2 mt-1">
-                                <span className="text-sm text-muted-foreground whitespace-nowrap">shop.kingflexygh.com/</span>
+                                <span className="text-sm text-muted-foreground whitespace-nowrap">shop.fametechgh.com/</span>
                                 <Input
                                     id="shop_slug"
                                     value={form.shop_slug}

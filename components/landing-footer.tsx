@@ -59,7 +59,7 @@ export function LandingFooter({
     whatsappChannelLink,
     className,
 }: LandingFooterProps) {
-    const footerText = adminSettings?.footer_copyright_text || '2026 KiNG FLEXY TECHNOLOGIES LTD'
+    const footerText = adminSettings?.footer_copyright_text || '2026 Fame Technologies'
 
     return (
         <footer className={cn("relative mt-auto", className)}>

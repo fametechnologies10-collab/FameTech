@@ -9,8 +9,8 @@ export async function GET(request: Request) {
     // If no shop slug, return the main platform manifest
     if (!shopSlug) {
         return NextResponse.json({
-            name: 'KiNGFLEXYGH - Data Bundles & Airtime',
-            short_name: 'KiNGFLEXYGH',
+            name: 'FameTech - Data Bundles & Airtime',
+            short_name: 'FameTech',
             description: 'Buy affordable MTN, Telecel, and AirtelTigo data bundles & airtime online in Ghana.',
             start_url: '/',
             display: 'standalone',

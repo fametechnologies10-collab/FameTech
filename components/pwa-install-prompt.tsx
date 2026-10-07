@@ -38,7 +38,7 @@ function IOSInstallInstructions({ onClose }: { onClose: () => void }) {
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 pb-8 shadow-2xl border-t border-slate-200 dark:border-slate-800 animate-in slide-in-from-bottom-8 duration-300">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Install KiNGFLEXYGH</h3>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Install FameTech</h3>
                     <button onClick={onClose} title="Close" className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <X className="w-5 h-5 text-slate-500" />
                     </button>
@@ -214,10 +214,10 @@ export function PWAInstallPrompt() {
                 <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-6 duration-500 sm:left-auto sm:right-4 sm:max-w-sm">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
-                            <Image src="/icons/icon-192x192.png" alt="KiNGFLEXYGH" width={48} height={48} className="w-full h-full object-cover" />
+                            <Image src="/icons/icon-192x192.png" alt="FameTech" width={48} height={48} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-slate-900 dark:text-white truncate">KiNGFLEXYGH</p>
+                            <p className="text-sm font-black text-slate-900 dark:text-white truncate">FameTech</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{installDesc}</p>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">

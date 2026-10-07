@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: RLS policies (public + storage.objects)
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 CREATE POLICY admin_custom_list_users_admin_only ON public.admin_custom_list_users AS PERMISSIVE FOR ALL TO public USING ((EXISTS ( SELECT 1

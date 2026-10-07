@@ -17,7 +17,7 @@
  *      promo), phishing/credential, reversal scams, prizes.
  *
  * Enforcement happens at ONE choke point: app/api/shop/sms/send/route.ts, on the
- * PREPARED text (after {shop_link}→shop.kingflexygh.com/<slug>).
+ * PREPARED text (after {shop_link}→shop.fametechgh.com/<slug>).
  *
  * Admin controls (shop_global_settings): sms_blocked_keywords (CONTAINS) and
  * sms_allowed_link_domains (extra social domains).
@@ -107,7 +107,7 @@ export function normalizeForWords(message: string): string {
 // Link allowlist
 // ════════════════════════════════════════════════════════════════════════════
 
-const KINGFLEXY_DOMAINS = ['kingflexygh.com']
+const FAMETECH_DOMAINS = ['fametechgh.com']
 
 export const DEFAULT_ALLOWED_LINK_DOMAINS = [
     'whatsapp.com', 'wa.me', 'chat.whatsapp.com',
@@ -216,7 +216,7 @@ function checkLinks(rawText: string, allowedDomains: string[], hazardsOnly = fal
             return verdict('URL shortener not allowed in SMS')
         }
         if (hazardsOnly) continue // business mode: any real domain is allowed
-        if (hostMatches(host, KINGFLEXY_DOMAINS)) continue
+        if (hostMatches(host, FAMETECH_DOMAINS)) continue
         if (hostMatches(host, allowed)) continue
         return verdict(`External link not allowed: ${host}`)
     }

@@ -5,37 +5,37 @@
  * Pass the request `origin` so passkeys work on Vercel preview deployments —
  * each deployment gets its own RPID derived from its own hostname.
  * Passkeys registered on a preview URL are only usable on that same domain;
- * production passkeys (RPID = kingflexygh.com) only work on production.
+ * production passkeys (RPID = fametechgh.com) only work on production.
  */
 
 const PRODUCTION_HOSTNAMES = new Set([
-    'kingflexygh.com',
-    'www.kingflexygh.com',
-    'shop.kingflexygh.com',
+    'fametechgh.com',
+    'www.fametechgh.com',
+    'shop.fametechgh.com',
 ])
 
 export function getPasskeyRpId(origin?: string | null): string {
     if (origin) {
         try {
             const hostname = new URL(origin).hostname
-            if (PRODUCTION_HOSTNAMES.has(hostname)) return 'kingflexygh.com'
+            if (PRODUCTION_HOSTNAMES.has(hostname)) return 'fametechgh.com'
             if (hostname === 'localhost') return 'localhost'
             // Preview / custom domains: use the full hostname as RPID
             return hostname
         } catch {}
     }
     if (process.env.NODE_ENV === 'development') return 'localhost'
-    return 'kingflexygh.com'
+    return 'fametechgh.com'
 }
 
 export function getPasskeyRpName(): string {
-    return 'KiNG FLEXY GH'
+    return 'FameTech'
 }
 
 const PRODUCTION_ORIGINS = [
-    'https://kingflexygh.com',
-    'https://www.kingflexygh.com',
-    'https://shop.kingflexygh.com',
+    'https://fametechgh.com',
+    'https://www.fametechgh.com',
+    'https://shop.fametechgh.com',
 ]
 
 export function getPasskeyOrigins(origin?: string | null): string[] {

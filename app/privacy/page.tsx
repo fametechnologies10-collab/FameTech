@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { ArrowLeft, ShieldCheck, Database, Eye, Share2, Lock } from 'lucide-react'
 
 export const metadata: Metadata = {
-    title: 'Privacy Policy | KiNG FLEXY GH',
-    description: 'Read the official Privacy Policy for KiNG FLEXY GH Data and Airtime platform.',
+    title: 'Privacy Policy | FameTech',
+    description: 'Read the official Privacy Policy for FameTech Data and Airtime platform.',
 }
 
 export default function PrivacyPage() {
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
                         </div>
                         <h1 className="text-2xl font-black text-slate-900 dark:text-white capitalize">Privacy Policy</h1>
                         <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                            Your privacy is important to us. Learn how we collect, use, and protect your personal information on KiNG FLEXY GH.
+                            Your privacy is important to us. Learn how we collect, use, and protect your personal information on FameTech.
                         </p>
                     </div>
                 </div>

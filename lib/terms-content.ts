@@ -8,7 +8,7 @@ import type { TermsSection, TermsChangeEntry } from './terms'
 // Conventions:
 //  - Highlight rule: [[tone: …]] on SHORT key phrases only (≈2–6 words), never a whole sentence.
 //    Tones: red=prohibition, amber=caution, gold=important, green=reassurance, u=underline.
-//  - {{brand}} renders as "KiNG FLEXY GH" on the dashboard/main site and as the SHOP NAME on storefronts.
+//  - {{brand}} renders as "FameTech" on the dashboard/main site and as the SHOP NAME on storefronts.
 //  - Titles carry NO leading number — renderers number them by position (so storefront shows 1–N cleanly).
 //  - scope: 'dashboard' hides a section from shop storefronts. Default (omitted) = shown everywhere.
 //  - storefront: optional buyer-worded body used on storefronts (falls back to `body`).
@@ -24,7 +24,7 @@ export const INITIAL_CHANGELOG: TermsChangeEntry[] = [
     summary: [
       'Added MoMo Send & Claim rules',
       'Refreshed refunds & 24-hour reporting',
-      'Support is through KiNG FLEXY GH only',
+      'Support is through FameTech only',
       'Added fair-messaging, community & liability terms',
     ],
   },

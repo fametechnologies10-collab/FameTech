@@ -39,13 +39,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             'airtime Ghana',
         ],
         alternates: {
-            canonical: `https://shop.kingflexygh.com/${shopSlug}`,
+            canonical: `https://shop.fametechgh.com/${shopSlug}`,
         },
         openGraph: {
             title: shop.shop_name,
             description: shop.description || `Buy affordable data bundles from ${shop.shop_name}`,
             images: shop.logo_url ? [{ url: shop.logo_url }] : [],
-            url: `https://shop.kingflexygh.com/${shopSlug}`,
+            url: `https://shop.fametechgh.com/${shopSlug}`,
             type: 'website',
             siteName: shop.shop_name,
         },

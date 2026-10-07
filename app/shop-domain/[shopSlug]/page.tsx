@@ -26,13 +26,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
 
     return {
-        metadataBase: new URL('https://shop.kingflexygh.com'),
+        metadataBase: new URL('https://shop.fametechgh.com'),
         title: shop.shop_name,
         description: shop.description || `Buy affordable data bundles from ${shop.shop_name}`,
         openGraph: {
             title: shop.shop_name,
             description: shop.description || `Buy affordable data bundles from ${shop.shop_name}`,
-            url: `https://shop.kingflexygh.com/${shopSlug}`,
+            url: `https://shop.fametechgh.com/${shopSlug}`,
             siteName: shop.shop_name,
             images: shop.logo_url ? [
                 {
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             icon: shop.logo_url || '/favicon.ico',
         },
         alternates: {
-            canonical: `https://shop.kingflexygh.com/${shopSlug}`,
+            canonical: `https://shop.fametechgh.com/${shopSlug}`,
         },
         manifest: `/api/manifest?shop=${shopSlug}`,
     }
@@ -122,7 +122,7 @@ export default async function ShopDomainPage({ params }: Props) {
     // client never re-derives gating. MUST match app/shop/[shopSlug]/page.tsx exactly: global
     // admin gates AND ≥1 biller enabled AND the shop's own opt-in (shop_profiles.utilities_enabled)
     // AND NOT a sub-agent shop (subs sell data only). This subdomain route is what
-    // shop.kingflexygh.com actually serves (middleware rewrites every shop-slug request here),
+    // shop.fametechgh.com actually serves (middleware rewrites every shop-slug request here),
     // so this computation — not the /shop/[shopSlug] copy — is what real storefront traffic sees. ──
     const { UTILITY_BILLER_KEYS } = await import('@/lib/hubtel-utility/billers')
     const { resolveSubAgentContext } = await import('@/lib/sub-agent-account')

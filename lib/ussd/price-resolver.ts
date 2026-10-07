@@ -16,7 +16,7 @@ import { AFA_PRICE_KEYS } from '@/lib/afa-pricing'
 // Priority: dealer > agent (if active) > registered customer > ussd guest price
 // =============================================================================
 
-/** Look up a KingFlexy account by mobile number (0XXXXXXXXX normalised) */
+/** Look up a FameTech account by mobile number (0XXXXXXXXX normalised) */
 export async function findUserByMobile(
     supabase: SupabaseClient,
     mobile: string,

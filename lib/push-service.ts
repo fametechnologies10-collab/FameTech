@@ -16,7 +16,7 @@ import {
 // Prerequisites (add to .env.local / Vercel env vars):
 //   NEXT_PUBLIC_VAPID_PUBLIC_KEY=<your generated public key>
 //   VAPID_PRIVATE_KEY=<your generated private key>
-//   VAPID_SUBJECT=mailto:support@kingflexygh.com
+//   VAPID_SUBJECT=mailto:support@fametechgh.com
 //
 // Generate VAPID keys once by running in Node.js:
 //   node -e "const wp = require('web-push'); console.log(wp.generateVAPIDKeys())"
@@ -27,7 +27,7 @@ function ensureVapidDetails() {
     if (isVapidSet) return
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
     const privateKey = process.env.VAPID_PRIVATE_KEY
-    const subject = process.env.VAPID_SUBJECT || 'mailto:support@kingflexygh.com'
+    const subject = process.env.VAPID_SUBJECT || 'mailto:support@fametechgh.com'
 
     if (publicKey && privateKey) {
         try {

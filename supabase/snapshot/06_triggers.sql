@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: triggers
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 CREATE TRIGGER trg_log_admin_settings_change AFTER INSERT OR UPDATE ON public.admin_settings FOR EACH ROW EXECUTE FUNCTION log_admin_settings_change();

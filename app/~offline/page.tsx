@@ -38,7 +38,7 @@ export default function OfflinePage() {
 
                 <div className="space-y-2">
                     <span className="text-xs font-black uppercase tracking-[0.25em] text-violet-500 block">
-                        KiNG FLEXY GH
+                        FameTech
                     </span>
                     <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                         You&apos;re Offline

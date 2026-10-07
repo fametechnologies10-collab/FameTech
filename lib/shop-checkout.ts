@@ -56,7 +56,7 @@ export function sanitizeForPaystack(text: string): string {
  * White-labelled synthetic email for guests who supply no email (or an invalid one).
  * Format: <shopname>-<phone>-<4 random digits>@gmail.com. We use gmail.com because it
  * has real MX records and is universally accepted by Paystack's live Charge AND Inline
- * (card) APIs — our own kingflexygh.com / shop.* domains are mail-less and get rejected,
+ * (card) APIs — our own fametechgh.com / shop.* domains are mail-less and get rejected,
  * which 502'd empty-email MoMo charges and blocked the card popup. The shop-name prefix
  * keeps the synthetic customer record tied to the storefront, and the random suffix keeps
  * it unique per attempt. Used by BOTH /api/shop/charge (MoMo) and /api/shop/initialize (card).

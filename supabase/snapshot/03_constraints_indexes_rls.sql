@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: constraints, indexes, enable RLS
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 ALTER TABLE ONLY public.admin_audit_log ADD CONSTRAINT admin_audit_log_pkey PRIMARY KEY (id);

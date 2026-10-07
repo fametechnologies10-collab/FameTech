@@ -34,7 +34,7 @@ async function run() {
     const url = process.argv[2]
     if (!url) {
         console.error('Usage: npx tsx scripts/bundleportal-register-webhook.ts <webhook-url>')
-        console.error('Example: npx tsx scripts/bundleportal-register-webhook.ts https://www.kingflexygh.com/api/webhooks/bundleportal')
+        console.error('Example: npx tsx scripts/bundleportal-register-webhook.ts https://www.fametechgh.com/api/webhooks/bundleportal')
         process.exit(1)
     }
     if (!url.startsWith('https://')) {

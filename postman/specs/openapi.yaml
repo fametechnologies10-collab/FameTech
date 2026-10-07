@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: KiNG FLEXY GH Developer API
+  title: FameTech Developer API
   version: "2.0.0"
   description: |
-    The public developer API for KiNG FLEXY GH — Ghana digital services
+    The public developer API for FameTech — Ghana digital services
     (MTN/Telecel/AirtelTigo data bundles, airtime, results-checker vouchers,
     MTN AFA registration, utility bill payments, and SMS).
 
@@ -43,11 +43,11 @@ info:
     not merely a per-account one, so pick references unlikely to collide
     with another developer's.
   contact:
-    name: KiNG FLEXY GH
-    url: https://kingflexygh.com/developers
+    name: FameTech
+    url: https://fametechgh.com/developers
 
 servers:
-  - url: https://api.kingflexygh.com/api/v2
+  - url: https://api.fametechgh.com/api/v2
     description: Production (only environment — there is no staging/sandbox base URL)
 
 security:

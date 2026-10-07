@@ -2,8 +2,8 @@
 // (/developers/<slug>), /llms.txt and the sitemap. Facts here mirror
 // postman/specs/openapi.yaml — change the spec first, then this file.
 
-export const API_BASE = 'https://api.kingflexygh.com/api/v2'
-export const SITE = 'https://kingflexygh.com'
+export const API_BASE = 'https://api.fametechgh.com/api/v2'
+export const SITE = 'https://fametechgh.com'
 export const USSD_SHORTCODE = process.env.NEXT_PUBLIC_USSD_SHORTCODE ?? '*713*9939#'
 
 export type KeyType = 'standard' | 'commission' | 'sms'
@@ -199,9 +199,9 @@ export const DEVELOPER_PRODUCTS: DeveloperProduct[] = [
         name: 'USSD for Resellers',
         title: 'USSD for Data Resellers in Ghana — Your Own Branded USSD Code',
         description:
-            `Resellers on KiNG FLEXY GH can sell data bundles, mashup, airtime, results checkers, AFA registrations and utility bills over USSD. Customers dial ${USSD_SHORTCODE}, or a shop owner activates their own USSD code branded in their shop name.`,
+            `Resellers on FameTech can sell data bundles, mashup, airtime, results checkers, AFA registrations and utility bills over USSD. Customers dial ${USSD_SHORTCODE}, or a shop owner activates their own USSD code branded in their shop name.`,
         intro:
-            `Many data resellers need USSD because their customers do not use smartphones or apps. KiNG FLEXY GH supports USSD for its products in two ways: the shared shortcode ${USSD_SHORTCODE}, and a USSD code each shop owner can activate and brand in their own name.`,
+            `Many data resellers need USSD because their customers do not use smartphones or apps. FameTech supports USSD for its products in two ways: the shared shortcode ${USSD_SHORTCODE}, and a USSD code each shop owner can activate and brand in their own name.`,
         keyType: null,
         endpoints: [],
         curl: null,
@@ -223,10 +223,10 @@ export const USSD_DETAILS: string[] = [
 
 export function llmsTxt(): string {
     const lines: string[] = []
-    lines.push('# KiNG FLEXY GH')
+    lines.push('# FameTech')
     lines.push('')
     lines.push(
-        '> KiNG FLEXY GH (KiNG FLEXY TECHNOLOGIES LTD) is a Ghana digital services platform and developer API: MTN, Telecel and AirtelTigo data bundles, airtime, WAEC/BECE results checker vouchers, MTN AFA registration, utility bill payments (ECG, Ghana Water, DStv, GOtv, StarTimes), and bulk SMS. Resellers can also sell these over USSD. Ghana only.',
+        '> FameTech (Fame Technologies) is a Ghana digital services platform and developer API: MTN, Telecel and AirtelTigo data bundles, airtime, WAEC/BECE results checker vouchers, MTN AFA registration, utility bill payments (ECG, Ghana Water, DStv, GOtv, StarTimes), and bulk SMS. Resellers can also sell these over USSD. Ghana only.',
     )
     lines.push('')
     lines.push('## API')
@@ -250,7 +250,7 @@ export function llmsTxt(): string {
     lines.push('')
     lines.push('## Getting an API key')
     lines.push('')
-    lines.push(`Sign in or register at ${SITE}/auth, then follow the steps in ${SITE}/developers#authentication (Dashboard > Developer API). Keys are shown once and need admin approval before they go live. The agent.kingflexygh.com site is only a login page for existing sub-agent accounts and is not where developers sign up.`)
+    lines.push(`Sign in or register at ${SITE}/auth, then follow the steps in ${SITE}/developers#authentication (Dashboard > Developer API). Keys are shown once and need admin approval before they go live. The agent.fametechgh.com site is only a login page for existing sub-agent accounts and is not where developers sign up.`)
     lines.push('')
     return lines.join('\n')
 }

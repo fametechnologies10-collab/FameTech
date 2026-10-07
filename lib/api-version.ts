@@ -5,7 +5,7 @@
 // mocking NextRequest.
 
 export const API_V2_PREFIX = '/api/v2/'
-export const API_V2_HOST = 'api.kingflexygh.com'
+export const API_V2_HOST = 'api.fametechgh.com'
 export const API_V2_BASE_URL = `https://${API_V2_HOST}/api/v2`
 
 export function isV2Path(pathname: string): boolean {

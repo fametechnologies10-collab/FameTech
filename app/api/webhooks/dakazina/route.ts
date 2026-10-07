@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         if (upperStatus === 'DELIVERED') {
             targetStatus = 'completed'
         } else if (upperStatus === 'WAITING') {
-            // Per a KiNG FLEXY GH + DataKazina ops decision, WAITING is treated as a failed
+            // Per a FameTech + DataKazina ops decision, WAITING is treated as a failed
             // delivery attempt — NOT a refund. The wallet charge is left untouched; an admin
             // refunds manually via the payments centre, same as every other supplier's
             // webhook-driven failure (mirrors app/api/webhooks/hendylinks/route.ts).

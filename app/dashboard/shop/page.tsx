@@ -291,7 +291,7 @@ export default function ShopDashboardPage() {
         }
     }, [dbUser, isAdmin, isSubAdmin, filter])
 
-    const shopUrl = shop ? `https://shop.kingflexygh.com/${shop.shop_slug}` : ''
+    const shopUrl = shop ? `https://shop.fametechgh.com/${shop.shop_slug}` : ''
 
     const copyLink = async () => {
         await navigator.clipboard.writeText(shopUrl)

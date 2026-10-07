@@ -81,7 +81,7 @@ const QUICK_START_TABS = ['cURL', 'Node.js', 'PHP', 'Python'] as const
 type QuickStartTab = (typeof QUICK_START_TABS)[number]
 
 const QUICK_START_CODE: Record<QuickStartTab, string> = {
-    'cURL': `curl -X POST https://api.kingflexygh.com/api/v2/data/purchase \\
+    'cURL': `curl -X POST https://api.fametechgh.com/api/v2/data/purchase \\
   -H "Authorization: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -90,7 +90,7 @@ const QUICK_START_CODE: Record<QuickStartTab, string> = {
     "recipient": "0551617309",
     "reference": "order_001"
   }'`,
-    'Node.js': `const res = await fetch('https://api.kingflexygh.com/api/v2/data/purchase', {
+    'Node.js': `const res = await fetch('https://api.fametechgh.com/api/v2/data/purchase', {
   method: 'POST',
   headers: {
     'Authorization': 'YOUR_API_KEY',
@@ -106,7 +106,7 @@ const QUICK_START_CODE: Record<QuickStartTab, string> = {
 const data = await res.json();
 console.log(data);`,
     'PHP': `<?php
-$ch = curl_init('https://api.kingflexygh.com/api/v2/data/purchase');
+$ch = curl_init('https://api.fametechgh.com/api/v2/data/purchase');
 curl_setopt_array($ch, [
   CURLOPT_RETURNTRANSFER => true,
   CURLOPT_POST => true,
@@ -123,7 +123,7 @@ echo curl_exec($ch); curl_close($ch);`,
     'Python': `import requests
 
 r = requests.post(
-  'https://api.kingflexygh.com/api/v2/data/purchase',
+  'https://api.fametechgh.com/api/v2/data/purchase',
   headers={
     'Authorization': 'YOUR_API_KEY',
     'Content-Type': 'application/json',
@@ -447,7 +447,7 @@ export default function ApiDashboardPage() {
                     <div className="p-5 space-y-4">
                         <div>
                             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Base URL</p>
-                            <CodeBlock code="https://api.kingflexygh.com/api/v2" />
+                            <CodeBlock code="https://api.fametechgh.com/api/v2" />
                         </div>
                         <div>
                             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Authentication Header</p>
@@ -498,7 +498,7 @@ export default function ApiDashboardPage() {
 // v1 has been fully ported and eliminated (owner decision, 2026-08-31) — this
 // is now the only live base URL. Every sample below interpolates ${API_BASE}
 // rather than a hardcoded version, so the flip propagates automatically.
-const API_BASE = 'https://api.kingflexygh.com/api/v2'
+const API_BASE = 'https://api.fametechgh.com/api/v2'
 const API_KEY_PLACEHOLDER = 'kf_live_your_api_key_here'
 const COMMISSION_KEY_PLACEHOLDER = 'kf_cs_live_your_commission_key_here'
 
@@ -678,9 +678,9 @@ function scrollToSection(id: string) {
 
 const SIGNATURE_VERIFY_SAMPLES: Record<ApiLangTab, string> = {
     'cURL': `# Signature verification isn't a curl operation — see the Node.js /\n# PHP / Python tabs. Your endpoint receives:\n#   X-KFT-Signature: <hex hmac-sha256>\n# computed over the exact raw request body using your webhook secret.`,
-    'Node.js': `const crypto = require('crypto');\n\nfunction isValidSignature(rawBody, signatureHeader, secret) {\n  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');\n  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));\n}\n\n// Express example — use a raw-body parser, NOT the parsed JSON, since the\n// signature is computed over the exact bytes we sent.\napp.post('/webhooks/kingflexy', express.raw({ type: 'application/json' }), (req, res) => {\n  const signature = req.headers['x-kft-signature'];\n  if (!isValidSignature(req.body, signature, process.env.KF_WEBHOOK_SECRET)) {\n    return res.status(401).send('invalid signature');\n  }\n  const event = JSON.parse(req.body);\n  // ... handle event.event / event.product / event.reference / event.status\n  res.sendStatus(200);\n});`,
+    'Node.js': `const crypto = require('crypto');\n\nfunction isValidSignature(rawBody, signatureHeader, secret) {\n  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');\n  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));\n}\n\n// Express example — use a raw-body parser, NOT the parsed JSON, since the\n// signature is computed over the exact bytes we sent.\napp.post('/webhooks/fametech', express.raw({ type: 'application/json' }), (req, res) => {\n  const signature = req.headers['x-kft-signature'];\n  if (!isValidSignature(req.body, signature, process.env.KF_WEBHOOK_SECRET)) {\n    return res.status(401).send('invalid signature');\n  }\n  const event = JSON.parse(req.body);\n  // ... handle event.event / event.product / event.reference / event.status\n  res.sendStatus(200);\n});`,
     'PHP': `<?php\n$rawBody = file_get_contents('php://input');\n$signature = $_SERVER['HTTP_X_KFT_SIGNATURE'] ?? '';\n$expected = hash_hmac('sha256', $rawBody, getenv('KF_WEBHOOK_SECRET'));\n\nif (!hash_equals($expected, $signature)) {\n    http_response_code(401);\n    exit('invalid signature');\n}\n\n$event = json_decode($rawBody, true);\n// ... handle $event['event'] / $event['product'] / $event['reference'] / $event['status']\nhttp_response_code(200);`,
-    'Python': `import hmac, hashlib\n\ndef is_valid_signature(raw_body: bytes, signature_header: str, secret: str) -> bool:\n    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()\n    return hmac.compare_digest(expected, signature_header)\n\n# Flask example\n@app.route('/webhooks/kingflexy', methods=['POST'])\ndef webhook():\n    raw_body = request.get_data()\n    signature = request.headers.get('X-KFT-Signature', '')\n    if not is_valid_signature(raw_body, signature, os.environ['KF_WEBHOOK_SECRET']):\n        return 'invalid signature', 401\n    event = request.get_json()\n    # ... handle event['event'] / event['product'] / event['reference'] / event['status']\n    return '', 200`,
+    'Python': `import hmac, hashlib\n\ndef is_valid_signature(raw_body: bytes, signature_header: str, secret: str) -> bool:\n    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()\n    return hmac.compare_digest(expected, signature_header)\n\n# Flask example\n@app.route('/webhooks/fametech', methods=['POST'])\ndef webhook():\n    raw_body = request.get_data()\n    signature = request.headers.get('X-KFT-Signature', '')\n    if not is_valid_signature(raw_body, signature, os.environ['KF_WEBHOOK_SECRET']):\n        return 'invalid signature', 401\n    event = request.get_json()\n    # ... handle event['event'] / event['product'] / event['reference'] / event['status']\n    return '', 200`,
 }
 
 function ApiReferenceSection({ standardKey, commissionKey }: { standardKey: ApiKeyMeta | null; commissionKey: ApiKeyMeta | null }) {
@@ -873,7 +873,7 @@ function StandardApiTab() {
                 method="GET" path="/api/v2/wallet/balance"
                 description="Retrieve your current wallet balance in GHS. Top up via the dashboard wallet page."
                 responseBody={`{\n  "success": true,\n  "data": {\n    "balance": 124.50,\n    "currency": "GHS"\n  }\n}`}
-                notes={['Top up at kingflexygh.com/dashboard/wallet.', 'Check before bulk orders to avoid insufficient balance failures.']}
+                notes={['Top up at fametechgh.com/dashboard/wallet.', 'Check before bulk orders to avoid insufficient balance failures.']}
                 samples={BALANCE_API_SAMPLES}
             />
             </div>
@@ -957,7 +957,7 @@ function CommissionApiTab() {
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     Pay ECG, Ghana Water, DSTV, GOtv, or StarTimes bills — or send MTN, Telecel, or AT airtime — at face value on
-                    behalf of your customers, and earn a share of KiNG FLEXY GH's provider commission on every transaction. This is a
+                    behalf of your customers, and earn a share of FameTech's provider commission on every transaction. This is a
                     separate product from the Data API above: the endpoints below only accept a{' '}
                     <strong className="text-slate-800 dark:text-slate-200">Commission Services key</strong> (prefix{' '}
                     <code className="font-mono text-violet-600 dark:text-violet-400 text-xs">kf_cs_live_...</code>), and reject a standard key
@@ -1087,7 +1087,7 @@ function CommissionApiTab() {
                     'reference is your idempotency key — sending the same reference twice returns the existing order without charging (is_duplicate: true).',
                     'network is one of MTN, Telecel, AT — a different value set from the Data API\'s network codes (which distinguish AT-iShare / AT-BigTime); airtime has no such distinction.',
                     'beneficiary_phone must be 0XXXXXXXXX (10 digits, starts with 0).',
-                    'fee_amount is always 0 on the Commission Services key — the beneficiary receives the full amount at face value; your earnings come from a share of KiNG FLEXY GH\'s own provider commission, credited to your Commission Wallet once the order completes, not deducted from this transaction.',
+                    'fee_amount is always 0 on the Commission Services key — the beneficiary receives the full amount at face value; your earnings come from a share of FameTech\'s own provider commission, credited to your Commission Wallet once the order completes, not deducted from this transaction.',
                     'amount must fall within the live per-role min/max limits configured by an admin.',
                 ]}
                 samples={AIRTIME_PURCHASE_SAMPLES}

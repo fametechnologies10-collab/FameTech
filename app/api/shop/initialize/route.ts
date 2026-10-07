@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         const paystackEmail = validatedGuestEmail || buildGuestEmail(shop.shop_name, cleanPhone)
         const paystackRef = `SHOP-${shop.id.slice(0, 8)}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
         const protocol = request.headers.get('x-forwarded-proto') || 'https'
-        const host = request.headers.get('host') || 'kingflexygh.com'
+        const host = request.headers.get('host') || 'fametechgh.com'
         const callbackUrl = `${protocol}://${host}/api/shop/verify?ref=${paystackRef}&slug=${shopSlug}`
 
         // In-memory idempotency (same lambda instance)

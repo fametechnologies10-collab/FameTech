@@ -121,7 +121,7 @@ export default function ShopStatusTracker() {
     useEffect(() => {
         // Detect if we are on the subdomain storefront or the main domain
         const hostname = window.location.hostname
-        const isSub = hostname.startsWith('shop.') || (hostname !== 'kingflexygh.com' && hostname !== 'www.kingflexygh.com' && !hostname.includes('localhost'))
+        const isSub = hostname.startsWith('shop.') || (hostname !== 'fametechgh.com' && hostname !== 'www.fametechgh.com' && !hostname.includes('localhost'))
         setIsStorefront(isSub)
     }, [])
 

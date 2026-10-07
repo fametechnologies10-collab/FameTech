@@ -134,7 +134,7 @@ export default function ResetPasswordPage() {
 
             // Success! Set recovery flag and redirect
             if (typeof window !== 'undefined') {
-                window.sessionStorage.setItem('kingflexy_password_recovery_active', 'true')
+                window.sessionStorage.setItem('fametech_password_recovery_active', 'true')
             }
             toast.success('Code verified! Please set a new password.')
             router.push('/auth/update-password')

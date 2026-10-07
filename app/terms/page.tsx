@@ -6,8 +6,8 @@ import { ToneText } from '@/components/terms/tone-text'
 import { FALLBACK_EFFECTIVE_DATE, sectionsForAudience, PLATFORM_BRAND } from '@/lib/terms'
 
 export const metadata: Metadata = {
-    title: 'Terms of Service | KiNG FLEXY GH',
-    description: 'Read the official Terms of Service for KiNG FLEXY GH Data and Airtime platform.',
+    title: 'Terms of Service | FameTech',
+    description: 'Read the official Terms of Service for FameTech Data and Airtime platform.',
 }
 
 // Rendered from the DB single source of truth; an admin publish reflects within a minute.
@@ -46,7 +46,7 @@ export default async function TermsPage() {
                         </div>
                         <h1 className="text-2xl font-black text-slate-900 dark:text-white capitalize">Terms &amp; Conditions</h1>
                         <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                            Welcome to KiNG FLEXY GH. By using our platform, you agree to these fundamental rules governing your account and transactions.
+                            Welcome to FameTech. By using our platform, you agree to these fundamental rules governing your account and transactions.
                         </p>
                     </div>
                 </div>

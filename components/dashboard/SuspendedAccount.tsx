@@ -51,7 +51,7 @@ export function SuspendedAccount() {
                     </div>
 
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium pt-4 border-t border-slate-100 dark:border-slate-800">
-                        KiNG FLEXY GH Support System
+                        FameTech Support System
                     </p>
                 </CardContent>
             </Card>

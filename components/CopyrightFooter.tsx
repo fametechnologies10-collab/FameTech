@@ -19,8 +19,8 @@ export function CopyrightFooter({
     const currentYear = new Date().getFullYear()
     
     // Fallbacks for settings
-    const footerText = adminSettings?.footer_copyright_text || `2026 KiNG FLEXY TECHNOLOGIES LTD`
-    const brandingText = adminSettings?.footer_branding_text || 'KiNG FLEXY TECHNOLOGIES'
+    const footerText = adminSettings?.footer_copyright_text || `2026 Fame Technologies`
+    const brandingText = adminSettings?.footer_branding_text || 'Fame Technologies'
 
     return (
         <footer className={cn(

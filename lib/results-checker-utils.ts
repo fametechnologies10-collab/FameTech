@@ -74,7 +74,7 @@ export function buildResultsCheckerVoucherDownload(
         `Date: ${dateStr} ${timeStr}`,
         `Reference: ${order.reference_code || order.referenceCode || 'N/A'}`,
         `Log on to: ${examPortal}`,
-        `Powered by ${shopName || 'KiNG FLEXY GH'}`,
+        `Powered by ${shopName || 'FameTech'}`,
     ].join('\n')
 
     const filename = `${upperTypeName}-vouchers-${order.reference_code || order.referenceCode || 'receipt'}.txt`

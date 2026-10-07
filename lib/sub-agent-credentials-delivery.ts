@@ -18,27 +18,27 @@ export interface CredentialsDeliveryResult {
     emailDelivered: boolean
 }
 
-const AGENT_LOGIN_URL = process.env.NEXT_PUBLIC_AGENT_URL || 'https://agent.kingflexygh.com'
+const AGENT_LOGIN_URL = process.env.NEXT_PUBLIC_AGENT_URL || 'https://agent.fametechgh.com'
 
 function buildSmsMessage(kind: CredentialsDeliveryKind, plaintextKey: string): string {
     if (kind === 'onboarding') {
-        return `Welcome to KiNG FLEXY GH! Your sub-agent access key is: ${plaintextKey}. `
+        return `Welcome to FameTech! Your sub-agent access key is: ${plaintextKey}. `
             + `Sign in at ${AGENT_LOGIN_URL} — you'll be asked to set your own password on first login.`
     }
-    return `Your KiNG FLEXY GH sub-agent access key was reset. New key: ${plaintextKey}. It becomes active the next time you sign in with it, within 2 hours. Didn't request this? Contact your recruiter.`
+    return `Your FameTech sub-agent access key was reset. New key: ${plaintextKey}. It becomes active the next time you sign in with it, within 2 hours. Didn't request this? Contact your recruiter.`
 }
 
 function buildEmailHtml(kind: CredentialsDeliveryKind, plaintextKey: string, firstName: string | null): string {
     const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
     if (kind === 'onboarding') {
         return `<p>${greeting}</p>`
-            + `<p>You've been added as a sub-agent on KiNG FLEXY GH. Your access key is:</p>`
+            + `<p>You've been added as a sub-agent on FameTech. Your access key is:</p>`
             + `<p style="font-size:18px;font-weight:bold;letter-spacing:1px;">${plaintextKey}</p>`
             + `<p>Sign in at <a href="${AGENT_LOGIN_URL}">${AGENT_LOGIN_URL}</a>. `
             + `You'll be asked to set your own password the first time you log in.</p>`
     }
     return `
-        <p>Your KiNG FLEXY GH sub-agent access key was reset by your recruiter.</p>
+        <p>Your FameTech sub-agent access key was reset by your recruiter.</p>
         <p style="font-size: 20px; font-weight: 700; letter-spacing: 2px;">${plaintextKey}</p>
         <p>It becomes active the next time you sign in with it, within 2 hours. Until then, your old key still works.</p>
         <p>If you did not expect this, contact your recruiter or support.</p>
@@ -94,8 +94,8 @@ export async function deliverSubAgentCredentials(
     const smsMessage = buildSmsMessage(kind, plaintextKey)
     const emailHtml = buildEmailHtml(kind, plaintextKey, recipient.firstName)
     const subject = kind === 'onboarding'
-        ? 'Your KiNG FLEXY GH sub-agent access key'
-        : 'Your new KiNG FLEXY GH sub-agent access key'
+        ? 'Your FameTech sub-agent access key'
+        : 'Your new FameTech sub-agent access key'
 
     const [smsDelivered, emailDelivered] = await Promise.all([
         attemptChannelDelivery('sms', kind, recipient.phone, () =>

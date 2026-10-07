@@ -89,7 +89,7 @@ export function interpretFeeBearer(d: {
  * Receive Money rail is independent of the Commission Services rail.
  */
 export function buildSignedReceiveCallbackUrl(reference: string): string {
-    const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://kingflexygh.com'
+    const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://fametechgh.com'
     const cbSecret = process.env.HUBTEL_RECEIVE_WEBHOOK_SECRET || ''
     let callbackUrl = `${cbBase}/api/webhooks/hubtel-receive-money`
     if (cbSecret) {

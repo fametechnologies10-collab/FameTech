@@ -43,7 +43,7 @@ export async function maybeNotifyLowBalance(
             subject: 'Your KFT SMS credit balance is low',
             htmlContent: `<p>Hi ${userRow.first_name || 'there'},</p>
 <p>Your SMS credit balance has dropped to <strong>${balanceAfter}</strong>, below your alert threshold of ${account.low_balance_threshold}.</p>
-<p>Top up on the <a href="https://kingflexygh.com/dashboard/sms/credits">SMS credits page</a> to avoid interrupted sends.</p>`,
+<p>Top up on the <a href="https://fametechgh.com/dashboard/sms/credits">SMS credits page</a> to avoid interrupted sends.</p>`,
         })
     } catch (e: any) {
         console.error('[SMS Low Balance Alert] error:', e?.message)

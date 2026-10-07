@@ -15,7 +15,7 @@ export function BrandLogo({ width = 48, height = 48, fill = false, className, pr
             <div className={cn("relative rounded-full overflow-hidden", className)}>
                 <Image
                     src="/logo.png"
-                    alt="KiNG FLEXY GH Logo"
+                    alt="FameTech Logo"
                     fill
                     className="object-cover rounded-full"
                     priority={priority}
@@ -27,7 +27,7 @@ export function BrandLogo({ width = 48, height = 48, fill = false, className, pr
     return (
         <Image
             src="/logo.png"
-            alt="KiNG FLEXY GH Logo"
+            alt="FameTech Logo"
             width={width}
             height={height}
             className={cn("rounded-full flex-shrink-0 object-cover", className)}
@@ -45,16 +45,16 @@ export function BrandTitle({ className, variant = 'default' }: BrandTitleProps) 
     if (variant === 'hero') {
         return (
             <span className={cn("font-black tracking-tight", className)}>
-                <span className="text-slate-900 dark:text-white">KiNG </span>
-                <span className="text-[#FFCC00]">FLEXY GH</span>
+                <span className="text-slate-900 dark:text-white">Fame</span>
+                <span className="text-[#0057FF]">Tech</span>
             </span>
         )
     }
 
     return (
         <span className={cn("font-black tracking-tight", className)}>
-            <span className="text-black dark:text-white">KiNG </span>
-            <span className="text-[#FFCC00]">FLEXY GH</span>
+            <span className="text-black dark:text-white">Fame</span>
+            <span className="text-[#0057FF]">Tech</span>
         </span>
     )
 }

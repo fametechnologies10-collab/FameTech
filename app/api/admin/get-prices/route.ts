@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
         // ── Public fields (always returned) ───────────────────────
         const publicPayload = {
-            guestStorefrontUrl: find('guest_storefront_url') || 'https://kingflexygh.com/shop/felix-s-shop',
+            guestStorefrontUrl: find('guest_storefront_url') || 'https://fametechgh.com/shop/felix-s-shop',
             whatsappGroupLink: find('whatsapp_group_link'),
             whatsappChannelLink: find('whatsapp_channel_link'),
             whatsappAdminNumber: find('whatsapp_admin_number'),

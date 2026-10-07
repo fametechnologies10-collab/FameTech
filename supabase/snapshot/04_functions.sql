@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: functions / RPCs
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 CREATE OR REPLACE FUNCTION public._profit_daily_rows_v2(p_start_date timestamp with time zone, p_end_date timestamp with time zone, p_product_types text[], p_network text)

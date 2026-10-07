@@ -452,7 +452,7 @@ function DeveloperWarningModal({
                 {/* Body */}
                 <div className="p-5 sm:p-6 space-y-4 text-sm text-slate-700 dark:text-slate-300">
                     <p>
-                        The Developer API is intended for <strong>software developers integrating KiNG FLEXY GH into their own apps or platforms</strong> — not for casual use or for resale of unmodified KiNG FLEXY GH services.
+                        The Developer API is intended for <strong>software developers integrating FameTech into their own apps or platforms</strong> — not for casual use or for resale of unmodified FameTech services.
                     </p>
 
                     <div className="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 p-4 space-y-2">

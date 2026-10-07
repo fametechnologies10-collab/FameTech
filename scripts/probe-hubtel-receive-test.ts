@@ -66,7 +66,7 @@ if (missing.length) { console.error('\nCannot fire probe — missing:', missing.
 
 const creds = Buffer.from(`${apiId}:${apiKey}`).toString('base64')
 const clientReference = 'TEST-RCV-' + Date.now()
-const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://kingflexygh.com'
+const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://fametechgh.com'
 const bodyStr = JSON.stringify({
     CustomerName: 'KFT Fee Test',
     CustomerMsisdn: msisdn,

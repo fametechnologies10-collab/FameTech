@@ -58,7 +58,7 @@ export function parseCommission(meta: any): number | undefined {
  * integration (airtime + utility bills) so callback auth stays identical across products.
  */
 export function buildSignedCallbackUrl(clientReference: string): string {
-    const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://kingflexygh.com'
+    const cbBase = process.env.NEXT_PUBLIC_APP_URL || 'https://fametechgh.com'
     const cbSecret = process.env.HUBTEL_COMMISSION_WEBHOOK_SECRET || ''
     let callbackUrl = `${cbBase}/api/webhooks/hubtel-commission`
     if (cbSecret) {

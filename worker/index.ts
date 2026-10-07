@@ -21,10 +21,10 @@ self.addEventListener('push', (event: PushEvent) => {
     try {
         data = event.data.json()
     } catch {
-        data = { title: 'KiNG FLEXY GH', body: event.data.text() }
+        data = { title: 'FameTech', body: event.data.text() }
     }
 
-    const title = data.title || 'KiNG FLEXY GH'
+    const title = data.title || 'FameTech'
     const options: NotificationOptions = {
         body: data.body || 'You have a new notification.',
         icon: data.icon || '/icons/icon-192x192.png',

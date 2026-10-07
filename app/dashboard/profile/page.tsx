@@ -82,15 +82,15 @@ export default function ProfilePage() {
                 if (serverOutcome === 'mismatch') {
                     await syncSession()
                     toast.error(
-                        `That Google account doesn't match your KiNG FLEXY email, so it was not connected. ` +
-                        `Please use the Google account registered to your KiNG FLEXY email.`
+                        `That Google account doesn't match your FameTech email, so it was not connected. ` +
+                        `Please use the Google account registered to your FameTech email.`
                     )
                     return
                 }
                 if (serverOutcome === 'mismatch_failed') {
                     await syncSession()
                     toast.error(
-                        `A Google account that doesn't match your KiNG FLEXY email was connected, and we ` +
+                        `A Google account that doesn't match your FameTech email was connected, and we ` +
                         `couldn't remove it automatically. Please tap Disconnect, or contact support.`
                     )
                     return
@@ -123,7 +123,7 @@ export default function ProfilePage() {
                 if (unlinkError) {
                     console.error('[profile] failed to unlink mismatched Google identity:', unlinkError.message)
                     toast.error(
-                        `A Google account that doesn't match your KiNG FLEXY email was connected, and we ` +
+                        `A Google account that doesn't match your FameTech email was connected, and we ` +
                         `couldn't remove it automatically. Please tap Disconnect, or contact support.`
                     )
                     return
@@ -131,7 +131,7 @@ export default function ProfilePage() {
 
                 toast.error(
                     `That Google account (${googleEmail ?? 'unknown'}) doesn't match your ` +
-                    `KiNG FLEXY email (${freshUser?.email ?? 'unknown'}). Please use the Google account registered to that email.`
+                    `FameTech email (${freshUser?.email ?? 'unknown'}). Please use the Google account registered to that email.`
                 )
             } catch (err) {
                 console.error('[profile] finalizing Google link failed:', err)

@@ -9,5 +9,5 @@ import { NextRequest } from 'next/server'
 import { apiError } from '@/lib/api-auth'
 
 export async function handleWalletTopup(_request: NextRequest) {
-    return apiError(410, 'This endpoint has been removed. Top up your wallet via the KiNG FLEXY GH web dashboard.')
+    return apiError(410, 'This endpoint has been removed. Top up your wallet via the FameTech web dashboard.')
 }

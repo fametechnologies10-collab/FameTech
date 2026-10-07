@@ -1248,7 +1248,7 @@ export default function ShopSmsPage() {
                                             'Fake prizes, lottery or "you have won" messages',
                                             'Fake MoMo or bank payment / balance confirmation (receipt) messages',
                                             '"I sent money by mistake, please send it back" (reversal) tricks',
-                                            'Links to other websites — only kingflexygh.com and your own social pages (WhatsApp, Facebook, Instagram, X, Telegram) are allowed',
+                                            'Links to other websites — only fametechgh.com and your own social pages (WhatsApp, Facebook, Instagram, X, Telegram) are allowed',
                                         ].map(rule => (
                                             <li key={rule} className="flex items-start gap-2">
                                                 <X className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />

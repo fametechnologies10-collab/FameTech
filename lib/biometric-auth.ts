@@ -86,7 +86,7 @@ export async function registerBiometric(
             publicKey: {
                 challenge,
                 rp: {
-                    name: 'KiNG FLEXY GH',
+                    name: 'FameTech',
                     id: window.location.hostname,
                 },
                 user: {

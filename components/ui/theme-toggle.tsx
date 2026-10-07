@@ -80,7 +80,7 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
                     })}
                 </div>
                 <div className="bg-muted/30 p-4 text-[10px] text-center text-muted-foreground font-medium uppercase tracking-widest border-t">
-                    {brandName || 'KiNG FLEXY TECHNOLOGIES'} • UI PRESET
+                    {brandName || 'Fame Technologies'} • UI PRESET
                 </div>
             </DialogContent>
         </Dialog>

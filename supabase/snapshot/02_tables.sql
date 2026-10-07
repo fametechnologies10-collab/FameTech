@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: tables
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (

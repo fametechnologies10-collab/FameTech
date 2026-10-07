@@ -316,8 +316,8 @@ export default function AdminSettingsPage() {
             setWhatsappChannelLink(s.whatsapp_channel_link || '')
             setWhatsappAdminNumber(s.whatsapp_admin_number || '')
             setWhatsappCommunityLink(s.whatsapp_community_link || '')
-            setFooterCopyrightText(s.footer_copyright_text || '2026 KiNG FLEXY TECHNOLOGIES LTD')
-            setFooterBrandingText(s.footer_branding_text || 'KiNG FLEXY TECHNOLOGIES')
+            setFooterCopyrightText(s.footer_copyright_text || '2026 Fame Technologies')
+            setFooterBrandingText(s.footer_branding_text || 'Fame Technologies')
             setAutoFulfillment(s.auto_fulfillment_enabled === 'true')
             setPhoneVerificationEnabled(s.phone_verification_enabled === 'true' || (s.phone_verification_enabled as unknown) === true)
 
@@ -600,7 +600,7 @@ export default function AdminSettingsPage() {
                 <TabsContent value="general" className="space-y-4 mt-4">
                     <SettingsPanel title="Support Information" description="Contact details displayed to users" icon={Mail}>
                         <SettingField label="Support Email" hint="Displayed on help and contact pages">
-                            <Input value={supportEmail} onChange={e => setSupportEmail(e.target.value)} placeholder="support@kingflexydataltd.com" className="max-w-sm" />
+                            <Input value={supportEmail} onChange={e => setSupportEmail(e.target.value)} placeholder="support@fametechgh.com" className="max-w-sm" />
                         </SettingField>
                     </SettingsPanel>
 
@@ -623,16 +623,16 @@ export default function AdminSettingsPage() {
 
                     <SettingsPanel title="Guest Storefront Configuration" description="Default shop users are directed to when buying as a guest without creating an account." icon={Store}>
                         <SettingField label="Guest Store URL" hint="Changes to this link will instantly update all unauthenticated app pages.">
-                            <Input value={guestStorefrontUrl} onChange={e => setGuestStorefrontUrl(e.target.value)} placeholder="https://kingflexygh.com/shop/your-shop" />
+                            <Input value={guestStorefrontUrl} onChange={e => setGuestStorefrontUrl(e.target.value)} placeholder="https://fametechgh.com/shop/your-shop" />
                         </SettingField>
                     </SettingsPanel>
 
                     <SettingsPanel title="Copyright & Branding" description={'Configure the copyright text and "Powered by" labels used in footers.'} icon={Shield}>
                         <SettingField label="Platform Copyright Text" hint="Used on Dashboard and Admin footer: © [Text]. All rights reserved.">
-                            <Input value={footerCopyrightText} onChange={e => setFooterCopyrightText(e.target.value)} placeholder="e.g. 2026 KiNG FLEXY TECHNOLOGIES LTD" />
+                            <Input value={footerCopyrightText} onChange={e => setFooterCopyrightText(e.target.value)} placeholder="e.g. 2026 Fame Technologies" />
                         </SettingField>
                         <SettingField label="Storefront Branding Label (Powered by)" hint="Plain text label shown on shop footers: Powered by [Text].">
-                            <Input value={footerBrandingText} onChange={e => setFooterBrandingText(e.target.value)} placeholder="e.g. KiNG FLEXY TECHNOLOGIES" />
+                            <Input value={footerBrandingText} onChange={e => setFooterBrandingText(e.target.value)} placeholder="e.g. Fame Technologies" />
                         </SettingField>
                     </SettingsPanel>
                 </TabsContent>
@@ -933,7 +933,7 @@ export default function AdminSettingsPage() {
                     >
                         <SettingField
                             label="AFA Registration Fee — USSD Guest Users (GHS)"
-                            hint="Applied to USSD users with no KiNG FLEXY account. Registered users pay their role price."
+                            hint="Applied to USSD users with no FameTech account. Registered users pay their role price."
                         >
                             <Input
                                 type="number"

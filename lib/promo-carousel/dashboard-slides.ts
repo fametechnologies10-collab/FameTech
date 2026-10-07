@@ -28,7 +28,7 @@ export function buildDashboardSlides(ctx: DashboardSlideContext): PromoSlide[] {
             eyebrowIcon: Megaphone,
             eyebrow: 'NOTICE',
             title: title.length > 56 ? `${title.slice(0, 55)}…` : title,
-            body: 'There is an official announcement from KiNG FLEXY GH. Tap to read it.',
+            body: 'There is an official announcement from FameTech. Tap to read it.',
             icon: Megaphone,
             cta: { label: 'Read Announcement', onClick: onOpenAnnouncement },
         })

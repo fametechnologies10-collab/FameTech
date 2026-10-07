@@ -21,7 +21,7 @@ export interface ShopBrandTokens {
 }
 
 /** Canonical public storefront host — matches the middleware shop-subdomain rewrite. */
-const SHOP_LINK_HOST = 'shop.kingflexygh.com'
+const SHOP_LINK_HOST = 'shop.fametechgh.com'
 
 /**
  * Replace branding tokens with the shop's real values.

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         // Redirect to error rather than exposing the rate limit in JSON
         const { searchParams } = new URL(request.url)
         const slug = searchParams.get('slug') || ''
-        return NextResponse.redirect(new URL(`https://shop.kingflexygh.com/${slug}?error=too_many_requests`))
+        return NextResponse.redirect(new URL(`https://shop.fametechgh.com/${slug}?error=too_many_requests`))
     }
     const { searchParams } = new URL(request.url)
     const ref = searchParams.get('ref')
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     if (host.includes('localhost') || host.includes('127.0.0.1')) {
         targetBaseUrl = host.startsWith('shop.') ? `${protocol}://${host}` : `${protocol}://shop.${host}`
     } else {
-        targetBaseUrl = 'https://shop.kingflexygh.com'
+        targetBaseUrl = 'https://shop.fametechgh.com'
     }
 
     if (!ref || !slug) {

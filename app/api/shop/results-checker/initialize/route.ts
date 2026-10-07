@@ -237,14 +237,14 @@ export async function POST(request: NextRequest) {
         const paystackRef = `RC-${shop.id.slice(0, 8)}-${Date.now()}`
 
         const protocol = request.headers.get('x-forwarded-proto') || 'https'
-        const host = request.headers.get('host') || 'kingflexygh.com'
+        const host = request.headers.get('host') || 'fametechgh.com'
 
         // Determine the correct base URL for the shop storefront (mirrors shop/verify/route.ts)
         let targetBaseUrl = ''
         if (host.includes('localhost') || host.includes('127.0.0.1')) {
             targetBaseUrl = host.startsWith('shop.') ? `${protocol}://${host}` : `${protocol}://shop.${host}`
         } else {
-            targetBaseUrl = 'https://shop.kingflexygh.com'
+            targetBaseUrl = 'https://shop.fametechgh.com'
         }
 
         // Shop storefront paths never carry a /shop prefix (that prefix belongs to the

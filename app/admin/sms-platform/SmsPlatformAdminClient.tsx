@@ -1781,7 +1781,7 @@ export default function SmsPlatformAdminClient() {
                                 <Textarea
                                     value={businessAllowedDomains}
                                     onChange={e => setBusinessAllowedDomains(e.target.value)}
-                                    placeholder="e.g. kingflexygh.com, ourbrand.com"
+                                    placeholder="e.g. fametechgh.com, ourbrand.com"
                                     rows={3}
                                 />
                             </div>

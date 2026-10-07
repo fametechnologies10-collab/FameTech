@@ -105,7 +105,7 @@ export default function ResultsCheckerRetrieveClient({ shop }: ShopRetrieveProps
     useEffect(() => {
         const hostname = window.location.hostname
         const isSubdomain = hostname.startsWith('shop.')
-            || (hostname !== 'kingflexygh.com' && hostname !== 'www.kingflexygh.com' && !hostname.includes('localhost'))
+            || (hostname !== 'fametechgh.com' && hostname !== 'www.fametechgh.com' && !hostname.includes('localhost'))
         setIsStorefront(isSubdomain)
 
         try {

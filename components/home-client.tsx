@@ -82,7 +82,7 @@ interface FaqItem {
 
 type PackagesByNetwork = Record<string, LandingDataPackage[]>
 
-const DEFAULT_GUEST_URL = 'https://kingflexygh.com/shop/felix-s-shop'
+const DEFAULT_GUEST_URL = 'https://fametechgh.com/shop/felix-s-shop'
 const DEFAULT_CUSTOMER_COUNT_LABEL = '5,000+'
 const DEFAULT_CUSTOMER_COUNT_TARGET = 5000
 
@@ -141,7 +141,7 @@ const getFaqItems = (guestUrl: string): FaqItem[] => [
         question: 'How does the wallet system work?',
         answer: (
             <span>
-                Your wallet is your personal spending account on KiNG FLEXY GH. You top it up once using Mobile Money or Bank Transfer, and your funds are securely stored. You can then use your wallet balance to buy data, airtime, or register as an AFA agent instantly without having to enter payment details every time.
+                Your wallet is your personal spending account on FameTech. You top it up once using Mobile Money or Bank Transfer, and your funds are securely stored. You can then use your wallet balance to buy data, airtime, or register as an AFA agent instantly without having to enter payment details every time.
             </span>
         ),
     },
@@ -822,7 +822,7 @@ export default function HomeClient({
             <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-12">
-                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Why Choose KiNG FLEXY GH?</h2>
+                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Why Choose FameTech?</h2>
                     </div>
 
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -935,7 +935,7 @@ export default function HomeClient({
                         <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-emerald-200 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-200">Live</div>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-3">Developer API</h2>
-                    <p className="text-slate-700 dark:text-slate-300 mb-6 max-w-3xl">Integrate KiNG FLEXY GH directly into your website or app. Automate data and airtime purchases for your customers via our API.</p>
+                    <p className="text-slate-700 dark:text-slate-300 mb-6 max-w-3xl">Integrate FameTech directly into your website or app. Automate data and airtime purchases for your customers via our API.</p>
                     <Link href="/developers">
                         <Button variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 font-bold">View Docs<ExternalLink className="w-4 h-4 ml-2" /></Button>
                     </Link>
@@ -1120,7 +1120,7 @@ export default function HomeClient({
                                 </div>
                                 <h3 className="text-xl font-black text-white mb-1">Become a Dealer</h3>
                                 <p className="text-sm text-violet-200 max-w-xl">
-                                    The highest reseller rank on KiNG FLEXY. Available exclusively to <span className="font-black text-white">Lifetime Agent</span> members — unlock more discounted prices, full Developer API access with high rate limits, priority order processing, and direct priority support.
+                                    The highest reseller rank on FameTech. Available exclusively to <span className="font-black text-white">Lifetime Agent</span> members — unlock more discounted prices, full Developer API access with high rate limits, priority order processing, and direct priority support.
                                 </p>
                             </div>
                             <Link href="/auth?tab=signup" className="shrink-0">
@@ -1212,7 +1212,7 @@ export default function HomeClient({
             <section className="py-16 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-4xl mx-auto text-center">
                     <div className="w-14 h-14 mx-auto rounded-full bg-[#0056B3]/10 text-[#0056B3] flex items-center justify-center mb-4"><Users className="w-7 h-7" /></div>
-                    <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">Join Thousands of Ghanaians Who Trust KiNG FLEXY GH</h2>
+                    <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">Join Thousands of Ghanaians Who Trust FameTech</h2>
                     <p className="text-4xl sm:text-5xl md:text-6xl font-black text-[#0056B3] mb-3">{countTarget.toLocaleString()}{landingCustomerCountRaw.includes('+') ? '+' : ''}</p>
                     <p className="text-slate-600 dark:text-slate-400">Customers across Ghana rely on our speed, reliability, and reseller support.</p>
                 </div>

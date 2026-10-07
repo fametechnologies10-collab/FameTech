@@ -880,7 +880,7 @@ export async function sendAgentRenewalReminderSMS(
     phoneNumber: string,
     firstName: string
 ) {
-    const message = `Hi ${firstName}, your Agent plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at kingflexygh.com`
+    const message = `Hi ${firstName}, your Agent plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at fametechgh.com`
 
     return sendSMS({
         recipient: phoneNumber,
@@ -895,7 +895,7 @@ export async function sendDealerRenewalReminderSMS(
     phoneNumber: string,
     firstName: string
 ) {
-    const message = `Hi ${firstName}, your Dealer plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at kingflexygh.com`
+    const message = `Hi ${firstName}, your Dealer plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at fametechgh.com`
 
     return sendSMS({
         recipient: phoneNumber,
@@ -959,7 +959,7 @@ export function buildShopGuestRefundMessage(details: {
     size: string
     ownerPhone: string
 }): string {
-    return `Your ${details.size} wasn't completed; refunded. WhatsApp (not a call) ${details.ownerPhone} to receive. Not resolved in 6h? Report: WhatsApp 0578065809`
+    return `Your ${details.size} wasn't completed; refunded. WhatsApp (not a call) ${details.ownerPhone} to receive. Not resolved in 6h? Report: WhatsApp 0591521233`
 }
 
 /**
@@ -970,7 +970,7 @@ export function buildShopGuestRefundMessage(details: {
 export function buildAfaGuestRefundMessage(details: {
     ownerPhone: string
 }): string {
-    return `Your AFA registration wasn't completed; refunded. WhatsApp (not a call) ${details.ownerPhone} to receive. Not resolved in 6h? Report: WhatsApp 0578065809`
+    return `Your AFA registration wasn't completed; refunded. WhatsApp (not a call) ${details.ownerPhone} to receive. Not resolved in 6h? Report: WhatsApp 0591521233`
 }
 
 export async function sendShopGuestRefundSMS(
@@ -1262,7 +1262,7 @@ export async function sendAutoUpgradeSuccessSMS(
 /**
  * Send SMS when auto-upgrade FAILS due to insufficient wallet balance.
  * Template: "Hi [Name], auto-renewal for [plan] failed. Flexy-Wallet: GHS[balance],
- *            needed GHS[required]. Top up to continue: kingflexygh.com"
+ *            needed GHS[required]. Top up to continue: fametechgh.com"
  */
 export async function sendAutoUpgradeFailedSMS(
     phoneNumber: string,
@@ -1273,7 +1273,7 @@ export async function sendAutoUpgradeFailedSMS(
 ): Promise<SMSResult> {
     const shortfall = (requiredAmount - currentBalance).toFixed(2)
 
-    const message = `Hi ${firstName}, auto-renewal for your ${planLabel} failed. Flexy-Wallet: GHS ${currentBalance.toFixed(2)}, needed GHS ${requiredAmount.toFixed(2)}. Top up to continue: kingflexygh.com`
+    const message = `Hi ${firstName}, auto-renewal for your ${planLabel} failed. Flexy-Wallet: GHS ${currentBalance.toFixed(2)}, needed GHS ${requiredAmount.toFixed(2)}. Top up to continue: fametechgh.com`
 
     return sendSMS({ recipient: phoneNumber, message })
 }

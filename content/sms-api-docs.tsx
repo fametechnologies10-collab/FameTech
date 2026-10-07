@@ -11,7 +11,7 @@
 // is now the only live base URL. Every code sample and path literal below was
 // still pointing at v1 until this fix, since this file predates the port.
 
-const SMS_BASE = 'https://api.kingflexygh.com/api/v2'
+const SMS_BASE = 'https://api.fametechgh.com/api/v2'
 const SMS_KEY = 'kf_sms_live_your_api_key_here'
 
 export const SMS_BUSINESS_MODE_NOTICE =
@@ -127,7 +127,7 @@ export const SMS_API_ENDPOINTS: SmsApiEndpointDoc[] = [
         description: 'Your SMS credit balance and account mode.',
         responseBody: `{\n  "success": true,\n  "data": {\n    "credits": 498,\n    "totalPurchased": 600,\n    "totalUsed": 102,\n    "mode": "business",\n    "accountStatus": "active"\n  }\n}`,
         notes: [
-            'SMS credits are separate from your GHS wallet — buy bundles at kingflexygh.com/dashboard/sms/credits.',
+            'SMS credits are separate from your GHS wallet — buy bundles at fametechgh.com/dashboard/sms/credits.',
             'Check balance before large campaigns; sends fail with HTTP 402 when credits are insufficient.',
         ],
         codeSamples: {

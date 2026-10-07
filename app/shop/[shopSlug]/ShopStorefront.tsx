@@ -457,7 +457,7 @@ export default function ShopStorefront({
         const hostname = window.location.hostname
         // NOTE: a *.vercel.app preview is NOT a subdomain storefront — it serves the
         // storefront under /shop/<slug>, so links must keep the /shop prefix there.
-        const isSub = hostname.startsWith('shop.') || (hostname !== 'kingflexygh.com' && hostname !== 'www.kingflexygh.com' && !hostname.includes('localhost') && !hostname.endsWith('.vercel.app'))
+        const isSub = hostname.startsWith('shop.') || (hostname !== 'fametechgh.com' && hostname !== 'www.fametechgh.com' && !hostname.includes('localhost') && !hostname.endsWith('.vercel.app'))
         setIsStorefront(isSub)
     }, [])
 
@@ -559,7 +559,7 @@ export default function ShopStorefront({
     const revealVouchersByRef = useCallback(async (rcRef: string) => {
         const hostname = window.location.hostname
         const isSubdomain = hostname.startsWith('shop.')
-            || (hostname !== 'kingflexygh.com' && hostname !== 'www.kingflexygh.com' && !hostname.includes('localhost'))
+            || (hostname !== 'fametechgh.com' && hostname !== 'www.fametechgh.com' && !hostname.includes('localhost'))
         const retrieveHref = `${isSubdomain ? '' : '/shop'}/${shop.shop_slug}/results-checker/retrieve`
         setActiveTab('vouchers')
         try {

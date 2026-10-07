@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const paystackEmail = validatedGuestEmail || buildGuestEmail(shop.shop_name, cleanPhone)
         const paystackRef = `SHOPAFA-${shop.id.slice(0, 8)}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
         const protocol = request.headers.get('x-forwarded-proto') || 'https'
-        const host = request.headers.get('host') || 'kingflexygh.com'
+        const host = request.headers.get('host') || 'fametechgh.com'
         const callbackUrl = `${protocol}://${host}/api/shop/afa/verify?ref=${paystackRef}&slug=${shopSlug}`
 
         // Registrant identity (id_number, already validated by computeShopAfaCheckout)

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 export function OfflineOverlay() {
     const [isOffline, setIsOffline] = useState(false)
-    const [shopName, setShopName] = useState('KiNG FLEXY GH')
+    const [shopName, setShopName] = useState('FameTech')
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -20,7 +20,7 @@ export function OfflineOverlay() {
                         setShopName(title)
                     }
                 } else {
-                    setShopName('KiNG FLEXY GH')
+                    setShopName('FameTech')
                 }
             }
 

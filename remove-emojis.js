@@ -15,7 +15,7 @@ const replacements = [
     ['<span class="info-label">👥 Manage Customers</span>', '<span class="info-label">Manage Customers</span>'],
     ['<span class="info-label">📊 Real-time Tracking</span>', '<span class="info-label">Real-time Tracking</span>'],
     ['💡 <strong>Pro Tip:</strong>', '<strong>Note:</strong>'],
-    ['subject: `Welcome to KiNG FLEXY GH, ${firstName}! 🎉`,', 'subject: `Welcome to KiNG FLEXY GH, ${firstName}`,'],
+    ['subject: `Welcome to FameTech, ${firstName}! 🎉`,', 'subject: `Welcome to FameTech, ${firstName}`,'],
 
     // Order Success
     ['<h1 class="greeting">Order Placed Successfully! ✅</h1>', '<h1 class="greeting">Order Confirmation</h1>'],

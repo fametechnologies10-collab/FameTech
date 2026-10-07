@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: auth trigger + storage bucket
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Run LAST (needs public.handle_new_user() from 04_functions.sql and public.users from 02_tables.sql).
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

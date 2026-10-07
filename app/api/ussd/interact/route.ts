@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Storefront mode's guest/registered split already exists for the normal
         // flow (main-menu.ts's showMainMenu) — reuse the same two checks here so
         // an unregistered guest isn't sent to the generic platform site while the
-        // shop-code system they'd actually need (shop.kingflexygh.com) is right
+        // shop-code system they'd actually need (shop.fametechgh.com) is right
         // there. No shop is resolved here — there's no code to resolve it FROM
         // yet (the guest hasn't entered anything) and USSD itself is down anyway,
         // so we can only point them at the right *page*, not a specific shop.
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             SessionId: body.SessionId,
             Type: 'release',
             Message: isGuest
-                ? 'KiNG FLEXY TECHNOLOGIES\nUSSD service is temporarily unavailable.\nVisit shop.kingflexygh.com and enter your shop\'s 4-digit code to order directly.'
-                : 'KiNG FLEXY TECHNOLOGIES\nUSSD service is temporarily unavailable.\nPlease visit kingflexygh.com or try again later.',
+                ? 'Fame Technologies\nUSSD service is temporarily unavailable.\nVisit shop.fametechgh.com and enter your shop\'s 4-digit code to order directly.'
+                : 'Fame Technologies\nUSSD service is temporarily unavailable.\nPlease visit fametechgh.com or try again later.',
             Label: 'Service Unavailable',
             DataType: 'display',
             FieldType: 'text',

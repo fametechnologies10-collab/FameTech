@@ -186,7 +186,7 @@ export function PinLockScreen({ userName, email, onVerified, onRecovered }: PinL
                     <div className="relative w-16 h-16 mx-auto mb-3">
                         <Image
                             src="/icons/icon-512x512.png"
-                            alt="KiNGFLEXYGH"
+                            alt="FameTech"
                             width={64}
                             height={64}
                             className="rounded-xl shadow-lg"

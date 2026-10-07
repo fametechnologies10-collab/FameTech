@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: table / column / function grants (exact live ACLs)
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Apply files in numeric order to a FRESH Supabase project.
 
 REVOKE ALL ON TABLE public.admin_audit_log FROM anon, authenticated; GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public.admin_audit_log TO anon; GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.admin_audit_log TO authenticated;

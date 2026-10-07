@@ -21,7 +21,7 @@ import { waitUntil } from '@vercel/functions'
 //   - Blank line between choices and "0. Back" on every screen
 //   - Quantity menu is paginated (PAGE_SIZE items per screen)
 //   - "More" appears as last option if more pages follow
-//   - Bulk redirect ("Visit kingflexygh.com") only on the final page
+//   - Bulk redirect ("Visit fametechgh.com") only on the final page
 //   - Phone entry screen removed — delivery SMS goes to dialer's number
 // =============================================================================
 
@@ -160,7 +160,7 @@ async function handleTypeChoice(
 //   ...
 //   N. More            ← if more quantities exist on the next page
 //   OR
-//   N. Bulk? Visit kingflexygh.com  ← only on the final page
+//   N. Bulk? Visit fametechgh.com  ← only on the final page
 //
 //   0. Back
 
@@ -261,7 +261,7 @@ async function showQuantityMenu(
         optionMap[String(listNum)] = 'more'
     } else {
         // Final page — show bulk redirect
-        lines.push(`${listNum}. Bulk? Visit kingflexygh.com`)
+        lines.push(`${listNum}. Bulk? Visit fametechgh.com`)
         optionMap[String(listNum)] = 'bulk'
     }
 
@@ -318,7 +318,7 @@ async function handleQtyChoice(
     if (selection === 'bulk') {
         return release(
             SessionId,
-            'For bulk orders visit\nkingflexygh.com\nfor special bulk pricing.',
+            'For bulk orders visit\nfametechgh.com\nfor special bulk pricing.',
         )
     }
 

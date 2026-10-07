@@ -178,7 +178,7 @@ export async function PATCH(request: NextRequest) {
     }
     await db.from('commission_wallet_transactions').update({ paystack_recipient_code: rec.recipientCode }).eq('id', transaction_id)
 
-    const tr = await initiateTransfer({ amountGhs: tx.net_amount, recipientCode: rec.recipientCode, reference, reason: 'KingFlexy commission payout' })
+    const tr = await initiateTransfer({ amountGhs: tx.net_amount, recipientCode: rec.recipientCode, reference, reason: 'FameTech commission payout' })
     if (!tr.success) {
         console.error('[commission-wallets] approve: initiateTransfer failed', { tx: transaction_id, msg: tr.error })
         const reverted = await revertToPending(maskNote(tr.error))

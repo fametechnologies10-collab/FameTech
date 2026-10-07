@@ -152,7 +152,7 @@ export function WebhookConfigCard({ keyType }: { keyType: 'standard' | 'commissi
                     </label>
                     <Input
                         type="url"
-                        placeholder="https://your-app.com/webhooks/kingflexy"
+                        placeholder="https://your-app.com/webhooks/fametech"
                         value={webhookUrl}
                         onChange={e => setWebhookUrl(e.target.value)}
                         className="h-10 font-mono text-sm"

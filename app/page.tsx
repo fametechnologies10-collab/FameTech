@@ -4,7 +4,7 @@ import HomeClient from '@/components/home-client'
 
 // Canonical lives here, not in the root layout, which every page inherits.
 export const metadata: Metadata = {
-    alternates: { canonical: 'https://kingflexygh.com' },
+    alternates: { canonical: 'https://fametechgh.com' },
 }
 
 // Rebuild from DB at most every 5 minutes; served from Vercel Edge CDN between rebuilds.
@@ -32,7 +32,7 @@ export default async function LandingPage() {
         'whatsapp_community_link',
     ], 5 * 60 * 1000)
 
-    let guestUrl = 'https://kingflexygh.com/shop/felix-s-shop'
+    let guestUrl = 'https://fametechgh.com/shop/felix-s-shop'
     let adminPhone = ''
     let whatsappGroupLink = 'https://chat.whatsapp.com/FC6jYV3VDEQ4MmdTXiFqDV?mode=gi_t'
     let whatsappChannelLink = 'https://whatsapp.com/channel/0029Vb7HTfx47XeIZz7ht232'

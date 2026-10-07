@@ -1,11 +1,11 @@
 {
-  "name": "KiNGFLEXYGH - Data Bundles & Airtime",
-  "short_name": "KiNGFLEXYGH",
+  "name": "FameTech - Data Bundles & Airtime",
+  "short_name": "FameTech",
   "description": "Buy affordable MTN, Telecel, and AirtelTigo data bundles & airtime online in Ghana. Fast delivery, secure payments.",
   "start_url": "/auth",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#000000",
+  "theme_color": "#0057FF",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [

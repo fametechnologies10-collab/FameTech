@@ -34,7 +34,7 @@ coverage
 
 # Project specific
 cleanup-git-history.ps1
-kingflexy-mobile/
+fametech-mobile/
 
 # Build Info
 tsconfig.tsbuildinfo

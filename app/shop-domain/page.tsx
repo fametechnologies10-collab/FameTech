@@ -246,7 +246,7 @@ export default function ShopDomainDiscoveryPage() {
                                     </a>
                                 ) : (
                                     <a
-                                        href="https://kingflexygh.com"
+                                        href="https://fametechgh.com"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-2 mt-2 px-5 py-2.5 bg-[#0056B3] text-white rounded-xl font-bold text-sm hover:opacity-90 transition-opacity"
@@ -445,7 +445,7 @@ export default function ShopDomainDiscoveryPage() {
                         <BrandLogo width={48} height={48} />
                     </div>
                     <p className="text-sm text-gray-400 font-medium mb-4">
-                        © 2026 KiNG FLEXY TECHNOLOGIES LTD. All rights reserved.
+                        © 2026 Fame Technologies. All rights reserved.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-6">
                         <a href="#terms" className="text-sm text-gray-300 hover:text-white transition-colors font-medium">

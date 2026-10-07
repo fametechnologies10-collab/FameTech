@@ -1,5 +1,5 @@
 -- Fametech schema snapshot: extensions
--- Source: read-only introspection of the KiNG FLEXY GH production DB (schema only, NO data).
+-- Source: read-only introspection of the original source production database (schema only, NO data).
 -- Supabase-managed (pg_stat_statements, supabase_vault, plpgsql) are pre-enabled on new projects.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;

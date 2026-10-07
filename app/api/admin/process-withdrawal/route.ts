@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
                     amountGhs: tx.net_amount,
                     recipientCode,
                     reference,
-                    reason: `KingFlexy payout - ${shopName.substring(0, 20)}`,
+                    reason: `FameTech payout - ${shopName.substring(0, 20)}`,
                 })
                 if (!tr.success) {
                     await db

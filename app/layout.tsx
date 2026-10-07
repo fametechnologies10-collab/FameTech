@@ -23,12 +23,12 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-    metadataBase: new URL('https://kingflexygh.com'),
-    title: 'KiNG FLEXY GH - Powering Digital Services in Ghana',
-    description: 'Buy affordable MTN, Telecel, and AirtelTigo data bundles, airtime, and mashup online in Ghana. Instantly purchase WAEC & BECE Results Checker vouchers, pay utility bills, send bulk SMS, complete MTN AFA Registrations, sell over USSD, and integrate our Developer API for data, airtime, SMS, results checkers, AFA and bills. Fast, secure, and reliable digital solutions — KiNG FLEXY GH, Powering Digital Services in Ghana.',
+    metadataBase: new URL('https://fametechgh.com'),
+    title: 'FameTech - Powering Digital Services in Ghana',
+    description: 'Buy affordable MTN, Telecel, and AirtelTigo data bundles, airtime, and mashup online in Ghana. Instantly purchase WAEC & BECE Results Checker vouchers, pay utility bills, send bulk SMS, complete MTN AFA Registrations, sell over USSD, and integrate our Developer API for data, airtime, SMS, results checkers, AFA and bills. Fast, secure, and reliable digital solutions — FameTech, Powering Digital Services in Ghana.',
     keywords: [
         // Brand
-        'KiNG FLEXY GH', 'King Flexy Technologies', 'kingflexygh.com',
+        'FameTech', 'Fame Technologies', 'fametechgh.com',
         // Data & Airtime
         'buy data bundles Ghana', 'cheap data Ghana', 'affordable data bundles', 'MTN data bundles Ghana',
         'Telecel data bundles', 'AirtelTigo data bundles', 'buy data online Ghana', 'mobile data Ghana',
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
         'MTN AFA registration Ghana', 'AFA agent registration', 'MTN agent registration Ghana',
         'how to register for AFA Ghana', 'AFA registration fee Ghana',
         // Developer API
-        'developer API Ghana', 'VTU API Ghana', 'King Flexy API', 'data reseller API Ghana',
+        'developer API Ghana', 'VTU API Ghana', 'FameTech API', 'data reseller API Ghana',
         'airtime API Ghana', 'results checker API', 'digital services API Ghana',
         'reseller platform Ghana', 'bulk data API Ghana',
         'bulk SMS API Ghana', 'utility bill payment API Ghana', 'data bundle API Ghana',
@@ -54,30 +54,30 @@ export const metadata: Metadata = {
         'digital services Ghana', 'online digital platform Ghana', 'data reseller Ghana',
         'Ghana fintech', 'instant delivery Ghana'
     ],
-    authors: [{ name: 'KiNG FLEXY TECHNOLOGIES LTD' }],
+    authors: [{ name: 'Fame Technologies' }],
     openGraph: {
-        title: 'KiNG FLEXY GH - Powering Digital Services in Ghana',
+        title: 'FameTech - Powering Digital Services in Ghana',
         description: 'Buy data bundles, airtime, mashup, WAEC Results Checkers, AFA Registrations & access our Developer API. Fast, secure digital services in Ghana.',
         type: 'website',
-        url: 'https://kingflexygh.com',
-        siteName: 'KiNG FLEXY GH',
+        url: 'https://fametechgh.com',
+        siteName: 'FameTech',
         images: [
             {
                 url: '/logo.png',
                 width: 1200,
                 height: 630,
-                alt: 'KiNG FLEXY GH Logo',
+                alt: 'FameTech Logo',
             },
         ],
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'KiNG FLEXY GH - Powering Digital Services in Ghana',
+        title: 'FameTech - Powering Digital Services in Ghana',
         description: 'Buy data bundles, airtime, mashup, WAEC Results Checkers, AFA Registrations & access our Developer API. Fast, secure digital services in Ghana.',
         images: ['/logo.png'],
     },
     appleWebApp: {
-        title: 'KiNGFLEXYGH',
+        title: 'FameTech',
         statusBarStyle: 'black-translucent',
         capable: true,
     },
@@ -112,15 +112,15 @@ export default function RootLayout({
                         __html: JSON.stringify({
                             "@context": "https://schema.org",
                             "@type": "Organization",
-                            "name": "KiNG FLEXY TECHNOLOGIES LTD",
-                            "alternateName": "KiNG FLEXY GH",
-                            "url": "https://kingflexygh.com/",
-                            "logo": "https://kingflexygh.com/logo.png",
+                            "name": "Fame Technologies",
+                            "alternateName": "FameTech",
+                            "url": "https://fametechgh.com/",
+                            "logo": "https://fametechgh.com/logo.png",
                             "description": "Powering Digital Services in Ghana. Buy data bundles, airtime, mashup, WAEC Results Checker vouchers, utility bills, bulk SMS and MTN AFA Registrations, sell over USSD, and integrate our Developer API.",
                             "areaServed": "GH",
                             "hasOfferCatalog": {
                                 "@type": "OfferCatalog",
-                                "name": "KiNG FLEXY GH products and APIs",
+                                "name": "FameTech products and APIs",
                                 "itemListElement": [
                                     ['Data Bundles API', 'data-bundles'],
                                     ['Airtime API', 'airtime'],
@@ -134,13 +134,13 @@ export default function RootLayout({
                                     "itemOffered": {
                                         "@type": "Service",
                                         "name": name,
-                                        "url": `https://kingflexygh.com/developers/${slug}`
+                                        "url": `https://fametechgh.com/developers/${slug}`
                                     }
                                 }))
                             },
                             "sameAs": [
-                                "https://kingflexygh.com",
-                                "https://www.kingflexygh.com"
+                                "https://fametechgh.com",
+                                "https://www.fametechgh.com"
                             ]
                         })
                     }}

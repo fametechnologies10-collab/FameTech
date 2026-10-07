@@ -43,7 +43,7 @@ export function needsReacceptance(accepted: string | null | undefined, min: stri
 }
 
 /** The platform brand name that {{brand}} resolves to on the main site / dashboard. */
-export const PLATFORM_BRAND = 'KiNG FLEXY GH'
+export const PLATFORM_BRAND = 'FameTech'
 
 /** A section resolved for a specific audience — brand token substituted, ready to render. */
 export interface RenderedSection {

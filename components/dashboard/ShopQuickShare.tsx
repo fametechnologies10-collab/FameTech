@@ -13,7 +13,7 @@ interface ShopQuickShareProps {
 
 export function ShopQuickShare({ shopSlug }: ShopQuickShareProps) {
     const [copied, setCopied] = useState(false)
-    const shopUrl = `https://shop.kingflexygh.com/${shopSlug}`
+    const shopUrl = `https://shop.fametechgh.com/${shopSlug}`
 
     const handleCopy = async () => {
         try {

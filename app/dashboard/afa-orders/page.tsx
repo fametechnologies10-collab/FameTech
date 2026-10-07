@@ -140,7 +140,7 @@ function downloadReceipt(app: AfarOrder) {
         '',
         '══════════════════════════════════════════════',
         '  AFA membership is permanent.',
-        '  Processed by: KingFlexy Dashboard',
+        '  Processed by: FameTech Dashboard',
         '══════════════════════════════════════════════',
     ]
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
