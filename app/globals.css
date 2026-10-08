@@ -1,3 +1,4 @@
+/* Tailwind entry. Edited 2026-10-08 to invalidate Vercel's cached CSS build (postcss.config.mjs was missing from earlier deploys). */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
