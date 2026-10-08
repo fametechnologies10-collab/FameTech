@@ -59,6 +59,8 @@ walkthrough.md
 debug-*.ts
 scratch/
 *.mjs
+# Must stay tracked: without it Vercel builds with no Tailwind (site ships ~15KB of CSS, no utilities)
+!postcss.config.mjs
 scratch_*.js
 scratch-*.ts
 scratch-*.js
