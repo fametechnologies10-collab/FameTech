@@ -18,7 +18,16 @@ const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 })
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy singleton — `new Resend(undefined)` throws immediately at construction
+// time ("Missing API key"), which would crash this module's import (and every
+// build-time page-data collection for a route that imports it) whenever
+// RESEND_API_KEY is unset. Only construct it once a caller has already
+// confirmed the key exists (see sendResendEmail below).
+let _resend: Resend | null = null
+function getResend(): Resend {
+    if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+    return _resend
+}
 const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY || '' })
 
 // Initialize API instance with API key
@@ -110,7 +119,7 @@ export async function sendResendEmail(options: SendEmailOptions, senderEmail: st
     }
 
     try {
-        const data = await resend.emails.send({
+        const data = await getResend().emails.send({
             from: `FameTech <${senderEmail}>`,
             to: options.toName ? `${options.toName} <${options.to}>` : options.to,
             subject: options.subject,
