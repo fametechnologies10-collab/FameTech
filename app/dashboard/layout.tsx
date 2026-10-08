@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { createServerClient as createAdminClient } from '@/lib/supabase'
 import { getAdminSettings } from '@/lib/admin-settings-cache'
+import { mustVerifyPhone } from '@/lib/phone-verification-setting'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import DashboardLayoutClient from './dashboard-layout-client'
@@ -34,12 +35,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // completeness check (per-user, never cached). 5-minute TTL (product
     // decision, 2026-09-24) — every key here is pure display copy an admin
     // changes rarely.
-    const [adminSettings, profileResult] = await Promise.all([
+    const [adminSettings, gateSettings, profileResult] = await Promise.all([
         getAdminSettings([
             'footer_copyright_text', 'footer_branding_text', 'whatsapp_community_link',
             'signup_promo_role', 'terms_current_version', 'terms_min_acceptable_version',
             'terms_effective_date',
         ], 5 * 60 * 1000),
+        // Security/routing switch — its own short-TTL call, never batched into the
+        // long-TTL display-copy set above (see lib/admin-settings-cache.ts).
+        getAdminSettings(['phone_verification_enabled']),
         (admin.from('users') as any)
             .select('phone_number, phone_verified, role')
             .eq('id', user.id)
@@ -52,11 +56,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
         redirect('/auth/complete-profile')
     }
 
-    // Mandatory phone verification gate (2026-09-30) — every authenticated
-    // user must verify the number on file (or recover a new one) before
-    // reaching any dashboard page. Runs on every request, so it retroactively
-    // catches already-logged-in sessions on their next navigation.
-    if (!profileResult.data?.phone_verified) {
+    // Mandatory phone verification gate (2026-09-30) — when the owner has
+    // switched phone_verification_enabled on, every authenticated user must verify
+    // the number on file (or recover a new one) before reaching any dashboard page.
+    // Runs on every request, so it retroactively catches already-logged-in sessions
+    // on their next navigation. When the switch is off/missing (e.g. no SMS provider
+    // connected yet) the gate is skipped: no code can be sent, so enforcing it would
+    // trap every new user on /auth/verify-phone-required (2026-10-08).
+    if (mustVerifyPhone(gateSettings.phone_verification_enabled, profileResult.data?.phone_verified)) {
         redirect('/auth/verify-phone-required')
     }
 

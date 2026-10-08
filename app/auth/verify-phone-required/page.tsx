@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { validateGhanaianPhone } from '@/lib/phone-validation'
+import { isPhoneVerificationEnabled } from '@/lib/phone-verification-setting'
 import { BackgroundBubbles } from '@/components/background-bubbles'
 import { BrandLogo, BrandTitle } from '@/components/ui/brand'
 import { Button } from '@/components/ui/button'
@@ -90,6 +91,19 @@ export default function VerifyPhoneRequiredPage() {
         const init = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) { router.replace('/auth'); return }
+
+            // Verification switched off (e.g. no SMS provider yet): no code can ever
+            // be sent, so don't strand the user on a dead-end code screen. The
+            // explicit "change my number" flow (?mode=change) is left alone.
+            if (!wantsToChangeNumber) {
+                const setting = await fetch('/api/admin-settings?keys=phone_verification_enabled')
+                    .then(r => (r.ok ? r.json() as Promise<Record<string, unknown>> : {}))
+                    .catch(() => ({} as Record<string, unknown>))
+                if (!isPhoneVerificationEnabled((setting as Record<string, unknown>)?.phone_verification_enabled)) {
+                    router.replace('/dashboard')
+                    return
+                }
+            }
 
             const hint = await fetchHint()
             if (!hint.ok) {
