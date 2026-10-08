@@ -37,3 +37,11 @@ export const metadata: Metadata = {
         images: ['/logo.png'],
     },
 }
+
+export default function ShopDomainLayout({
+    children,
+}: {
+    children: React.ReactNode
+}) {
+    return <>{children}</>
+}
