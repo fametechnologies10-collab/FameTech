@@ -7,11 +7,11 @@ const badgeVariants = cva(
         variants: {
             variant: {
                 default:
-                    "border-transparent bg-[linear-gradient(135deg,#0057FF,#0A66FF)] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_var(--ft-clay-glow)]",
+                    "border-transparent bg-[#0057FF] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_3px_8px_var(--ft-clay-glow)]",
                 secondary:
                     "border-transparent ft-soft shadow-[-2px_-2px_5px_var(--ft-hi),2px_2px_5px_var(--ft-lo)]",
                 destructive:
-                    "border-transparent bg-[linear-gradient(135deg,#B71C1C,#D32F2F)] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_3px_8px_rgba(183,28,28,0.3)]",
+                    "border-transparent bg-[#B71C1C] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_3px_8px_rgba(183,28,28,0.3)]",
                 outline: "ft-field text-foreground shadow-[inset_-2px_-2px_4px_var(--ft-hi),inset_2px_2px_4px_var(--ft-lo)]",
                 success:
                     "border-transparent shadow-[-2px_-2px_5px_var(--ft-hi),2px_2px_5px_var(--ft-lo)] bg-[#D1FAE5] text-[#065F46] dark:bg-[#163C3D] dark:text-[#6EE7B7]",

@@ -10,16 +10,16 @@ const buttonVariants = cva(
         variants: {
             variant: {
                 default: "ft-clay-btn text-white hover:brightness-95",
-                destructive: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#B71C1C] [--ft-c2:#D32F2F] [--ft-cglow:rgba(183,28,28,0.3)]",
-                outline: "ft-soft hover:brightness-[0.97]",
+                destructive: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#B71C1C] [--ft-cglow:rgba(183,28,28,0.3)]",
+                outline: "ft-soft ring-1 ring-[color:var(--ft-lo)] hover:brightness-[0.97]",
                 secondary: "ft-soft hover:brightness-[0.97]",
                 ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",
-                success: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#065F46] [--ft-c2:#047857] [--ft-cglow:rgba(4,120,87,0.3)]",
-                warning: "ft-clay-btn text-[#451A03] hover:brightness-95 [--ft-c1:#FCD34D] [--ft-c2:#F59E0B] [--ft-cglow:rgba(245,158,11,0.35)]",
-                mtn: "ft-clay-btn text-black hover:brightness-95 [--ft-c1:#FACC15] [--ft-c2:#EAB308] [--ft-cglow:rgba(234,179,8,0.35)]",
-                telecel: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#C62828] [--ft-c2:#B71C1C] [--ft-cglow:rgba(198,40,40,0.3)]",
-                gradient: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#0057FF] [--ft-c2:#3B2BD9]",
+                success: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#047857] [--ft-cglow:rgba(4,120,87,0.3)]",
+                warning: "ft-clay-btn text-[#451A03] hover:brightness-95 [--ft-c1:#F59E0B] [--ft-cglow:rgba(245,158,11,0.35)]",
+                mtn: "ft-clay-btn text-black hover:brightness-95 [--ft-c1:#EAB308] [--ft-cglow:rgba(234,179,8,0.35)]",
+                telecel: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#C62828] [--ft-cglow:rgba(198,40,40,0.3)]",
+                gradient: "ft-clay-btn bg-[linear-gradient(135deg,#0057FF,#3B2BD9)] text-white hover:brightness-95",
             },
             size: {
                 default: "h-10 px-4 py-2",
