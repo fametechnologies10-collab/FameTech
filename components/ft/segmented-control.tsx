@@ -28,7 +28,7 @@ export function SegmentedControl<T extends string>({ value, onChange, options, a
                         aria-selected={active}
                         onClick={() => onChange(opt.value)}
                         className={cn(
-                            'h-11 flex-1 rounded-2xl px-3 text-sm font-semibold transition-all duration-200',
+                            'h-12 flex-1 rounded-2xl px-3 text-sm font-semibold transition-all duration-200',
                             active ? 'ft-raised text-ft-ink' : 'text-[color:var(--ft-muted)] hover:text-ft-ink'
                         )}
                     >

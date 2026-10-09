@@ -42,28 +42,33 @@ const RULE_ITEMS = [
 
 export function PasswordStrength({ password, className }: PasswordStrengthProps) {
     const { level, rules } = evaluatePasswordStrength(password)
-    if (level === 'empty') return null
-
+    const empty = level === 'empty'
+    const active: ActiveLevel = empty ? 'weak' : level
     const filled = strengthSegments(level)
-    const fill = FILLS[level]
+    const fill = FILLS[active]
 
+    // One stable tree: the aria-live label stays mounted (sr-only and empty when
+    // there is no password) so screen readers announce the first level change.
     return (
-        <div className={cn('space-y-3', className)}>
+        <div className={empty ? 'sr-only' : cn('space-y-3', className)}>
             <div className="flex items-center gap-3">
-                <div className="ft-inset flex flex-1 gap-1.5 p-1.5" aria-hidden="true">
-                    {[0, 1, 2, 3].map((i) => (
-                        <span
-                            key={i}
-                            className="h-2 flex-1 rounded-full"
-                            style={i < filled ? { background: fill } : undefined}
-                        />
-                    ))}
-                </div>
+                {!empty && (
+                    <div className="ft-inset flex flex-1 gap-1.5 p-1.5" aria-hidden="true">
+                        {[0, 1, 2, 3].map((i) => (
+                            <span
+                                key={i}
+                                className="h-2 flex-1 rounded-full"
+                                style={i < filled ? { background: fill } : undefined}
+                            />
+                        ))}
+                    </div>
+                )}
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-ft-ink">
-                    <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: fill }} />
-                    <span aria-live="polite">{LABELS[level]}</span>
+                    {!empty && <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: fill }} />}
+                    <span aria-live="polite">{empty ? '' : LABELS[active]}</span>
                 </span>
             </div>
+            {!empty && (
             <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {RULE_ITEMS.map(({ key, label }) => {
                     const met = rules[key]
@@ -76,6 +81,7 @@ export function PasswordStrength({ password, className }: PasswordStrengthProps)
                     )
                 })}
             </ul>
+            )}
         </div>
     )
 }
