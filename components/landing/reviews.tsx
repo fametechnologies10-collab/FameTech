@@ -19,6 +19,8 @@ export function Reviews({ customerCountRaw, testimonials }: ReviewsProps) {
     const plus = customerCountRaw.includes('+') ? '+' : ''
     const valid = Array.isArray(testimonials) ? testimonials.filter(isValidReview) : []
     const reviews = (valid.length > 0 ? valid : DEFAULT_TESTIMONIALS).slice(0, 6)
+    // 3 columns only when the count divides evenly (3 or 6); otherwise 2 columns at md+ so no card is orphaned.
+    const gridCols = reviews.length === 3 || reviews.length === 6 ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'
 
     return (
         <section id="reviews" aria-labelledby="reviews-heading" className="ft-lazy scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
@@ -35,7 +37,7 @@ export function Reviews({ customerCountRaw, testimonials }: ReviewsProps) {
                     </p>
                 </NeuCard>
 
-                <ul className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <ul className={`mt-8 grid gap-5 ${gridCols}`}>
                     {reviews.map((review, index) => {
                         const rating = clampRating(review.rating)
                         return (

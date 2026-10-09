@@ -15,6 +15,7 @@ import {
     Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NetworkIcon } from '@/components/network-icon'
 
 interface Tile {
     title: string
@@ -22,7 +23,14 @@ interface Tile {
     href: string
     icon: LucideIcon
     className?: string
+    networks?: boolean
 }
+
+const NETWORK_CHIPS = [
+    { key: 'MTN', label: 'MTN' },
+    { key: 'Telecel', label: 'Telecel' },
+    { key: 'AT', label: 'AirtelTigo' },
+]
 
 const TILES: Tile[] = [
     {
@@ -31,6 +39,7 @@ const TILES: Tile[] = [
         href: '/dashboard/data-packages',
         icon: Boxes,
         className: 'lg:col-span-3 lg:row-span-2',
+        networks: true,
     },
     {
         title: 'Airtime top-up',
@@ -111,6 +120,16 @@ export function ProductBento() {
                                 <h3 className="ft-display mt-4 text-xl font-extrabold">{tile.title}</h3>
                                 <p className="mt-2 text-sm leading-relaxed text-[color:var(--ft-muted)]">{tile.desc}</p>
                             </div>
+                            {tile.networks && (
+                                <ul className="flex flex-wrap gap-3">
+                                    {NETWORK_CHIPS.map(n => (
+                                        <li key={n.key} className="ft-inset flex min-h-12 items-center gap-3 rounded-full px-4 py-2 font-semibold text-ft-ink">
+                                            <NetworkIcon network={n.key} size={32} />
+                                            {n.label}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             <span className="inline-flex items-center gap-1 text-sm font-semibold underline-offset-4 group-hover:underline">
                                 Open
                                 <ArrowRight className="h-4 w-4" aria-hidden="true" />

@@ -41,9 +41,6 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
         <div className="relative flex min-h-screen w-full flex-col lg:flex-row">
             {showBrandPanel && (
                 <aside className="ft-raised relative m-4 hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden p-10 lg:flex xl:w-[500px] xl:p-12">
-                    <div aria-hidden="true" className="pointer-events-none absolute -right-28 top-6 w-[440px] opacity-60">
-                        <Orbit className="w-full" />
-                    </div>
                     <div className="relative z-10">
                         <Link href="/" className="inline-flex items-center gap-3">
                             <LogoTile size={48} />
@@ -56,7 +53,12 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
                             FameTech is where Ghana buys data, airtime and result vouchers, then starts earning from it.
                         </p>
                     </div>
-                    <div className="relative z-10 mt-10 space-y-5">
+                    <div aria-hidden="true" className="pointer-events-none relative z-0 min-h-[200px] flex-1 overflow-hidden">
+                        <div className="absolute -right-24 top-1/2 w-[260px] -translate-y-1/2 opacity-60">
+                            <Orbit className="w-full" />
+                        </div>
+                    </div>
+                    <div className="relative z-10 space-y-5">
                         {PROOF_POINTS.map(({ icon: Icon, title: pointTitle, desc }) => (
                             <div key={pointTitle} className="flex items-start gap-4">
                                 <span className="ft-clay flex h-11 w-11 shrink-0 items-center justify-center !rounded-2xl">

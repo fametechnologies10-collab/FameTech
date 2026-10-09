@@ -16,10 +16,10 @@ export function CtaBanner({ whatsappHref, adminPhone }: CtaBannerProps) {
         <section id="get-started" aria-labelledby="cta-heading" className="ft-lazy scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-4xl">
                 <div className="ft-clay p-8 text-center sm:p-12">
-                    <h2 id="cta-heading" className="ft-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+                    <h2 id="cta-heading" className="ft-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
                         Ready to buy, resell or become an agent?
                     </h2>
-                    <p className="mx-auto mt-3 max-w-xl text-base">
+                    <p className="mx-auto mt-3 max-w-xl text-base text-white">
                         One platform for instant purchases, reseller growth and agent opportunities.
                     </p>
                     <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
