@@ -184,12 +184,12 @@ export default function GalleryClient({ initialOpen }: { initialOpen: Open }) {
                             <CardContent>Card content area.</CardContent>
                             <CardFooter><Button size="sm">Action</Button></CardFooter>
                         </Card>
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm p-4">Legacy: bg-white dark:bg-slate-900 rounded-2xl border shadow-sm p-4</div>
-                        <div className="bg-white rounded-xl p-4">Legacy: bg-white rounded-xl only</div>
-                        <div className="ft-true-white rounded-xl border p-4">ft-true-white opt-out tile</div>
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm p-4 text-slate-900 dark:text-slate-50">Legacy: bg-white dark:bg-slate-900 rounded-2xl border shadow-sm p-4</div>
+                        <div className="bg-white rounded-xl p-4 text-slate-900">Legacy: bg-white rounded-xl only</div>
+                        <div className="ft-true-white rounded-xl border p-4 text-slate-900">ft-true-white opt-out tile<p className="text-xs text-slate-600">stays white in dark, needs explicit dark text</p></div>
                         <ul className="space-y-2">
                             <li>
-                                <div className="bg-white rounded-xl p-3">Nested card inside ul/li (flat context)</div>
+                                <div className="bg-white rounded-xl p-3 text-slate-900">Nested card inside ul/li (flat context)</div>
                             </li>
                         </ul>
                         <Card className="bg-transparent shadow-none">
