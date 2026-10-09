@@ -21,7 +21,7 @@ export function WalletSection() {
                     One wallet pays for everything.
                 </h2>
                 <p className="mt-3 max-w-2xl text-base text-[color:var(--ft-muted)]">
-                    Keep your balance ready and skip entering payment details on every order.
+                    Fund once and check out faster.
                 </p>
                 <div className="mt-10 grid gap-5 sm:grid-cols-3">
                     {ITEMS.map(item => (

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Code2, ExternalLink } from 'lucide-react'
+import { Code2, ArrowRight } from 'lucide-react'
 import { ClayButton, NeuCard } from '@/components/ft'
 
 export function DeveloperApi() {
@@ -20,7 +20,7 @@ export function DeveloperApi() {
                 <ClayButton asChild variant="soft" className="shrink-0">
                     <Link href="/developers">
                         View docs
-                        <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                     </Link>
                 </ClayButton>
             </NeuCard>

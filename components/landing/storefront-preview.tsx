@@ -31,15 +31,15 @@ export function StorefrontPreview({ guestUrl }: { guestUrl: string }) {
                     </ul>
                     {isSafeHref(guestUrl) && (
                         <ClayButton asChild variant="soft" className="mt-8">
-                            <a href={guestUrl}>See a live example shop</a>
+                            <a href={guestUrl}>Visit the guest store</a>
                         </ClayButton>
                     )}
                 </div>
 
                 <NeuCard className="min-w-0 overflow-hidden p-0" role="group" aria-label="Example storefront">
-                    <div className="ft-clay-bright flex items-center gap-3 px-5 py-6" style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
+                    <div className="ft-clay-bright flex items-center gap-3 rounded-b-none px-5 py-6">
                         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white" aria-hidden="true">
-                            <Store className="h-7 w-7 text-[#0057FF]" />
+                            <Store className="h-7 w-7 text-ft-blue" />
                         </span>
                     </div>
                     <div className="p-5">
