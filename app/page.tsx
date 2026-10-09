@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getAdminSettings } from '@/lib/admin-settings-cache'
 import HomeClient from '@/components/home-client'
+import { ftFonts } from '@/lib/ft-fonts'
 
 // Canonical lives here, not in the root layout, which every page inherits.
 export const metadata: Metadata = {
@@ -135,18 +136,20 @@ export default async function LandingPage() {
     if (adminSettings.whatsapp_community_link) whatsappCommunityLink = adminSettings.whatsapp_community_link
 
     return (
-        <HomeClient
-            guestUrl={guestUrl}
-            adminPhone={adminPhone}
-            landingCustomerCountRaw={landingCustomerCountRaw}
-            landingDataPackagesByNetwork={landingDataPackagesByNetwork}
-            showPopularPackages={showPopularPackages}
-            landingAgentPlans={landingAgentPlans}
-            landingTestimonials={landingTestimonials}
-            adminSettings={adminSettings}
-            whatsappGroupLink={whatsappGroupLink}
-            whatsappChannelLink={whatsappChannelLink}
-            whatsappCommunityLink={whatsappCommunityLink}
-        />
+        <div className={`ft ${ftFonts.className} ${ftFonts.variable}`}>
+            <HomeClient
+                guestUrl={guestUrl}
+                adminPhone={adminPhone}
+                landingCustomerCountRaw={landingCustomerCountRaw}
+                landingDataPackagesByNetwork={landingDataPackagesByNetwork}
+                showPopularPackages={showPopularPackages}
+                landingAgentPlans={landingAgentPlans}
+                landingTestimonials={landingTestimonials}
+                adminSettings={adminSettings}
+                whatsappGroupLink={whatsappGroupLink}
+                whatsappChannelLink={whatsappChannelLink}
+                whatsappCommunityLink={whatsappCommunityLink}
+            />
+        </div>
     )
 }

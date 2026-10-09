@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,6 @@ import { WebsiteRequestPromo } from '@/components/website-request-promo'
 import {
     Smartphone,
     Zap,
-    GraduationCap,
     Shield,
     Clock,
     ArrowRight,
@@ -29,19 +28,13 @@ import {
     Crown,
     Gem,
     ChevronDown,
-    Download,
-    Apple,
-    Laptop,
 } from 'lucide-react'
 import { LandingFooter } from '@/components/landing-footer'
 import { WhatsAppCommunityButtons } from '@/components/whatsapp-community-buttons'
 import { NetworkIcon } from '@/components/network-icon'
-import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
 const PWAInstallPrompt = dynamic(() => import('@/components/pwa-install-prompt').then(m => ({ default: m.PWAInstallPrompt })), { ssr: false })
-const PWAInstallButton = dynamic(() => import('@/components/pwa-install-prompt').then(m => ({ default: m.PWAInstallButton })), { ssr: false })
-import { BrandLogo, BrandTitle } from '@/components/ui/brand'
 import {
     DEFAULT_GUEST_URL,
     DEFAULT_CUSTOMER_COUNT_LABEL,
@@ -54,16 +47,10 @@ import {
     type LandingReview,
     type PackagesByNetwork,
 } from '@/components/landing/helpers'
-
-const Android = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M17 18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10z" />
-        <path d="M9 18v3M15 18v3M4 10v4M20 10v4" />
-        <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" />
-        <circle cx="9.5" cy="11.5" r="0.5" fill="currentColor" />
-        <circle cx="14.5" cy="11.5" r="0.5" fill="currentColor" />
-    </svg>
-)
+import { LandingNav } from '@/components/landing/landing-nav'
+import { Hero } from '@/components/landing/hero'
+import { NetworkTrough } from '@/components/landing/network-trough'
+import { ProductBento } from '@/components/landing/product-bento'
 
 interface FaqItem {
     question: string
@@ -155,7 +142,6 @@ export default function HomeClient({
     whatsappCommunityLink?: string
 }) {
     const router = useRouter()
-    const [headerScrolled, setHeaderScrolled] = useState(false)
     const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(0)
     const [countTarget, setCountTarget] = useState(DEFAULT_CUSTOMER_COUNT_TARGET)
     const whatsappHref = adminPhone ? `https://wa.me/${adminPhone}` : '#community'
@@ -170,14 +156,6 @@ export default function HomeClient({
             return safeA - safeB
         })
     }, [landingDataPackagesByNetwork])
-
-    useEffect(() => {
-        const handleHeaderScroll = () => {
-            setHeaderScrolled(window.scrollY > 50)
-        }
-        window.addEventListener('scroll', handleHeaderScroll, { passive: true })
-        return () => window.removeEventListener('scroll', handleHeaderScroll)
-    }, [])
 
     useEffect(() => {
         try {
@@ -211,12 +189,6 @@ export default function HomeClient({
         setCountTarget(parseCustomerCountTarget(landingCustomerCountRaw))
     }, [landingCustomerCountRaw])
 
-    const [currentSlide, setCurrentSlide] = useState(0)
-    const [direction, setDirection] = useState(1)
-    const [isHovered, setIsHovered] = useState(false)
-    const [isHeroVisible, setIsHeroVisible] = useState(true)
-    const heroRef = useRef<HTMLElement>(null)
-    const touchStartX = useRef<number>(0)
     // Links come from SSR props — no client-side fetch needed
     const communityLinks = {
         group: whatsappGroupLink,
@@ -224,436 +196,17 @@ export default function HomeClient({
         community: whatsappCommunityLink,
     }
 
-    useEffect(() => {
-        if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                setIsHeroVisible(entry.isIntersecting)
-            },
-            { threshold: 0.05 }
-        )
-        const currentHero = heroRef.current
-        if (currentHero) {
-            observer.observe(currentHero)
-        }
-        return () => {
-            if (currentHero) {
-                observer.unobserve(currentHero)
-            }
-        }
-    }, [])
-
-    useEffect(() => {
-        if (isHovered || !isHeroVisible) return
-        const timer = setInterval(() => {
-            setDirection(1)
-            setCurrentSlide(prev => (prev + 1) % 4)
-        }, 10000)
-        return () => clearInterval(timer)
-    }, [isHovered, isHeroVisible])
-
-    const slides = [
-        {
-            subhead: "WELCOME TO",
-            title: <BrandTitle variant="hero" className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black block tracking-tight leading-none text-slate-900 dark:text-white" />,
-            description: "Ghana's all-in-one platform for mobile data, airtime, Results Checkers, and business growth. Instant delivery, always.",
-            ctas: (
-                <div className="flex flex-wrap items-center gap-3">
-                    <Link href="/auth" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-[#FFCC00] hover:bg-[#E6B800] text-black font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            Sign In
-                        </Button>
-                    </Link>
-                    <Link href="/auth?tab=signup" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-slate-200 hover:bg-slate-300 dark:bg-white dark:hover:bg-slate-100 text-slate-900 font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            Create Account
-                        </Button>
-                    </Link>
-                    <a href={guestUrl} className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full rounded-full border-slate-300/80 text-slate-700 bg-slate-50 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:bg-white/5 dark:hover:bg-white/10 font-bold h-12 px-6 transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm">
-                            Buy as Guest
-                        </Button>
-                    </a>
-                    <Link href="/download" className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full rounded-full border-[#FFCC00]/40 hover:border-[#FFCC00] text-slate-700 bg-slate-50 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:bg-white/5 dark:hover:bg-white/10 font-bold h-12 px-6 transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm flex items-center justify-center gap-2">
-                            <Download className="w-4 h-4 text-[#FFCC00]" />
-                            <span>Download App</span>
-                            <div className="flex items-center gap-1 ml-1 text-slate-400 dark:text-slate-500">
-                                <Apple className="w-3.5 h-3.5" />
-                                <Android className="w-3.5 h-3.5" />
-                                <Laptop className="w-3.5 h-3.5" />
-                            </div>
-                        </Button>
-                    </Link>
-                </div>
-            )
-        },
-        {
-            subhead: "START YOUR BUSINESS",
-            title: <span className="text-slate-900 dark:text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black block tracking-tight leading-none">Branded Reseller Shop</span>,
-            description: "Create your own branded storefront under 5 minutes. Set your own profit margins, share your unique link, and earn daily passive income.",
-            ctas: (
-                <div className="flex flex-wrap items-center gap-3">
-                    <Link href="/auth?tab=signup" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-[#FFCC00] hover:bg-[#E6B800] text-black font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            Open Your Shop
-                        </Button>
-                    </Link>
-                    <a href={guestUrl} className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full rounded-full border-slate-300/80 text-slate-700 bg-slate-50 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:bg-white/5 dark:hover:bg-white/10 font-bold h-12 px-6 transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm">
-                            View Shop Demo
-                        </Button>
-                    </a>
-                </div>
-            )
-        },
-        {
-            subhead: "AUTOMATION & UPGRADES",
-            title: <span className="text-slate-900 dark:text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black block tracking-tight leading-none">Developer API Access</span>,
-            description: "Automate purchases directly from your custom website or app. Upgrade your account role to unlock developer pricing and reseller margins.",
-            ctas: (
-                <div className="flex flex-wrap items-center gap-3">
-                    <Link href="/developers" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-[#FFCC00] hover:bg-[#E6B800] text-black font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            View Docs
-                        </Button>
-                    </Link>
-                    <Link href="/auth?tab=signup" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-slate-200 hover:bg-slate-300 dark:bg-white dark:hover:bg-slate-100 text-slate-900 font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            Get Started
-                        </Button>
-                    </Link>
-                </div>
-            )
-        },
-        {
-            subhead: "SUPPORT & RESOURCES",
-            title: <span className="text-slate-900 dark:text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black block tracking-tight leading-none">Help & Live Community</span>,
-            description: "Get direct support, track transactional complaints, and connect with other resellers inside our community chat.",
-            ctas: (
-                <div className="flex flex-wrap items-center gap-3">
-                    <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                        <Button className="w-full rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                            Contact Support
-                        </Button>
-                    </a>
-                    {communityLinks.community && (
-                        <a href={communityLinks.community} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                            <Button className="w-full rounded-full bg-[#FFCC00] hover:bg-[#E6B800] text-black font-bold h-12 px-6 shadow-md transition-all duration-300 hover:scale-105 active:scale-95 border-none">
-                                Join Community Group
-                            </Button>
-                        </a>
-                    )}
-                    {communityLinks.channel && (
-                        <a href={communityLinks.channel} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                            <Button variant="outline" className="w-full rounded-full border-slate-300/80 text-slate-700 bg-slate-50 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:bg-white/5 dark:hover:bg-white/10 font-bold h-12 px-6 transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm">
-                                Follow Channel
-                            </Button>
-                        </a>
-                    )}
-                </div>
-            )
-        }
-    ]
-
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 overflow-x-hidden transition-colors duration-300">
+        <div className="min-h-screen overflow-x-clip transition-colors duration-300">
             <PWAInstallPrompt />
-            {/* 1. Navigation */}
-            <nav className={cn(
-                'fixed top-0 w-full z-50 transition-all duration-300',
-                headerScrolled
-                    ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800'
-                    : 'bg-transparent border-transparent'
-            )}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <Link href="/" className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-                            <BrandLogo width={40} height={40} className="w-8 h-8 sm:w-10 sm:h-10" />
-                            <BrandTitle className="text-xs sm:text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white" />
-                        </Link>
-
-                        <div className="hidden lg:flex items-center gap-5">
-                            <a href="#products" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Products</a>
-                            <a href="#wallet" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Wallet</a>
-                            <a href="#resell" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Resell</a>
-                            <a href="#afa" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">AFA</a>
-                            <a href="#community" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Community</a>
-                            <Link href="/sms" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">SMS</Link>
-                            <Link href="/dashboard/utilities" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Utilities</Link>
-                            <Link href="/dashboard/recruit" className="text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-[#0056B3] dark:hover:text-[#4da6ff] transition-colors">Sub-Agent</Link>
-                        </div>
-
-                        <div className="flex items-center space-x-1 sm:space-x-3 flex-shrink-0">
-                            <div className="hidden sm:block">
-                                <PWAInstallButton />
-                            </div>
-                            <a
-                                href={whatsappHref}
-                                target={adminPhone ? '_blank' : undefined}
-                                rel={adminPhone ? 'noopener noreferrer' : undefined}
-                                className="hidden sm:inline-flex text-sm font-semibold text-[#25D366] hover:text-[#1ea955] transition-colors"
-                            >
-                                Contact
-                            </a>
-                            <Link href="/auth">
-                                <Button variant="ghost" className={cn('font-semibold px-2 text-xs h-8 sm:h-10 sm:px-3 sm:text-sm', headerScrolled ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-800 dark:text-slate-100 hover:bg-white/20 dark:hover:bg-white/10')}>
-                                    Login
-                                </Button>
-                            </Link>
-                            <Link href="/auth?tab=signup">
-                                <Button className="bg-[#0056B3] hover:bg-[#004494] text-white font-bold px-3 text-xs h-8 sm:h-10 sm:px-4 sm:text-sm whitespace-nowrap">Get Started</Button>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-                        {/* 2. Hero */}
-            <section ref={heroRef} className="relative pt-24 pb-16 sm:pt-28 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-slate-50 dark:bg-slate-950">
-                {/* Hero blobs — CSS-only animation, no JS frame loop */}
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
-                    <div className="hero-blob-a absolute top-1/4 left-1/4 w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-blue-500/30 dark:bg-blue-600/15 blur-[40px] sm:blur-[60px] will-change-transform" />
-                    <div className="hero-blob-b absolute top-1/3 right-1/4 w-80 h-80 sm:w-[420px] sm:h-[420px] rounded-full bg-[#FFCC00]/25 dark:bg-[#FFCC00]/8 blur-[40px] sm:blur-[65px] will-change-transform" />
-                    <div className="hero-blob-c absolute bottom-10 left-1/3 w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-purple-500/30 dark:bg-purple-600/15 blur-[40px] sm:blur-[60px] will-change-transform" />
-                </div>
-
-                <div className="max-w-7xl mx-auto relative z-10">
-                    {/* Centered Brand Identity Header */}
-                    <div className="flex flex-col items-center justify-center mb-8">
-                        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 shadow-xl transition-transform hover:scale-110 duration-300">
-                            <BrandLogo width={112} height={112} className="object-contain w-full h-full" />
-                        </div>
-                        <BrandTitle className="text-xl sm:text-2xl font-black mt-3 tracking-wide drop-shadow-sm" />
-                    </div>
-
-                    {/* Trust Strip Badge */}
-                    <div className="flex justify-center mb-8">
-                        <div className="inline-flex items-center px-4 py-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 hover:scale-105">
-                            <Zap className="w-4 h-4 text-yellow-500 mr-2" />
-                            <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-semibold tracking-wide">Ultra Fast Instant Delivery</span>
-                        </div>
-                    </div>
-
-                    {/* Hero Carousel Card — pure CSS transitions, zero Framer Motion */}
-                    <div
-                        onMouseEnter={() => setIsHovered(true)}
-                        onMouseLeave={() => setIsHovered(false)}
-                        onTouchStart={(e) => {
-                            touchStartX.current = e.touches[0].clientX
-                            setIsHovered(true)
-                        }}
-                        onTouchEnd={(e) => {
-                            const delta = e.changedTouches[0].clientX - touchStartX.current
-                            if (delta < -50) { setDirection(1); setCurrentSlide(prev => (prev + 1) % slides.length) }
-                            else if (delta > 50) { setDirection(-1); setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length) }
-                            setIsHovered(false)
-                        }}
-                        className="w-full max-w-4xl mx-auto rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 p-6 sm:p-10 md:p-12 shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden"
-                    >
-                        {/* Slide Content — CSS cross-fade transition */}
-                        <div className="min-h-[300px] sm:min-h-[260px] flex flex-col justify-between relative z-10">
-                            <div className="relative overflow-hidden">
-                                {slides.map((slide, index) => (
-                                    <div
-                                        key={index}
-                                        aria-hidden={index !== currentSlide}
-                                        className={cn(
-                                            'w-full space-y-6 select-none transition-all duration-300',
-                                            index === currentSlide
-                                                ? 'opacity-100 translate-x-0 relative'
-                                                : index < currentSlide
-                                                    ? 'opacity-0 -translate-x-4 absolute inset-0 pointer-events-none'
-                                                    : 'opacity-0 translate-x-4 absolute inset-0 pointer-events-none'
-                                        )}
-                                    >
-                                        <span className="text-xs sm:text-sm font-bold tracking-[0.2em] text-[#0056B3] dark:text-[#FFCC00]/90 uppercase block">
-                                            {slide.subhead}
-                                        </span>
-                                        <h1 className="leading-tight text-slate-900 dark:text-white">
-                                            {slide.title}
-                                        </h1>
-                                        <p className="text-base sm:text-lg md:text-xl text-slate-700 dark:text-slate-200 font-medium max-w-3xl leading-relaxed">
-                                            {slide.description}
-                                        </p>
-                                        <div className="pt-4">
-                                            {slide.ctas}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Carousel Indicators / Dots & Controls */}
-                            <div className="flex items-center justify-between pt-8 border-t border-slate-200/50 dark:border-white/10 mt-8">
-                                {/* Dots */}
-                                <div className="flex items-center space-x-2">
-                                    {slides.map((_, index) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => {
-                                                setDirection(index > currentSlide ? 1 : -1)
-                                                setCurrentSlide(index)
-                                            }}
-                                            className="p-3 -m-2 flex items-center justify-center focus:outline-none"
-                                            aria-label={`Go to slide ${index + 1}`}
-                                        >
-                                            <div className={cn(
-                                                "h-2 rounded-full transition-all duration-300",
-                                                index === currentSlide 
-                                                    ? "w-6 bg-[#FFCC00] shadow-[0_0_8px_rgba(255,204,0,0.5)]" 
-                                                    : "w-2 bg-slate-900/20 dark:bg-white/30 hover:bg-slate-900/30 dark:hover:bg-white/50"
-                                            )} />
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Slide Index Label */}
-                                <span className="text-xs font-semibold text-slate-500 dark:text-white/50 tracking-wider">
-                                    0{currentSlide + 1} / 0{slides.length}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Sub-Hero Brand Section */}
-            <section className="py-12 px-4 sm:px-6 lg:px-8 text-center bg-slate-100/50 dark:bg-slate-900/20">
-                <div className="max-w-4xl mx-auto space-y-4">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                        Ghana&apos;s All-In-One Mobile Data & Reseller Platform
-                    </h2>
-                    <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto">
-                        Buy data bundles, airtime, AFA orders, and MTN Mashup. Fund your wallet, open your own shop, or integrate via our Developer API — all in one place. Instant delivery, always.
-                    </p>
-                </div>
-            </section>
+            <LandingNav whatsappHref={whatsappHref} adminPhone={adminPhone} />
+            <Hero customerCountLabel={landingCustomerCountRaw} guestUrl={guestUrl} packagesByNetwork={landingDataPackagesByNetwork} />
+            <NetworkTrough />
 
             {/* Website/App request promo — funnels landing visitors to the website-request flow */}
             <WebsiteRequestPromo />
 
-            {/* Top Services Grid Section */}
-            <section id="products" className="py-16 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <span className="text-xs sm:text-sm font-bold tracking-[0.2em] text-[#0056B3] dark:text-[#FFCC00]/90 uppercase block mb-2">PROVEN PRODUCTS</span>
-                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Our Top Services</h2>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mt-2">Explore the fully automated features and instant digital services powering our ecosystem.</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-                        {[
-                            {
-                                title: "Data Bundles",
-                                desc: "High-speed MTN, Telecel, and AT data packages at wholesale reseller rates.",
-                                link: "/dashboard/data-packages",
-                                bg: "from-green-500/10 to-emerald-500/5 dark:from-green-500/20 dark:to-emerald-500/10",
-                                border: "border-green-200 dark:border-green-900/30",
-                                icon: <Boxes className="w-6 h-6 text-green-600 dark:text-green-400" />
-                            },
-                            {
-                                title: "Airtime Topup",
-                                desc: "Instant VTU airtime recharge for all networks with direct phone delivery.",
-                                link: "/dashboard/airtime",
-                                bg: "from-blue-500/10 to-indigo-500/5 dark:from-blue-500/20 dark:to-indigo-500/10",
-                                border: "border-blue-200 dark:border-blue-900/30",
-                                icon: <Smartphone className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                            },
-                            {
-                                title: "AFA Services",
-                                desc: "Seamless MTN AFA registration and renewals for community field agents.",
-                                link: "/dashboard/upgrade",
-                                bg: "from-purple-500/10 to-fuchsia-500/5 dark:from-purple-500/20 dark:to-fuchsia-500/10",
-                                border: "border-purple-200 dark:border-purple-900/30",
-                                icon: <BadgeCheck className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                            },
-                            {
-                                title: "Result Checker",
-                                desc: "Purchase WAEC BECE and WASSCE results check vouchers instantly.",
-                                link: "/dashboard/results-checker",
-                                bg: "from-amber-500/10 to-yellow-500/5 dark:from-amber-500/20 dark:to-yellow-500/10",
-                                border: "border-amber-200 dark:border-amber-900/30",
-                                icon: <GraduationCap className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                            },
-                            {
-                                title: "MTN Mashup",
-                                desc: "Activate custom voice & data combination bundles directly on any MTN line.",
-                                link: "/dashboard/data-packages",
-                                bg: "from-yellow-500/10 to-orange-500/5 dark:from-yellow-500/20 dark:to-orange-500/10",
-                                border: "border-yellow-200 dark:border-yellow-900/30",
-                                icon: <Crown className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                            },
-                            {
-                                title: "Reseller Shops",
-                                desc: "Setup your own customized, branded online shop under 5 minutes.",
-                                link: "/dashboard/shop",
-                                bg: "from-pink-500/10 to-rose-500/5 dark:from-pink-500/20 dark:to-rose-500/10",
-                                border: "border-pink-200 dark:border-pink-900/30",
-                                icon: <Store className="w-6 h-6 text-pink-600 dark:text-pink-400" />
-                            },
-                            {
-                                title: "Developer API",
-                                desc: "Automate and scale transactional flows via our REST API endpoints.",
-                                link: "/developers",
-                                bg: "from-teal-500/10 to-cyan-500/5 dark:from-teal-500/20 dark:to-cyan-500/10",
-                                border: "border-teal-200 dark:border-teal-900/30",
-                                icon: <Code2 className="w-6 h-6 text-teal-600 dark:text-teal-400" />
-                            },
-                            {
-                                title: "Send & Claim",
-                                desc: "Secure wallet-to-wallet funds transfer to instantly share platform balance.",
-                                link: "/dashboard/wallet",
-                                bg: "from-indigo-500/10 to-violet-500/5 dark:from-indigo-500/20 dark:to-violet-500/10",
-                                border: "border-indigo-200 dark:border-indigo-900/30",
-                                icon: <Wallet className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                            },
-                            {
-                                title: "SMS",
-                                desc: "Bulk & transactional SMS for OTPs, alerts, and campaigns — sent in seconds.",
-                                link: "/sms",
-                                bg: "from-cyan-500/10 to-sky-500/5 dark:from-cyan-500/20 dark:to-sky-500/10",
-                                border: "border-cyan-200 dark:border-cyan-900/30",
-                                icon: <MessageSquare className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
-                            },
-                            {
-                                title: "Bill Pay",
-                                desc: "Pay ECG, Ghana Water, and other utility bills instantly from your wallet.",
-                                link: "/dashboard/utilities",
-                                bg: "from-orange-500/10 to-red-500/5 dark:from-orange-500/20 dark:to-red-500/10",
-                                border: "border-orange-200 dark:border-orange-900/30",
-                                icon: <Zap className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                            },
-                            {
-                                title: "Sub-Agent Program",
-                                desc: "Recruit and manage your own network of sub-agents, and earn from their sales.",
-                                link: "/dashboard/recruit",
-                                bg: "from-emerald-500/10 to-lime-500/5 dark:from-emerald-500/20 dark:to-lime-500/10",
-                                border: "border-emerald-200 dark:border-emerald-900/30",
-                                icon: <Users className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                            }
-                        ].map((srv) => (
-                            <div
-                                key={srv.title}
-                                className="group relative flex flex-col justify-between rounded-2xl border border-black dark:border-white bg-white dark:bg-slate-900 p-5 sm:p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_24px_-10px_rgba(0,0,0,0.1)] hover:border-black dark:hover:border-white overflow-hidden"
-                            >
-                                <div className={`absolute inset-0 bg-gradient-to-br ${srv.bg} opacity-30 group-hover:opacity-50 transition-opacity duration-300 pointer-events-none`} />
-                                <div className="relative z-10">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border bg-white dark:bg-slate-900 shadow-sm transition-transform duration-300 group-hover:scale-110 ${srv.border}`}>
-                                        {srv.icon}
-                                    </div>
-                                    <div className="mt-4">
-                                        <div className="flex items-center gap-1.5">
-                                            <h3 className="font-bold text-base text-slate-900 dark:text-white tracking-tight">{srv.title}</h3>
-
-                                        </div>
-                                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">{srv.desc}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
+            <ProductBento />
 
             {/* 7. How It Works */}
             <section className="py-16 px-4 sm:px-6 lg:px-8">
