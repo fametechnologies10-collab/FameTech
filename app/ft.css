@@ -1,0 +1,93 @@
+/* FameTech "FT Clay" design tokens: neumorphism + claymorphism, scoped to .ft */
+
+.ft {
+    --ft-surface: #E6ECF5;
+    --ft-raised-bg: #E6ECF5;
+    --ft-ink: #0E1A33;
+    --ft-muted: #46557A;
+    --ft-blue: #0057FF;
+    --ft-cyan: #00C8FF;
+    --ft-night: #0A0F1C;
+    --ft-hi: #FFFFFF;
+    --ft-lo: #B8C4D9;
+    --ft-clay-glow: rgba(0, 87, 255, 0.35);
+    --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
+    --ft-shadow-inset: inset -5px -5px 10px var(--ft-hi), inset 5px 5px 10px var(--ft-lo);
+    --ft-shadow-clay: inset 0 2px 3px rgba(255, 255, 255, 0.55), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
+
+    background: var(--ft-surface);
+    color: var(--ft-ink);
+    font-family: var(--font-ft-body), system-ui, sans-serif;
+}
+
+.dark .ft {
+    --ft-surface: #0A0F1C;
+    --ft-raised-bg: #0F1626;
+    --ft-ink: #E8EEFB;
+    --ft-muted: #A9B6D3;
+    --ft-hi: #18223A;
+    --ft-lo: #070B15;
+    --ft-clay-glow: rgba(0, 200, 255, 0.28);
+}
+
+.ft-display {
+    font-family: var(--font-ft-display), system-ui, sans-serif;
+}
+
+.ft :focus-visible {
+    outline: 3px solid var(--ft-blue);
+    outline-offset: 2px;
+}
+
+.dark .ft :focus-visible {
+    outline-color: var(--ft-cyan);
+}
+
+.ft-raised {
+    background: var(--ft-raised-bg);
+    box-shadow: var(--ft-shadow-raised);
+    border-radius: 1.25rem;
+}
+
+.ft-inset {
+    background: var(--ft-surface);
+    box-shadow: var(--ft-shadow-inset);
+    border-radius: 1.25rem;
+}
+
+.ft-clay {
+    background: linear-gradient(135deg, var(--ft-blue) 0%, var(--ft-cyan) 100%);
+    box-shadow: var(--ft-shadow-clay);
+    color: #FFFFFF;
+    border-radius: 1.25rem;
+}
+
+/* Tilted elliptical orbit ring: gradient border via mask, no images or SVG files */
+.ft-orbit {
+    position: relative;
+    pointer-events: none;
+    aspect-ratio: 2 / 1;
+    border-radius: 50%;
+    transform: rotate(-18deg);
+    background: linear-gradient(135deg, var(--ft-blue), var(--ft-cyan));
+    padding: 3px;
+    -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: ft-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes ft-drift {
+    from { transform: rotate(-18deg) translate3d(0, 0, 0); }
+    to { transform: rotate(-15deg) translate3d(6px, -4px, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ft-orbit {
+        animation: none;
+    }
+}
+
+.ft-lazy {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 600px;
+}

@@ -38,6 +38,11 @@ const config = {
                 wide: '0.02em',
             },
             colors: {
+                'ft-clay': 'var(--ft-surface)',
+                'ft-ink': 'var(--ft-ink)',
+                'ft-blue': '#0057FF',
+                'ft-cyan': '#00C8FF',
+                'ft-night': '#0A0F1C',
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",
                 ring: "hsl(var(--ring))",
@@ -91,6 +96,11 @@ const config = {
                     DEFAULT: "#F59E0B",
                     foreground: "#FFFFFF",
                 },
+            },
+            boxShadow: {
+                'neu-raised': 'var(--ft-shadow-raised)',
+                'neu-inset': 'var(--ft-shadow-inset)',
+                'clay': 'var(--ft-shadow-clay)',
             },
             borderRadius: {
                 lg: "var(--radius)",

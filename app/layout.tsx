@@ -10,6 +10,7 @@ export const viewport: Viewport = {
 }
 import { Inter } from 'next/font/google'
 import './globals.css'
+import './ft.css'
 import { AuthProvider } from '@/contexts/auth-context'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
