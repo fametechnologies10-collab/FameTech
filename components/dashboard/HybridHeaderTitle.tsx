@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation'
 import { FileText } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { userNavItems, adminNavItems, shopNavItems } from '@/components/dashboard/sidebar'
 
 const ALL_NAV_ITEMS = [
@@ -24,19 +23,16 @@ function resolvePageTitle(pathname: string | null): string {
     return match?.label ?? 'Dashboard'
 }
 
+// `role` is kept so callers don't change; the title colour no longer varies by role
 export function HybridHeaderTitle({ role }: { role?: string }) {
     const pathname = usePathname()
-    const roleTextClass =
-        role === 'agent' ? 'text-black' :
-        role === 'dealer' ? 'text-white' :
-        ''
 
     return (
         <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-primary/10">
                 <FileText className="w-3.5 h-3.5 text-primary" />
             </div>
-            <h1 className={cn('text-sm font-bold tracking-tight truncate', roleTextClass)}>
+            <h1 className="font-display text-base font-bold tracking-tight truncate text-foreground">
                 {resolvePageTitle(pathname)}
             </h1>
         </div>

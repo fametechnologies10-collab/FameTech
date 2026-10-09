@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { useUI } from '@/contexts/ui-context'
@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { roleConfig } from '@/lib/roles'
+import { roleConfig, roleTheme } from '@/lib/roles'
 import { supabase } from '@/lib/supabase'
 import { Bell, User, Settings, LogOut, Headphones, Mail, MessageCircle, Key, Code2, Loader2 } from 'lucide-react'
 import { cn, normalizeWhatsAppNumber } from '@/lib/utils'
@@ -50,19 +50,22 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
     const userRole = isAdmin ? 'admin' : isSubAdmin ? 'sub-admin' : (dbUser?.role || 'customer') as keyof typeof roleConfig
     const currentRole = roleConfig[userRole] || roleConfig['customer']
     const RoleIcon = currentRole.icon
+    const theme = roleTheme[userRole] ?? roleTheme['customer']
+    // Same technique as the sidebar: chip/ring colours come only from roleTheme, exposed as CSS variables
+    const roleVars = {
+        '--chip-bg': theme.chipLight.bg,
+        '--chip-fg': theme.chipLight.text,
+        '--chip-bg-d': theme.chipDark.bg,
+        '--chip-fg-d': theme.chipDark.text,
+        '--tw-ring-color': theme.ring
+    } as CSSProperties
+    const chipClass = "bg-[color:var(--chip-bg)] text-[color:var(--chip-fg)] dark:bg-[color:var(--chip-bg-d)] dark:text-[color:var(--chip-fg-d)]"
 
     return (
         <header className={cn(
-            "fixed top-0 left-0 z-40 h-16 backdrop-blur-xl border-b transition-all duration-300 ease-in-out",
+            "fixed top-0 left-0 z-40 h-16 ft-card transition-all duration-300 ease-in-out",
             "w-full lg:left-80 lg:w-[calc(100%-20rem)]",
-            isCollapsed && "lg:left-20 lg:w-[calc(100%-5rem)]",
-            dbUser?.role === 'agent'
-                ? "bg-gradient-to-b from-yellow-400 via-amber-500 to-amber-600 border-amber-600/20 shadow-sm"
-                : dbUser?.role === 'dealer'
-                    ? "bg-gradient-to-b from-violet-600 via-purple-700 to-violet-800 border-violet-800/20 shadow-sm"
-                    : dbUser?.role === 'subagent'
-                        ? "bg-gradient-to-b from-teal-500 via-teal-600 to-teal-700 border-teal-700/20 shadow-sm"
-                        : "bg-white/80 dark:bg-gray-900/80 border-gray-200 dark:border-gray-800"
+            isCollapsed && "lg:left-20 lg:w-[calc(100%-5rem)]"
         )}>
             <div className="h-full px-4 lg:px-6 flex items-center justify-between">
                 <HybridHeaderTitle role={dbUser?.role ?? undefined} />
@@ -76,11 +79,8 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
 
                     {/* Role Badge */}
                     <Badge
-                        className="hidden sm:flex text-xs"
-                        style={{
-                            backgroundColor: currentRole.color,
-                            color: isSubAdmin ? 'black' : 'white'
-                        }}
+                        className={cn("hidden sm:flex text-xs", chipClass)}
+                        style={roleVars}
                     >
                         {currentRole.label}
                     </Badge>
@@ -91,20 +91,11 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                         size="icon"
                         onClick={onOpenNotifications}
                         aria-label="Open notifications"
-                        className={cn(
-                            "relative",
-                            dbUser?.role === 'agent' ? "text-black hover:bg-black/10" : dbUser?.role === 'dealer' || dbUser?.role === 'subagent' ? "text-white hover:bg-white/10" : ""
-                        )}
+                        className="relative text-foreground"
                     >
-                        <Bell className={cn(
-                            "w-5 h-5",
-                            dbUser?.role === 'agent' ? "text-black" : dbUser?.role === 'dealer' || dbUser?.role === 'subagent' ? "text-white" : "text-gray-500 dark:text-gray-400"
-                        )} />
+                        <Bell className="w-5 h-5 text-muted-foreground" />
                         {unreadCount > 0 && (
-                            <span className={cn(
-                                "absolute -top-1 -right-1 w-5 h-5 text-xs rounded-full flex items-center justify-center font-semibold",
-                                dbUser?.role === 'agent' ? "bg-black text-[#FFCE00]" : dbUser?.role === 'dealer' || dbUser?.role === 'subagent' ? "bg-white text-violet-700" : "bg-red-500 text-white"
-                            )}>
+                            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 text-xs rounded-full flex items-center justify-center font-semibold bg-[#D00000] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_2px_5px_rgba(208,0,0,0.35)]">
                                 {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                         )}
@@ -116,15 +107,16 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className={cn("relative", dbUser?.role === 'agent' ? "text-black hover:bg-black/10" : dbUser?.role === 'dealer' || dbUser?.role === 'subagent' ? "text-white hover:bg-white/10" : "")}
+                                aria-label="Customer support"
+                                className="relative text-foreground"
                             >
-                                <Headphones className={cn("w-5 h-5", dbUser?.role === 'agent' ? "text-black" : dbUser?.role === 'dealer' || dbUser?.role === 'subagent' ? "text-white" : "text-gray-500 dark:text-gray-400")} />
+                                <Headphones className="w-5 h-5 text-muted-foreground" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-56" align="end" forceMount>
                             <DropdownMenuLabel className="font-normal">
                                 <div className="flex flex-col space-y-1">
-                                    <p className="text-sm font-semibold leading-none">Customer Support</p>
+                                    <p className="text-sm font-semibold leading-none">Customer support</p>
                                     <p className="text-xs leading-none text-muted-foreground mt-1">Get help from our team</p>
                                 </div>
                             </DropdownMenuLabel>
@@ -132,13 +124,13 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                             <DropdownMenuItem asChild>
                                 <Link href="/dashboard/complaints" className="cursor-pointer flex items-center">
                                     <Headphones className="mr-2 h-4 w-4" />
-                                    <span>Support Center</span>
+                                    <span>Help center</span>
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                                 <a href={supportContacts.email ? `mailto:${supportContacts.email}` : '#'} className="cursor-pointer flex items-center">
                                     <Mail className="mr-2 h-4 w-4" />
-                                    <span>Email Support</span>
+                                    <span>Email support</span>
                                 </a>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
@@ -149,7 +141,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                                     className="cursor-pointer flex items-center"
                                 >
                                     <MessageCircle className="mr-2 h-4 w-4" />
-                                    <span>WhatsApp Chat</span>
+                                    <span>WhatsApp chat</span>
                                 </a>
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -159,8 +151,8 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                                <Avatar className="h-10 w-10 ring-2 ring-primary/20 transition-transform hover:scale-105 active:scale-95">
-                                    <AvatarFallback className="text-white font-semibold flex items-center justify-center delay-0 duration-0" style={{ backgroundColor: currentRole.color }}>
+                                <Avatar className="h-10 w-10 ring-[3px] transition-transform hover:scale-105 active:scale-95" style={roleVars}>
+                                    <AvatarFallback className={cn("font-semibold flex items-center justify-center delay-0 duration-0", chipClass)}>
                                         <RoleIcon className="w-5 h-5" />
                                     </AvatarFallback>
                                 </Avatar>
@@ -176,13 +168,10 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                                         {dbUser?.email}
                                     </p>
                                     <Badge
-                                        className="w-fit mt-1 text-[10px] px-1.5 py-0"
-                                        style={{
-                                            backgroundColor: isAdmin ? '#E60000' : isSubAdmin ? '#FACC15' : dbUser?.role === 'agent' ? '#25D366' : dbUser?.role === 'dealer' ? '#7C3AED' : dbUser?.role === 'subagent' ? '#0D9488' : '#0056B3',
-                                            color: isSubAdmin ? 'black' : 'white'
-                                        }}
+                                        className={cn("w-fit mt-1 text-[10px] px-1.5 py-0", chipClass)}
+                                        style={roleVars}
                                     >
-                                        {isAdmin ? 'Admin' : isSubAdmin ? 'Sub-Admin' : dbUser?.role === 'agent' ? 'Agent' : dbUser?.role === 'dealer' ? 'Dealer' : dbUser?.role === 'subagent' ? 'Sub-Agent' : 'Customer'}
+                                        {isAdmin ? 'Admin' : isSubAdmin ? 'Sub-admin' : dbUser?.role === 'agent' ? 'Agent' : dbUser?.role === 'dealer' ? 'Dealer' : dbUser?.role === 'subagent' ? 'Sub-agent' : 'Customer'}
                                     </Badge>
                                 </div>
                             </DropdownMenuLabel>
@@ -204,7 +193,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                             <Link href="/developers">
                                 <DropdownMenuItem>
                                     <Code2 className="mr-2 h-4 w-4" />
-                                    <span>API Documentation</span>
+                                    <span>API documentation</span>
                                 </DropdownMenuItem>
                             </Link>
                             {isAdmin && (
@@ -212,13 +201,13 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                                     <Link href="/admin/settings">
                                         <DropdownMenuItem>
                                             <Settings className="mr-2 h-4 w-4" />
-                                            <span>Admin Settings</span>
+                                            <span>Admin settings</span>
                                         </DropdownMenuItem>
                                     </Link>
                                     <Link href="/admin/api-keys">
                                         <DropdownMenuItem>
                                             <Key className="mr-2 h-4 w-4" />
-                                            <span>API Keys Approval</span>
+                                            <span>API keys approval</span>
                                         </DropdownMenuItem>
                                     </Link>
                                 </>
