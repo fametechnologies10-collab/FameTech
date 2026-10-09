@@ -20,7 +20,8 @@ const config = {
         },
         extend: {
             fontFamily: {
-                sans: ['Inter', 'system-ui', 'sans-serif'],
+                sans: ['var(--font-ft-body)', 'system-ui', 'sans-serif'],
+                display: ['var(--font-ft-display)', 'system-ui', 'sans-serif'],
             },
             fontSize: {
                 // Heading scale

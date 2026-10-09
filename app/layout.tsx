@@ -5,10 +5,13 @@ export const viewport: Viewport = {
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
-    themeColor: '#0f172a',
+    themeColor: [
+        { media: '(prefers-color-scheme: light)', color: '#E6ECF5' },
+        { media: '(prefers-color-scheme: dark)', color: '#0A0F1C' },
+    ],
     interactiveWidget: 'resizes-content',
 }
-import { Inter } from 'next/font/google'
+import { ftFonts } from '@/lib/ft-fonts'
 import './globals.css'
 import './ft.css'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -16,12 +19,6 @@ import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
 import { PinProvider } from '@/contexts/pin-context'
 import { OfflineOverlay } from '@/components/offline-overlay'
-
-const inter = Inter({
-    subsets: ['latin'],
-    variable: '--font-inter',
-    display: 'swap',
-})
 
 export const metadata: Metadata = {
     metadataBase: new URL('https://fametechgh.com'),
@@ -106,7 +103,7 @@ export default function RootLayout({
             <head>
                 <link rel="preload" href="/logo.png" as="image" />
             </head>
-            <body className={`${inter.variable} ${inter.className}`}>
+            <body className={`${ftFonts.variable} ${ftFonts.className}`}>
                 <script
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{

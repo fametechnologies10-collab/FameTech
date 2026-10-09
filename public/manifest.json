@@ -4,7 +4,7 @@
   "description": "Buy affordable MTN, Telecel, and AirtelTigo data bundles & airtime online in Ghana. Fast delivery, secure payments.",
   "start_url": "/auth",
   "display": "standalone",
-  "background_color": "#000000",
+  "background_color": "#0A0F1C",
   "theme_color": "#0057FF",
   "orientation": "portrait-primary",
   "scope": "/",
