@@ -30,6 +30,14 @@ check('slate 400 on Night >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['400']
 check('white on blue 600 >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', FT_BLUE['600']) >= 4.5))
 check('white on #0A66FF >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', '#0A66FF') >= 4.5))
 
+check('slate 600 on slate 50 >= 7', () => assert.ok(contrastRatio(FT_SLATE['600'], FT_SLATE['50']) >= 7))
+check('slate 500 on slate 50 >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['500'], FT_SLATE['50']) >= 4.5))
+check('blue 700 on blue 50 >= 4.5', () => assert.ok(contrastRatio(FT_BLUE['700'], FT_BLUE['50']) >= 4.5))
+check('indigo 700 on indigo 50 >= 4.5', () => assert.ok(contrastRatio(FT_INDIGO['700'], FT_INDIGO['50']) >= 4.5))
+check('cyan 600 on clay >= 4.5', () => assert.ok(contrastRatio(FT_CYAN['600'], '#E6ECF5') >= 4.5))
+check('cyan 700 on clay >= 7', () => assert.ok(contrastRatio(FT_CYAN['700'], '#E6ECF5') >= 7))
+check('white on cyan 600 >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', FT_CYAN['600']) >= 4.5))
+
 check('500 stops are pairwise distinct (dE76 >= 15)', () => {
     const stops = { blue: FT_BLUE['500'], indigo: FT_INDIGO['500'], iris: FT_IRIS['500'], cyan: FT_CYAN['500'] }
     const names = Object.keys(stops) as (keyof typeof stops)[]

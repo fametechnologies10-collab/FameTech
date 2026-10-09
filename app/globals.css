@@ -367,6 +367,8 @@
        touches border-color. No :is()/complex :not() (old Android Chrome).
      - Known trade-off: hover:shadow-* on bridged cards is overridden by the
        raised shadow (specificity); the interactive-card helper handles lift.
+     - Known trade-off: repeated div list rows using bg-white rounded-xl each get
+       a raised shadow (unlike li/tr); add .ft-flat to the row to flatten it.
      - Opt out with .ft-true-white (app/ft.css). */
 
   /* Light raised cards: bg-white + rounded-xl/2xl/3xl */
@@ -396,9 +398,12 @@
   }
 
   /* 0 0 #0000 (not none): `none` is invalid inside a comma list with the ring shadows. */
+  /* .ft-flat: for repeated div rows using the bridged bg-white rounded-xl pattern
+     (Phase 3/4 apply it); same flat behaviour as table rows below. */
   /* Table rows and list items stay flat (no per-row shadows: low-end device
      performance). The variable inherits, so cards nested in these are flat. */
-  table, thead, tbody, tr, td, th, li {
+  table, thead, tbody, tr, td, th, li,
+  .ft-flat {
     --ft-card-shadow: 0 0 #0000;
   }
 }

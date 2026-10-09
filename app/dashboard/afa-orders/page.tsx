@@ -603,7 +603,7 @@ export default function AFAOrdersPage() {
                                     <Input required disabled={isSubmitting} value={formData.id_number}
                                         onChange={e => handleGcChange(e.target.value)}
                                         placeholder="GHA-XXXXXXXXX-X"
-                                        className={cn('h-11 font-mono', gcError ? 'border-red-500 focus-visible:ring-red-500' : '')} />
+                                        className={cn('h-11 font-mono', gcError ? 'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500' : '')} />
                                 </div>
                                 {!gcError && (
                                     <p className="text-[11px] text-muted-foreground flex items-center gap-1">

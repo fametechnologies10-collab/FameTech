@@ -3,7 +3,7 @@
 export type FtRamp = Record<'50' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900' | '950', string>
 
 export const FT_SLATE: FtRamp = {
-    '50': '#E6ECF5',
+    '50': '#EDF1F8',
     '100': '#DCE4F0',
     '200': '#CBD5E6',
     '300': '#B3C0D6',
@@ -17,7 +17,7 @@ export const FT_SLATE: FtRamp = {
 }
 
 export const FT_BLUE: FtRamp = {
-    '50': '#EAF1FF',
+    '50': '#F0F5FF',
     '100': '#D6E4FF',
     '200': '#ADC9FF',
     '300': '#7AA6FF',
@@ -31,7 +31,7 @@ export const FT_BLUE: FtRamp = {
 }
 
 export const FT_INDIGO: FtRamp = {
-    '50': '#EEF0FF',
+    '50': '#F1F2FF',
     '100': '#DDE1FF',
     '200': '#BBC3FF',
     '300': '#919EFF',
@@ -65,8 +65,8 @@ export const FT_CYAN: FtRamp = {
     '300': '#40D6FF',
     '400': '#1ACCFF',
     '500': '#00C8FF',
-    '600': '#00A3D1',
-    '700': '#007EA3',
+    '600': '#006F8F',
+    '700': '#00526A',
     '800': '#005A75',
     '900': '#003A4D',
     '950': '#00222E',

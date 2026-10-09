@@ -108,7 +108,7 @@ export function CtaFieldGroup({ index, label, url, onLabel, onUrl, savedButtons 
                         value={url}
                         onChange={e => onUrl(e.target.value)}
                         placeholder="https://..."
-                        className={cn('text-sm', showError && 'border-red-400 focus-visible:ring-red-400')}
+                        className={cn('text-sm', showError && 'border-red-400 ring-1 ring-red-400 focus-visible:ring-red-400')}
                     />
                 </div>
             </div>
