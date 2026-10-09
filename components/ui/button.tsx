@@ -5,26 +5,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ft-blue)] dark:focus-visible:outline-[color:var(--ft-cyan)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
     {
         variants: {
             variant: {
-                default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25",
-                destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/25",
-                outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-                secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-                ghost: "hover:bg-accent hover:text-accent-foreground",
+                default: "ft-clay-btn text-white hover:brightness-95",
+                destructive: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#B71C1C] [--ft-c2:#D32F2F] [--ft-cglow:rgba(183,28,28,0.3)]",
+                outline: "ft-soft hover:brightness-[0.97]",
+                secondary: "ft-soft hover:brightness-[0.97]",
+                ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",
-                success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-600/25",
-                warning: "bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-500/25",
-                mtn: "bg-yellow-500 text-black hover:bg-yellow-600 shadow-lg shadow-yellow-500/25",
-                telecel: "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/25",
-                gradient: "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-lg",
+                success: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#065F46] [--ft-c2:#047857] [--ft-cglow:rgba(4,120,87,0.3)]",
+                warning: "ft-clay-btn text-[#451A03] hover:brightness-95 [--ft-c1:#FCD34D] [--ft-c2:#F59E0B] [--ft-cglow:rgba(245,158,11,0.35)]",
+                mtn: "ft-clay-btn text-black hover:brightness-95 [--ft-c1:#FACC15] [--ft-c2:#EAB308] [--ft-cglow:rgba(234,179,8,0.35)]",
+                telecel: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#C62828] [--ft-c2:#B71C1C] [--ft-cglow:rgba(198,40,40,0.3)]",
+                gradient: "ft-clay-btn text-white hover:brightness-95 [--ft-c1:#0057FF] [--ft-c2:#3B2BD9]",
             },
             size: {
                 default: "h-10 px-4 py-2",
-                sm: "h-9 rounded-md px-3",
-                lg: "h-11 rounded-lg px-8",
+                sm: "h-9 rounded-xl px-3",
+                lg: "h-11 rounded-xl px-8",
                 xl: "h-12 rounded-xl px-10 text-base",
                 icon: "h-10 w-10",
             },

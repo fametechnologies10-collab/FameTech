@@ -113,6 +113,36 @@
 }
 
 @layer components {
+  /* FT Clay surface primitives (components layer so Tailwind utilities such as
+     bg-transparent / shadow-none on a consumer still win). Shadows compose with
+     the Tailwind ring so focus rings keep working. */
+  .ft-card {
+    background: var(--ft-raised-bg);
+    color: var(--ft-ink);
+    box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+  }
+
+  .ft-field {
+    background: var(--ft-surface);
+    border: 0;
+    box-shadow: var(--ft-shadow-inset), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+  }
+
+  .ft-soft {
+    background: var(--ft-raised-bg);
+    color: var(--ft-ink);
+    box-shadow: var(--ft-shadow-raised), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+  }
+
+  /* Clay button fill; variants override --ft-c1/--ft-c2/--ft-cglow. White text >= 4.5:1 on both stops. */
+  .ft-clay-btn {
+    --ft-c1: #0057FF;
+    --ft-c2: #0A66FF;
+    --ft-cglow: var(--ft-clay-glow);
+    background: linear-gradient(135deg, var(--ft-c1) 0%, var(--ft-c2) 100%);
+    box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0, 20, 80, 0.25), 0 8px 18px var(--ft-cglow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+  }
+
   .glass-card {
     @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm lg:backdrop-blur-xl border border-white/20 dark:border-gray-700/30 shadow-md lg:shadow-xl;
   }
