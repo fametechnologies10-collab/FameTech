@@ -101,7 +101,7 @@ export default function AuthPage() {
     return (
         <AuthShell
             title={activeTab === 'signin' ? 'Welcome back' : 'Create your FameTech account'}
-            subtitle={activeTab === 'signin' ? 'Sign in to buy data, airtime and more.' : 'It takes about a minute. No hidden fees.'}
+            subtitle={activeTab === 'signin' ? 'Sign in to buy data, airtime and more.' : 'Create your account in about a minute.'}
             footer={
                 <div className="mt-4 w-full grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
                     <ClayButton asChild variant="soft" className="px-4 text-sm">

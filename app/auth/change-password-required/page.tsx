@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ClayButton, NeuInput, PasswordStrength } from '@/components/ft'
 import { toast } from '@/lib/toast'
+import { AuthShell } from '../_components/auth-shell'
 
 export default function ChangePasswordRequiredPage() {
     const [currentPassword, setCurrentPassword] = useState('')
@@ -37,19 +38,29 @@ export default function ChangePasswordRequiredPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center px-4">
-            <form onSubmit={submit} className="w-full max-w-sm space-y-4">
-                <h1 className="text-xl font-bold">Set a new password</h1>
-                <p className="text-sm text-muted-foreground">
-                    For your security, you need to set your own password before continuing.
-                </p>
-                <Input type="password" placeholder="Current access key" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-                <Input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
-                <Input type="password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
-                <Button type="submit" disabled={submitting} className="w-full">
+        <AuthShell
+            showBrandPanel={false}
+            title="Set a new password"
+            subtitle="For your security, you need to set your own password before continuing."
+        >
+            <form onSubmit={submit} className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="cpr-current" className="text-sm font-semibold text-ft-ink">Current access key</Label>
+                    <NeuInput id="cpr-current" type="password" placeholder="Current access key" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cpr-new" className="text-sm font-semibold text-ft-ink">New password</Label>
+                    <NeuInput id="cpr-new" type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
+                    <PasswordStrength password={newPassword} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cpr-confirm" className="text-sm font-semibold text-ft-ink">Confirm new password</Label>
+                    <NeuInput id="cpr-confirm" type="password" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} />
+                </div>
+                <ClayButton type="submit" loading={submitting} className="w-full">
                     {submitting ? 'Saving…' : 'Set password'}
-                </Button>
+                </ClayButton>
             </form>
-        </div>
+        </AuthShell>
     )
 }

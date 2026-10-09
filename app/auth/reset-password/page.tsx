@@ -2,20 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
-import { BrandLogo, BrandTitle } from '@/components/ui/brand'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Mail, Send, Home, KeyRound } from 'lucide-react'
+import { ClayButton, NeuInput } from '@/components/ft'
+import { Mail, Send, KeyRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
-import { BackgroundBubbles } from '@/components/background-bubbles'
-import { FloatingWhatsApp } from '@/components/floating-whatsapp'
-import { WhatsAppCommunityButtons } from '@/components/whatsapp-community-buttons'
+import { cn } from '@/lib/utils'
+import { AuthShell } from '../_components/auth-shell'
+import { AuthAlert, FT_LINK } from '../_components/shared'
 
 export default function ResetPasswordPage() {
     const router = useRouter()
@@ -146,158 +141,106 @@ export default function ResetPasswordPage() {
     }
 
     return (
-        <div className="relative min-h-screen w-full flex flex-col items-center justify-center px-4 py-8 sm:py-10 overflow-y-auto">
-            <BackgroundBubbles scrollable />
-            <FloatingWhatsApp variant="auth" />
-            
-            {/* Back to Home Link */}
-            <div className="absolute top-4 left-4 sm:top-8 sm:left-8 z-50">
-                <Link href="/">
-                    <Button variant="ghost" className="text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold gap-2 rounded-full">
-                        <Home className="w-4 h-4" />
-                        <span className="hidden sm:inline">Back to Home</span>
-                        <span className="sm:hidden">Home</span>
-                    </Button>
-                </Link>
-            </div>
-            <div className="w-full max-w-[380px] sm:max-w-md relative z-10 flex flex-col items-center">
-                {/* Logo - professional and visible */}
-                <div className="text-center mb-6">
-                    <Link href="/" className="inline-flex flex-col items-center">
-                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-3 rounded-full overflow-hidden flex items-center justify-center bg-white/10 backdrop-blur-sm border border-white/20">
-                            <BrandLogo width={80} height={80} className="object-contain w-full h-full" />
-                        </div>
-                        <BrandTitle className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight drop-shadow-lg" />
-                        <p className="text-base text-slate-600 dark:text-white/80 mt-1 drop-shadow">
-                            Reset your password
-                        </p>
+        <AuthShell
+            title="Reset your password"
+            subtitle={step === 1 ? 'Enter your email and we will send you a reset code.' : undefined}
+            footer={
+                <div className="mt-4 text-center">
+                    <Link href="/auth" className={cn('inline-flex min-h-12 items-center px-3 text-base font-semibold', FT_LINK)}>
+                        ← Back to sign in
                     </Link>
                 </div>
+            }
+        >
+            {step === 1 ? (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && (
+                        <AuthAlert tone={lockoutMinutes !== null ? 'warn' : 'error'}>{error}</AuthAlert>
+                    )}
 
-                <Card className="w-full border-0 bg-[#E5E7EB]/70 backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden">
-                    <CardContent className="p-5 sm:p-6">
-                        {step === 1 ? (
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <p className="text-slate-600 text-sm text-center">
-                                    Enter your email to receive a password reset code.
-                                </p>
+                    <div className="space-y-2">
+                        <Label htmlFor="email" className="text-sm font-semibold text-ft-ink">Email address</Label>
+                        <NeuInput
+                            id="email"
+                            type="email"
+                            autoComplete="email"
+                            placeholder="you@email.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            leading={<Mail className="h-4 w-4" aria-hidden="true" />}
+                        />
+                    </div>
 
-                                {error && (
-                                    <Alert variant="destructive" className={lockoutMinutes !== null ? "bg-orange-500/10 border-orange-500/50 py-2" : "bg-red-500/10 border-red-500/50 py-2"}>
-                                        <AlertDescription className={lockoutMinutes !== null ? "text-orange-600 text-sm" : "text-red-600 text-sm"}>{error}</AlertDescription>
-                                    </Alert>
-                                )}
-
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="email" className="text-slate-700 font-semibold text-sm">Email Address</Label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                        <Input
-                                            id="email"
-                                            type="email"
-                                            autoComplete="email"
-                                            placeholder="your@email.com"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            required
-                                            className="h-12 pl-11 bg-white/95 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0056B3] focus:ring-[#0056B3]/20 rounded-xl text-base"
-                                        />
-                                    </div>
-                                </div>
-
-                                <Button
-                                    type="submit"
-                                    disabled={isLoading || lockoutMinutes !== null}
-                                    className="w-full h-12 text-base font-bold bg-[#0056B3] hover:bg-[#004494] text-white shadow-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {lockoutMinutes !== null ? (
-                                        `Locked — try again in ${lockoutMinutes}m`
-                                    ) : isLoading ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                            Sending...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Send className="w-5 h-5 mr-2" />
-                                            Send Reset Code
-                                        </>
-                                    )}
-                                </Button>
-                            </form>
+                    <ClayButton
+                        type="submit"
+                        disabled={lockoutMinutes !== null}
+                        loading={isLoading}
+                        className="w-full"
+                    >
+                        {lockoutMinutes !== null ? (
+                            `Locked, try again in ${lockoutMinutes}m`
+                        ) : isLoading ? (
+                            'Sending…'
                         ) : (
-                            <form onSubmit={handleVerifyOtp} className="space-y-4">
-                                <div className="text-center mb-6">
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-4">
-                                        <KeyRound className="w-8 h-8 text-white" />
-                                    </div>
-                                    <h2 className="text-xl font-bold text-slate-900 mb-2">Check Your Email</h2>
-                                    <p className="text-slate-600 text-sm">
-                                        We sent a verification code to <strong className="text-slate-900">{email}</strong>
-                                    </p>
-                                </div>
-
-                                {error && (
-                                    <Alert variant="destructive" className="bg-red-500/10 border-red-500/50 py-2">
-                                        <AlertDescription className="text-red-600 text-sm">{error}</AlertDescription>
-                                    </Alert>
-                                )}
-
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="otp" className="text-slate-700 font-semibold text-sm">Verification Code</Label>
-                                    <Input
-                                        id="otp"
-                                        type="text"
-                                        inputMode="numeric"
-                                        autoComplete="one-time-code"
-                                        placeholder="Enter code"
-                                        value={otp}
-                                        onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
-                                        required
-                                        maxLength={8}
-                                        className="h-14 text-center text-2xl tracking-[0.2em] font-bold bg-white/95 border-slate-200 text-slate-900 placeholder:text-slate-300 focus:border-[#0056B3] focus:ring-[#0056B3]/20 rounded-xl"
-                                    />
-                                    <div className="text-center pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={handleResendCode}
-                                            disabled={resendCooldown > 0}
-                                            className="text-xs font-semibold text-[#0056B3] hover:underline disabled:opacity-50 disabled:no-underline"
-                                        >
-                                            {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <Button
-                                    type="submit"
-                                    disabled={isLoading || otp.length < 6}
-                                    className="w-full h-12 text-base font-bold bg-[#0056B3] hover:bg-[#004494] text-white shadow-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                            Verifying...
-                                        </>
-                                    ) : (
-                                        'Verify Code'
-                                    )}
-                                </Button>
-                            </form>
+                            <>
+                                <Send className="h-4 w-4" aria-hidden="true" />
+                                Send reset code
+                            </>
                         )}
-
-                        <div className="mt-5 text-center">
-                            <Link href="/auth" className="text-base text-[#0056B3] font-semibold hover:underline">
-                                ← Back to Login
-                            </Link>
+                    </ClayButton>
+                </form>
+            ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div className="space-y-1 text-center">
+                        <div className="ft-clay mx-auto mb-3 flex h-12 w-12 items-center justify-center">
+                            <KeyRound className="h-6 w-6" aria-hidden="true" />
                         </div>
+                        <h2 className="ft-display text-lg font-extrabold text-ft-ink">Check your email</h2>
+                        <p className="text-sm text-[color:var(--ft-muted)]">
+                            We sent a verification code to <strong className="break-all text-ft-ink">{email}</strong>
+                        </p>
+                    </div>
 
-                        <div className="mt-5 border-t border-slate-300/50 pt-4">
-                            <WhatsAppCommunityButtons compact />
+                    {error && <AuthAlert tone="error">{error}</AuthAlert>}
+
+                    <div className="space-y-2">
+                        <Label htmlFor="otp" className="text-sm font-semibold text-ft-ink">Verification code</Label>
+                        <NeuInput
+                            id="otp"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="Enter code"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
+                            required
+                            maxLength={8}
+                            wrapperClassName="h-14"
+                            className="text-center text-xl font-extrabold tracking-[0.2em]"
+                        />
+                        <div className="text-center">
+                            <button
+                                type="button"
+                                onClick={handleResendCode}
+                                disabled={resendCooldown > 0}
+                                className={cn('min-h-12 rounded-xl px-3 text-sm font-semibold disabled:opacity-60', FT_LINK)}
+                            >
+                                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                            </button>
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+                    </div>
+
+                    <ClayButton
+                        type="submit"
+                        disabled={otp.length < 6}
+                        loading={isLoading}
+                        className="w-full"
+                    >
+                        {isLoading ? 'Verifying…' : 'Verify code'}
+                    </ClayButton>
+                </form>
+            )}
+        </AuthShell>
     )
 }
