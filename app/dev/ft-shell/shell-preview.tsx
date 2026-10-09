@@ -95,7 +95,7 @@ function UIInit({ collapsed, drawerOpen }: { collapsed: boolean; drawerOpen: boo
 function Layout() {
     const { isCollapsed } = useUI()
     return (
-        <div className="min-h-screen bg-[#E5E7EB] dark:bg-[#000000] relative">
+        <div className="min-h-screen bg-background relative">
             <Boundary name="DashboardSidebar">
                 <DashboardSidebar />
             </Boundary>

@@ -25,6 +25,7 @@ import { SuspendedAccount } from '@/components/dashboard/SuspendedAccount'
 import { CopyrightFooter } from '@/components/CopyrightFooter'
 import { FloatingRefreshButton } from '@/components/dashboard/floating-refresh-button'
 import { BottomNav } from '@/components/dashboard/bottom-nav'
+import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 
 
@@ -134,7 +135,7 @@ export default function DashboardLayoutClient({
     // Show loader while auth is resolving, profile is incomplete, or redirect is pending.
     if (isLoading || !user || !dbUser || !profileComplete) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#E5E7EB] dark:bg-[#000000]">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <BrandLoader fullScreen={false} />
             </div>
         )
@@ -153,7 +154,7 @@ export default function DashboardLayoutClient({
 
     if (isSuspended && !suspensionExempt) {
         return (
-            <div className="min-h-screen bg-[#E5E7EB] dark:bg-[#000000] relative">
+            <div className="min-h-screen bg-background relative">
                 <DashboardSidebar communityLink={communityLink} />
                 <div className={cn(
                     "relative transition-all duration-300 ease-in-out min-h-screen flex flex-col w-full max-w-[100vw] overflow-x-clip",
@@ -167,7 +168,7 @@ export default function DashboardLayoutClient({
                     <main className="p-4 lg:p-6 flex-1">
                         <SuspendedAccount />
                     </main>
-                    <CopyrightFooter adminSettings={adminSettings} className="bg-[#E5E7EB]/50 dark:bg-[#000000]/50" />
+                    <CopyrightFooter adminSettings={adminSettings} className="bg-transparent" />
                 </div>
                 <NotificationModal
                     isOpen={notifOpen}
@@ -182,7 +183,7 @@ export default function DashboardLayoutClient({
 
     return (
         <ModalQueueProvider>
-        <div className="min-h-screen bg-[#E5E7EB] dark:bg-[#000000] relative">
+        <div className="min-h-screen bg-background relative">
             <TermsGate minVersion={adminSettings['terms_min_acceptable_version'] || ''} effectiveDate={adminSettings['terms_effective_date']} />
             <SignupPromoModal promoRole={signupPromoRole} />
             <SystemAnnouncementModal />
@@ -215,7 +216,7 @@ export default function DashboardLayoutClient({
                         {children}
                     </PageAccessGuard>
                 </main>
-                <CopyrightFooter adminSettings={adminSettings} className="hidden md:block bg-[#E5E7EB]/50 dark:bg-[#000000]/50" />
+                <CopyrightFooter adminSettings={adminSettings} className="hidden md:block bg-transparent" />
             </div>
 
             {/* ── Notification Modal (root-level, portals to document.body) ── */}
@@ -269,31 +270,32 @@ function PushPermissionToast({
                     exit={{ y: 40, opacity: 0, scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                 >
-                    <div className="flex items-start gap-3 p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/70 shadow-2xl backdrop-blur-xl">
-                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 flex items-center justify-center mt-0.5">
-                            <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="ft-card flex items-start gap-3 p-4 rounded-2xl">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center mt-0.5">
+                            <Bell className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-gray-900 dark:text-white text-xs font-bold mb-0.5">Stay in the loop</p>
-                            <p className="text-gray-500 dark:text-zinc-400 text-[11px] leading-relaxed">Get instant alerts for orders, payouts, and important updates.</p>
+                            <p className="text-foreground text-xs font-bold mb-0.5">Stay in the loop</p>
+                            <p className="text-muted-foreground text-[11px] leading-relaxed">Get alerts for orders, payouts and important updates.</p>
                             <div className="flex items-center gap-2 mt-2.5">
-                                <button
+                                <Button
                                     type="button"
+                                    size="sm"
                                     onClick={onEnable}
                                     disabled={isSubscribing}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[11px] font-bold transition-all disabled:opacity-60"
+                                    className="text-[11px] font-bold"
                                 >
-                                    {isSubscribing ? 'Enabling…' : 'Enable notifications'}
-                                </button>
-                                <button type="button" onClick={onDismiss}
-                                    className="text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 text-[11px] font-medium transition-colors">
+                                    {isSubscribing ? 'Turning on…' : 'Turn on notifications'}
+                                </Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={onDismiss}
+                                    className="text-[11px] font-medium focus-visible:ring-2 focus-visible:ring-ring">
                                     Not now
-                                </button>
+                                </Button>
                             </div>
                         </div>
                         <button type="button" onClick={onDismiss} aria-label="Dismiss"
-                            className="flex-shrink-0 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300">
-                            <X className="w-3.5 h-3.5" />
+                            className="flex-shrink-0 w-10 h-10 -mt-2 -mr-2 inline-flex items-center justify-center rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 </motion.div>
