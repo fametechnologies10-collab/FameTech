@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isSafeHref } from './helpers'
 
 interface FaqItem {
     question: string
@@ -21,7 +22,14 @@ function getFaqItems(guestUrl: string): FaqItem[] {
             question: 'Can I buy without creating an account?',
             answer: (
                 <>
-                    Yes. For a quick one-time purchase, use the guest store. <a href={guestUrl} className={LINK_CLASS}>Open the guest store</a> and pay with Mobile Money or card.
+                    Yes. For a quick one-time purchase, use the guest store.
+                    {isSafeHref(guestUrl) && (
+                        <>
+                            {' '}
+                            <a href={guestUrl} className={LINK_CLASS}>Open the guest store</a>
+                        </>
+                    )}
+                    {' '}Pay with Mobile Money or card.
                 </>
             ),
         },

@@ -20,7 +20,7 @@ import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { FALLBACK_TERMS_VERSION, FALLBACK_EFFECTIVE_DATE } from '@/lib/terms'
 import {
-    Eye, EyeOff, Loader2, Mail, Lock, User, Phone, ArrowLeft, UserPlus,
+    Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, UserPlus,
     MessageSquare, RefreshCw, CheckCircle2, BookOpen,
 } from 'lucide-react'
 import { AuthAlert, FT_ERROR_TEXT, FT_LINK, GoogleButton, OrDivider, TERMS_SECTIONS } from './shared'
@@ -408,7 +408,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                         wrapperClassName={cn(fieldErrors.password && 'outline outline-2 outline-red-600 dark:outline-red-400')}
                         leading={<Lock className="h-4 w-4" aria-hidden="true" />}
                         trailing={
-                            <button type="button" aria-label={showPw ? 'Hide' : 'Show'}
+                            <button type="button" aria-label={showPw ? 'Hide password' : 'Show password'}
                                 onClick={() => setShowPw(p => !p)}
                                 className="-mr-3 flex h-12 w-12 items-center justify-center rounded-xl text-[color:var(--ft-muted)] hover:text-ft-ink">
                                 {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}

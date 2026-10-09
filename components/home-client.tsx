@@ -44,6 +44,7 @@ export default function HomeClient({
     adminSettings = {},
     whatsappGroupLink = 'https://chat.whatsapp.com/FC6jYV3VDEQ4MmdTXiFqDV?mode=gi_t',
     whatsappChannelLink = 'https://whatsapp.com/channel/0029Vb7HTfx47XeIZz7ht232',
+    // kept to preserve the props contract; WhatsAppCommunityButtons fetches its own links
     whatsappCommunityLink: _whatsappCommunityLink = 'https://chat.whatsapp.com/FC6jYV3VDEQ4MmdTXiFqDV?mode=gi_t',
 }: {
     guestUrl?: string
@@ -103,6 +104,7 @@ export default function HomeClient({
         <div className="min-h-screen overflow-x-clip transition-colors duration-300">
             <PWAInstallPrompt />
             <LandingNav whatsappHref={whatsappHref} adminPhone={adminPhone} />
+            <main id="main">
             <Hero customerCountLabel={landingCustomerCountRaw} guestUrl={guestUrl} packagesByNetwork={landingDataPackagesByNetwork} />
             <NetworkTrough />
 
@@ -124,6 +126,7 @@ export default function HomeClient({
             <Faq guestUrl={guestUrl} />
             <CtaBanner whatsappHref={whatsappHref} adminPhone={adminPhone} />
             <Community />
+            </main>
 
             <LandingFooter
                 adminSettings={adminSettings}

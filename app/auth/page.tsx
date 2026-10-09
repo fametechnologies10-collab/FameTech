@@ -89,7 +89,6 @@ export default function AuthPage() {
             >
                 <PinFirstScreen
                     emailHint={emailHint}
-                    firstName={firstName}
                     onSwitchAccount={handleSwitchAccount}
                     onUsePassword={handleUsePassword}
                 />

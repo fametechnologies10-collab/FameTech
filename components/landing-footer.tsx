@@ -110,7 +110,7 @@ export function LandingFooter({
                         </div>
 
                         <div className="min-w-0">
-                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Products</h2>
+                            <p className="mb-1 text-sm font-semibold text-ft-ink">Products</p>
                             <ul>
                                 {PRODUCT_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
@@ -119,7 +119,7 @@ export function LandingFooter({
                         </div>
 
                         <div className="min-w-0">
-                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Company</h2>
+                            <p className="mb-1 text-sm font-semibold text-ft-ink">Company</p>
                             <ul>
                                 {COMPANY_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
@@ -128,7 +128,7 @@ export function LandingFooter({
                         </div>
 
                         <div className="min-w-0">
-                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Legal</h2>
+                            <p className="mb-1 text-sm font-semibold text-ft-ink">Legal</p>
                             <ul>
                                 {LEGAL_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
@@ -138,7 +138,7 @@ export function LandingFooter({
                     </div>
 
                     <div className="mt-10 pt-6">
-                        <h2 className="mb-1 text-sm font-semibold text-ft-ink">Developer API</h2>
+                        <p className="mb-1 text-sm font-semibold text-ft-ink">Developer API</p>
                         <ul className="mb-4 flex flex-wrap gap-x-5">
                             {DEVELOPER_PRODUCTS.map((p) => (
                                 <li key={p.slug}>

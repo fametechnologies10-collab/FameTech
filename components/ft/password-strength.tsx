@@ -23,7 +23,7 @@ const FILLS: Record<ActiveLevel, string> = {
     strong: 'linear-gradient(135deg, #00C8FF 0%, #12D18E 100%)',
 }
 
-export function strengthSegments(level: StrengthLevel): number {
+function strengthSegments(level: StrengthLevel): number {
     switch (level) {
         case 'weak': return 1
         case 'fair': return 2

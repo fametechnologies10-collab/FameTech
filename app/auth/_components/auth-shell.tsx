@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils'
 const WhatsAppCommunityButtons = dynamic(() => import('@/components/whatsapp-community-buttons').then(m => ({ default: m.WhatsAppCommunityButtons })), { ssr: false, loading: () => null })
 
 const PROOF_POINTS = [
-    { icon: Zap, title: 'Data in seconds', desc: 'MTN, Telecel and AirtelTigo bundles land on the number right away.' },
-    { icon: ShieldCheck, title: 'Locked down by default', desc: 'A PIN, a passkey or Google sign-in guards every wallet.' },
+    { icon: Zap, title: 'Data in seconds', desc: 'MTN, Telecel and AirtelTigo bundles, paid from your wallet.' },
+    { icon: ShieldCheck, title: 'Sign in your way', desc: 'Use a PIN, passkey, Google or your password.' },
     { icon: Store, title: 'Built to resell', desc: 'Agent tiers and an API are ready when you want to grow.' },
 ]
 
@@ -46,9 +46,9 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
                             <LogoTile size={48} />
                             <BrandTitle className="text-2xl" />
                         </Link>
-                        <h2 className="ft-display mt-12 max-w-[320px] text-4xl font-extrabold leading-tight text-ft-ink">
+                        <p className="ft-display mt-12 max-w-[320px] text-4xl font-extrabold leading-tight text-ft-ink">
                             Top up, resell, repeat.
-                        </h2>
+                        </p>
                         <p className="mt-4 max-w-[340px] text-base leading-relaxed text-[color:var(--ft-muted)]">
                             FameTech is where Ghana buys data, airtime and result vouchers, then starts earning from it.
                         </p>
@@ -70,9 +70,6 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
                                 </div>
                             </div>
                         ))}
-                        <div className="pt-4">
-                            <WhatsAppCommunityButtons compact />
-                        </div>
                     </div>
                 </aside>
             )}
@@ -105,7 +102,7 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
                     {footer}
 
                     {showBrandPanel && (
-                        <div className="mt-6 w-full lg:hidden">
+                        <div className="mt-6 w-full">
                             <WhatsAppCommunityButtons compact />
                         </div>
                     )}

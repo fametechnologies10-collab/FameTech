@@ -17,7 +17,6 @@ export function PinFirstScreen({
     onUsePassword,
 }: {
     emailHint: string
-    firstName?: string // greeting is rendered by AuthShell title
     onSwitchAccount: () => void
     onUsePassword: () => void
 }) {

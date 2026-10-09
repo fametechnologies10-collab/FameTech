@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { NeuCard } from '@/components/ft'
-import { SegmentedControl } from '@/components/ft/segmented-control'
+import { SegmentedControl } from '@/components/ft'
 import { NetworkIcon } from '@/components/network-icon'
 import type { LandingDataPackage } from '@/components/landing/helpers'
 
