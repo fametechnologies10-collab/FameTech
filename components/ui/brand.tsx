@@ -45,16 +45,16 @@ export function BrandTitle({ className, variant = 'default' }: BrandTitleProps) 
     if (variant === 'hero') {
         return (
             <span className={cn("font-black tracking-tight", className)}>
-                <span className="text-slate-900 dark:text-white">Fame</span>
-                <span className="text-[#0057FF]">Tech</span>
+                <span className="text-[color:var(--ft-ink)]">Fame</span>
+                <span className="text-[color:var(--ft-blue)] dark:text-[color:var(--ft-cyan)]">Tech</span>
             </span>
         )
     }
 
     return (
         <span className={cn("font-black tracking-tight", className)}>
-            <span className="text-black dark:text-white">Fame</span>
-            <span className="text-[#0057FF]">Tech</span>
+            <span className="text-[color:var(--ft-ink)]">Fame</span>
+            <span className="text-[color:var(--ft-blue)] dark:text-[color:var(--ft-cyan)]">Tech</span>
         </span>
     )
 }

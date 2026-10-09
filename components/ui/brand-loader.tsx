@@ -30,7 +30,7 @@ export function BrandLoader({ fullScreen = true, size, className = '' }: BrandLo
     // fullScreen=false: returns the pulse widget only — caller is responsible for positioning.
     if (fullScreen) {
         return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#f8fafc] dark:bg-[#020817] animate-[kfg-fade-in_0.2s_ease]">
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color:var(--ft-surface)] animate-[kfg-fade-in_0.2s_ease]">
                 {pulse}
             </div>
         )

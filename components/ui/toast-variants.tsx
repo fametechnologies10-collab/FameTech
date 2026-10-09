@@ -11,10 +11,10 @@ const TYPE_COLORS: Record<ToastType, {
   border: string   // card outer border (subtle type tint)
   shadow: string   // card glow (subtle type tint)
 }> = {
-  success: { bandBg: '#16a34a', bandBorder: '#15803d', stroke: '#4ade80', border: 'rgba(74,222,128,0.30)',  shadow: 'rgba(74,222,128,0.06)'  },
-  error:   { bandBg: '#dc2626', bandBorder: '#b91c1c', stroke: '#f87171', border: 'rgba(248,113,113,0.30)', shadow: 'rgba(248,113,113,0.06)' },
-  info:    { bandBg: '#2563eb', bandBorder: '#1d4ed8', stroke: '#60a5fa', border: 'rgba(96,165,250,0.30)',  shadow: 'rgba(96,165,250,0.06)'  },
-  warning: { bandBg: '#d97706', bandBorder: '#b45309', stroke: '#fbbf24', border: 'rgba(251,191,36,0.30)',  shadow: 'rgba(251,191,36,0.06)'  },
+  success: { bandBg: '#047857', bandBorder: '#065F46', stroke: '#4ade80', border: 'rgba(4,120,87,0.60)',   shadow: 'rgba(74,222,128,0.06)'  },
+  error:   { bandBg: '#B71C1C', bandBorder: '#991B1B', stroke: '#f87171', border: 'rgba(183,28,28,0.60)', shadow: 'rgba(248,113,113,0.06)' },
+  info:    { bandBg: '#0057FF', bandBorder: '#0046CC', stroke: '#60a5fa', border: 'rgba(0,87,255,0.60)',   shadow: 'rgba(96,165,250,0.06)'  },
+  warning: { bandBg: '#B45309', bandBorder: '#92400E', stroke: '#fbbf24', border: 'rgba(180,83,9,0.60)',  shadow: 'rgba(251,191,36,0.06)'  },
 }
 
 // color prop lets the left band pass '#ffffff' for icon-on-solid-bg contrast
@@ -60,7 +60,7 @@ interface SplitPanelToastProps {
   brand?: string
 }
 
-export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY' }: SplitPanelToastProps) {
+export function SplitPanelToast({ id, title, type, duration, brand = 'FameTech' }: SplitPanelToastProps) {
   const colors = TYPE_COLORS[type]
 
   return (
@@ -73,12 +73,12 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
         borderRadius: '14px',
         overflow: 'hidden',
         /* Type-color outer border provides the accent ring */
-        border: `1px solid ${colors.border}`,
+        border: `1.5px solid ${colors.border}`,
         /*
          * Shadow: subtle depth (works in both themes) + faint type-color glow.
          * Avoid rgba(0,0,0,>0.2) — too harsh in light mode.
          */
-        boxShadow: `0 2px 4px rgba(0,0,0,0.04), 0 8px 20px rgba(0,0,0,0.10), 0 0 20px ${colors.shadow}`,
+        boxShadow: `var(--ft-shadow-raised), 0 0 20px ${colors.shadow}`,
         animation: 'kf-toast-in 0.4s cubic-bezier(0.16,1,0.3,1) both',
       }}
     >
@@ -101,7 +101,7 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
       <div
         style={{
           flex: 1,
-          background: 'hsl(var(--card))',
+          background: 'var(--ft-raised-bg)',
           padding: '11px 38px 11px 13px',
           display: 'flex',
           flexDirection: 'column',
@@ -117,7 +117,7 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
             fontWeight: 700,
             letterSpacing: '0.13em',
             textTransform: 'uppercase',
-            color: 'hsl(var(--muted-foreground))',
+            color: 'var(--ft-muted)',
             lineHeight: 1,
             userSelect: 'none',
             whiteSpace: 'nowrap',
@@ -132,10 +132,10 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
         {/* Message — uses card-foreground: dark text on light, light text on dark */}
         <span
           style={{
-            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontFamily: 'var(--font-ft-body), system-ui, -apple-system, sans-serif',
             fontSize: '13px',
             fontWeight: 600,
-            color: 'hsl(var(--card-foreground))',
+            color: 'var(--ft-ink)',
             lineHeight: 1.4,
             wordBreak: 'break-word',
           }}
@@ -151,10 +151,10 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
           position: 'absolute',
           top: '9px',
           right: '9px',
-          background: 'hsl(var(--muted))',
-          border: '1px solid hsl(var(--border))',
+          background: 'var(--ft-surface)',
+          border: '1px solid var(--ft-lo)',
           borderRadius: '6px',
-          color: 'hsl(var(--muted-foreground))',
+          color: 'var(--ft-muted)',
           cursor: 'pointer',
           padding: '3px',
           lineHeight: 1,
@@ -164,10 +164,10 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'KiNG FLEXY
           flexShrink: 0,
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.color = 'hsl(var(--foreground))'
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--ft-ink)'
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.color = 'hsl(var(--muted-foreground))'
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--ft-muted)'
         }}
         aria-label="Dismiss"
       >

@@ -27,13 +27,13 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9 rounded-full border-2 transition-all hover:scale-105 active:scale-95 shadow-sm">
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-full transition-all hover:scale-105 active:scale-95">
                     <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                     <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                     <span className="sr-only">Toggle theme</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent aria-describedby={undefined} className="sm:max-w-[400px] p-0 overflow-hidden border-none shadow-2xl">
+            <DialogContent aria-describedby={undefined} className="sm:max-w-[400px] p-0 overflow-hidden">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="text-xl font-bold tracking-tight">Select Theme</DialogTitle>
                     <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Choose your preferred appearance</p>
@@ -52,7 +52,7 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
                                 className={cn(
                                     "relative flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 group overflow-hidden",
                                     isActive
-                                        ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
+                                        ? "border-primary ft-field scale-[1.02]"
                                         : "border-transparent bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/20 hover:scale-[1.01]"
                                 )}
                             >
@@ -65,7 +65,7 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
                                     </div>
                                     <span className={cn(
                                         "font-bold text-sm tracking-tight transition-colors",
-                                        isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                                        isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                                     )}>
                                         {t.label}
                                     </span>

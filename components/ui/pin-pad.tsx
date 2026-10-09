@@ -86,12 +86,12 @@ export function PinPad({
         <div className="flex flex-col items-center justify-center w-full max-w-xs mx-auto select-none">
             {/* Title */}
             <div className="text-center mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0056B3] to-[#00B4D8] flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <div className="w-16 h-16 rounded-2xl ft-clay-btn flex items-center justify-center mx-auto mb-4">
                     <Fingerprint className="w-8 h-8 text-white" />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">{title}</h2>
+                <h2 className="text-xl font-black text-foreground">{title}</h2>
                 {subtitle && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{subtitle}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
                 )}
             </div>
 
@@ -104,10 +104,10 @@ export function PinPad({
                     <div
                         key={i}
                         className={cn(
-                            'w-3.5 h-3.5 rounded-full transition-all duration-200',
+                            'w-4 h-4 rounded-full transition-all duration-200',
                             i < pin.length
-                                ? 'bg-[#0056B3] scale-110 shadow-md shadow-[#0056B3]/30'
-                                : 'bg-slate-200 dark:bg-slate-700'
+                                ? 'bg-[color:var(--ft-blue)] dark:bg-[color:var(--ft-cyan)] scale-110 border-2 border-[color:var(--ft-blue)] dark:border-[color:var(--ft-cyan)]'
+                                : 'bg-[color:var(--ft-surface)] border-2 border-[color:var(--ft-muted)] [box-shadow:inset_1px_1px_3px_var(--ft-lo),inset_-1px_-1px_3px_var(--ft-hi)]'
                         )}
                     />
                 ))}
@@ -115,7 +115,7 @@ export function PinPad({
 
             {/* Error Message */}
             {error && (
-                <p className="text-xs font-semibold text-red-500 dark:text-red-400 mt-1 mb-4 text-center animate-in fade-in">
+                <p className="text-xs font-semibold text-destructive dark:text-red-400 mt-1 mb-4 text-center animate-in fade-in">
                     {error}
                 </p>
             )}
@@ -136,7 +136,7 @@ export function PinPad({
                                 disabled={isLoading || pin.length === 0}
                                 className={cn(
                                     'h-16 rounded-2xl flex items-center justify-center transition-all duration-150 touch-manipulation',
-                                    'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+                                    'text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                     'active:scale-90 disabled:opacity-30'
                                 )}
                             >
@@ -151,11 +151,10 @@ export function PinPad({
                             onPointerDown={(e) => { e.preventDefault(); handlePress(digit) }}
                             disabled={isLoading}
                             className={cn(
-                                'h-16 rounded-2xl flex items-center justify-center transition-all duration-150 touch-manipulation',
-                                'text-2xl font-bold text-slate-800 dark:text-slate-100',
-                                'bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700',
-                                'hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm',
-                                'active:scale-90 active:shadow-inner',
+                                'h-16 min-w-14 rounded-2xl flex items-center justify-center transition-all duration-150 touch-manipulation',
+                                'text-2xl font-bold text-foreground ft-soft',
+                                'hover:brightness-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                'active:scale-95 active:[box-shadow:var(--ft-shadow-inset),var(--tw-ring-offset-shadow,0_0_#0000),var(--tw-ring-shadow,0_0_#0000)]',
                                 isLoading && 'opacity-50 cursor-not-allowed'
                             )}
                         >
@@ -170,7 +169,7 @@ export function PinPad({
                 <button
                     type="button"
                     onClick={onForgotPin}
-                    className="mt-6 text-sm font-semibold text-[#0056B3] hover:text-[#004494] dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                    className="mt-6 text-sm font-semibold text-primary underline-offset-4 hover:underline transition-colors"
                 >
                     Use email & password instead
                 </button>
