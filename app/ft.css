@@ -13,7 +13,7 @@
     --ft-clay-glow: rgba(0, 87, 255, 0.35);
     --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
     --ft-shadow-inset: inset -5px -5px 10px var(--ft-hi), inset 5px 5px 10px var(--ft-lo);
-    --ft-shadow-clay: inset 0 2px 3px rgba(255, 255, 255, 0.55), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
+    --ft-shadow-clay: inset 0 2px 3px rgba(120, 220, 255, 0.7), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
 
     background: var(--ft-surface);
     color: var(--ft-ink);
@@ -55,10 +55,19 @@
     border-radius: 1.25rem;
 }
 
+/* Text-bearing clay fill: white text stays >= 4.5:1 across the whole gradient
+   (worst stop #0A66FF = 4.82:1, #0057FF = 5.52:1). Cyan appears only as glow + top highlight. */
 .ft-clay {
-    background: linear-gradient(135deg, var(--ft-blue) 0%, var(--ft-cyan) 100%);
+    background: linear-gradient(135deg, var(--ft-blue) 0%, #0A66FF 100%);
     box-shadow: var(--ft-shadow-clay);
     color: #FFFFFF;
+    border-radius: 1.25rem;
+}
+
+/* Full blue->cyan gradient: text-free decoration only (or ink text). White text fails contrast on the cyan end. */
+.ft-clay-bright {
+    background: linear-gradient(135deg, var(--ft-blue) 0%, var(--ft-cyan) 100%);
+    box-shadow: var(--ft-shadow-clay);
     border-radius: 1.25rem;
 }
 
@@ -71,8 +80,10 @@
     transform: rotate(-18deg);
     background: linear-gradient(135deg, var(--ft-blue), var(--ft-cyan));
     padding: 3px;
-    -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask-composite: exclude;
     animation: ft-drift 18s ease-in-out infinite alternate;
 }
 
