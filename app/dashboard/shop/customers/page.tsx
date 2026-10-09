@@ -230,7 +230,7 @@ export default function ShopCustomersPage() {
                             href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(shopUrl)}`}
                             target="_blank" rel="noopener noreferrer" title="Download QR code"
                         >
-                            <Button size="sm" variant="secondary" className="h-9 bg-white/15 hover:bg-white/25 text-white gap-1.5 rounded-lg font-semibold border-0">
+                            <Button size="sm" variant="secondary" className="h-9 bg-white/15 hover:bg-white/25 text-white gap-1.5 rounded-lg font-semibold border-0 shadow-none">
                                 <QrCode className="w-3.5 h-3.5" /> QR
                             </Button>
                         </a>

@@ -708,7 +708,7 @@ export default function IShareFulfillmentPage() {
                                 disabled={isLoadingBalance}
                                 variant="secondary"
                                 size="sm"
-                                className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-7 md:h-8 text-[10px] md:text-xs px-2 md:px-3"
+                                className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-7 md:h-8 text-[10px] md:text-xs px-2 md:px-3 shadow-none"
                             >
                                 <RefreshCw className={`w-3 h-3 mr-1.5 ${isLoadingBalance ? 'animate-spin' : ''}`} />
                                 Refresh

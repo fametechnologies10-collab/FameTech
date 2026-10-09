@@ -238,7 +238,7 @@ export default function DataGodTerminalPage() {
                             disabled={isLoadingBalance}
                             variant="secondary"
                             size="sm"
-                            className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                            className="bg-white/20 hover:bg-white/30 text-white border-white/30 shadow-none"
                         >
                             <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingBalance ? 'animate-spin' : ''}`} />
                             Refresh Balance

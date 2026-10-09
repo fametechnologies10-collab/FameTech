@@ -1201,12 +1201,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchGHBalance} disabled={isLoadingGHBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingGHBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncGhData} disabled={isSyncingGhData || ghdataSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingGhData ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{ghdataSyncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1230,12 +1230,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchCCBalance} disabled={isLoadingCCBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingCCBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncCodecraft} disabled={isSyncing || syncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncing ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{syncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1259,12 +1259,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchDKBalance} disabled={isLoadingDKBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingDKBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncDakazina} disabled={isSyncingDakazina || dakazinaSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingDakazina ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{dakazinaSyncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1288,12 +1288,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchXPBalance} disabled={isLoadingXPBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingXPBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncXpress} disabled={isSyncingXpress || xpressSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingXpress ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{xpressSyncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1317,12 +1317,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchAPBalance} disabled={isLoadingAPBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingAPBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncAgentPortal} disabled={isSyncingAgentPortal || agentportalSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingAgentPortal ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{agentportalSyncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1346,7 +1346,7 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchBundlePortalBalance} disabled={isLoadingBPBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingBPBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
@@ -1370,12 +1370,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchHendyLinksBalance} disabled={isLoadingHLBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingHLBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncHendyLinks} disabled={isSyncingHendyLinks || hendylinksSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingHendyLinks ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>{hendylinksSyncCooldown ? 'Wait' : 'Sync'}</span>
                                 </Button>
@@ -1402,12 +1402,12 @@ export default function FulfillmentPage() {
                             </p>
                             <div className="flex gap-1.5">
                                 <Button onClick={fetchSFBalance} disabled={isLoadingSFBalance} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingSFBalance ? 'animate-spin' : ''}`} />
                                     <span>Bal</span>
                                 </Button>
                                 <Button onClick={handleSyncSpfastit} disabled={isSyncingSpfastit || spfastitSyncCooldown} variant="secondary" size="sm"
-                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5">
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingSpfastit ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>Sync</span>
                                 </Button>
