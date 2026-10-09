@@ -2,21 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { validateGhanaianPhone } from '@/lib/phone-validation'
 import { isPhoneVerificationEnabled } from '@/lib/phone-verification-setting'
-import { BackgroundBubbles } from '@/components/background-bubbles'
-import { BrandLogo, BrandTitle } from '@/components/ui/brand'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ClayButton, NeuInput } from '@/components/ft'
 import { Loader2, Phone, CheckCircle, RefreshCw, LogOut, ShieldQuestion, MessageCircleQuestion } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { AuthShell } from '../_components/auth-shell'
+import { AuthAlert, FT_LINK } from '../_components/shared'
 
 // "58s" while under a minute; "12m" / "1h 5m" once the 3-per-hour cap kicks
 // in and the real wait is the hourly reset, not the usual 60s.
@@ -331,208 +326,190 @@ export default function VerifyPhoneRequiredPage() {
 
     if (mode === 'loading') {
         return (
-            <div className="relative min-h-screen flex items-center justify-center">
-                <BackgroundBubbles scrollable />
-                <div className="flex items-center gap-2 text-slate-500 relative z-10">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Checking your account...</span>
+            <AuthShell showBrandPanel={false}>
+                <div className="flex items-center justify-center gap-2 py-6 text-[color:var(--ft-muted)]" role="status">
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    <span className="text-sm">Checking your account…</span>
                 </div>
-            </div>
+            </AuthShell>
         )
     }
 
+    const linkBtn = cn('inline-flex min-h-12 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold disabled:opacity-60', FT_LINK)
+    const headingCls = 'ft-display text-lg font-extrabold text-ft-ink'
+    const subCls = 'mt-0.5 text-sm text-[color:var(--ft-muted)]'
+    const labelCls = 'text-sm font-semibold text-ft-ink'
+
     return (
-        <div className="relative min-h-screen w-full flex flex-col items-center justify-center px-4 py-8 overflow-y-auto">
-            <BackgroundBubbles scrollable />
-            <div className="w-full max-w-[380px] sm:max-w-md relative z-10">
-                <div className="text-center mb-6">
-                    <Link href="/" className="inline-flex flex-col items-center">
-                        <div className="relative w-20 h-20 mb-3 rounded-full overflow-hidden bg-white dark:bg-slate-800 shadow-lg border-[3px] border-[#FFCC00]">
-                            <BrandLogo width={80} height={80} className="object-contain w-full h-full" />
-                        </div>
-                        <BrandTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight" />
-                    </Link>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">Verify your phone number to continue</p>
+        <AuthShell
+            showBrandPanel={false}
+            title="Verify your phone"
+            subtitle="Confirm your number to continue."
+            footer={mode !== 'success' ? (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2">
+                    {mode !== 'message-admin' && (
+                        <button type="button" onClick={() => setMode('message-admin')} className={linkBtn}>
+                            <MessageCircleQuestion className="h-4 w-4" aria-hidden="true" /> Message admin
+                        </button>
+                    )}
+                    <button type="button" onClick={handleLogout} className={linkBtn}>
+                        <LogOut className="h-4 w-4" aria-hidden="true" /> Log out
+                    </button>
                 </div>
+            ) : undefined}
+        >
+            {error && (
+                <div className="mb-4">
+                    <AuthAlert tone="error">{error}</AuthAlert>
+                </div>
+            )}
 
-                <Card className="w-full border border-white/60 dark:border-slate-700/50 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden">
-                    <div className="h-0.5 w-full bg-gradient-to-r from-[#0056B3] via-[#00B4D8] to-[#FFCC00]" />
-                    <CardContent className="p-5 sm:p-6">
-                        {error && (
-                            <Alert variant="destructive" className="mb-4 py-2 bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/30">
-                                <AlertDescription className="text-red-600 dark:text-red-400 text-sm">{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        {mode === 'otp-verify' && (
-                            <form onSubmit={handleVerifyCurrent} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Verify Your Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Enter the 6-digit code sent to <strong className="text-slate-700 dark:text-slate-200">{phoneHint}</strong>
-                                    </p>
-                                </div>
-                                <Input
-                                    value={otpCode}
-                                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    required inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6}
-                                    className="h-14 text-center text-2xl font-bold tracking-[0.5em] rounded-xl bg-white dark:bg-slate-800/70"
-                                />
-                                <Button type="submit" disabled={submitting || otpCode.length !== 6}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : 'Verify & Continue'}
-                                </Button>
-                                <div className="flex items-center justify-center gap-3 text-xs">
-                                    <button type="button" onClick={sendCurrentCode} disabled={sendingCode || resendCooldown > 0}
-                                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors disabled:opacity-50">
-                                        <RefreshCw className={cn('w-3 h-3', sendingCode && 'animate-spin')} />
-                                        {sendingCode ? 'Sending...' : resendCooldown > 0 ? `Resend in ${formatCooldown(resendCooldown)}` : 'Resend code'}
-                                    </button>
-                                    <span className="text-slate-300 dark:text-slate-600">·</span>
-                                    <button type="button" onClick={startLostNumberFlow}
-                                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-                                        <ShieldQuestion className="w-3 h-3" /> Can&apos;t access this number?
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {mode === 'lost-hint' && (
-                            <form onSubmit={handleGuessSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Confirm Your Old Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        For your security, type the full number matching this hint: <strong className="text-slate-700 dark:text-slate-200">{phoneHint}</strong>
-                                    </p>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Old Mobile Number</Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input value={oldNumberGuess} onChange={e => setOldNumberGuess(e.target.value)}
-                                            required type="tel" placeholder="024XXXXXXX" className="h-11 pl-10 rounded-xl text-sm bg-white dark:bg-slate-800/70" />
-                                    </div>
-                                </div>
-                                <Button type="submit" disabled={submitting}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking...</> : 'Confirm'}
-                                </Button>
-                            </form>
-                        )}
-
-                        {mode === 'lost-new-number' && (
-                            <form onSubmit={handleNewNumberSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Enter Your New Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">We&apos;ll send a 6-digit code to confirm it.</p>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">New Mobile Number</Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input value={newPhone} onChange={e => setNewPhone(e.target.value)}
-                                            required type="tel" placeholder="024XXXXXXX" className="h-11 pl-10 rounded-xl text-sm bg-white dark:bg-slate-800/70" />
-                                    </div>
-                                </div>
-                                <Button type="submit" disabled={submitting}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : 'Send Verification Code'}
-                                </Button>
-                            </form>
-                        )}
-
-                        {mode === 'lost-otp-verify' && (
-                            <form onSubmit={handleNewNumberOtpSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Verify Your New Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Enter the 6-digit code sent to <strong className="text-slate-700 dark:text-slate-200">{newPhone}</strong>
-                                    </p>
-                                </div>
-                                <Input
-                                    value={otpCode}
-                                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    required inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6}
-                                    className="h-14 text-center text-2xl font-bold tracking-[0.5em] rounded-xl bg-white dark:bg-slate-800/70"
-                                />
-                                <Button type="submit" disabled={submitting || otpCode.length !== 6}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : 'Verify & Continue'}
-                                </Button>
-                                <div className="flex items-center justify-center text-xs">
-                                    <button type="button" onClick={() => sendCodeToNewNumber(newPhone)} disabled={sendingCode || resendCooldown > 0}
-                                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors disabled:opacity-50">
-                                        <RefreshCw className={cn('w-3 h-3', sendingCode && 'animate-spin')} />
-                                        {sendingCode ? 'Sending...' : resendCooldown > 0 ? `Resend in ${formatCooldown(resendCooldown)}` : 'Resend code'}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {mode === 'message-admin' && (
-                            <form onSubmit={handleSupportSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Message Admin</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        {lockMessage || "Describe the issue you're having verifying your number and our team will help."}
-                                    </p>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Your Phone / WhatsApp Number</Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input value={supportContact} onChange={e => setSupportContact(e.target.value)} required
-                                            type="tel" placeholder="024XXXXXXX" className="h-11 pl-10 rounded-xl text-sm bg-white dark:bg-slate-800/70" />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Subject</Label>
-                                    <Input value={supportSubject} onChange={e => setSupportSubject(e.target.value)} required
-                                        placeholder="e.g. Can't verify my number" className="h-11 rounded-xl text-sm bg-white dark:bg-slate-800/70" />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Message</Label>
-                                    <Textarea value={supportMessage} onChange={e => setSupportMessage(e.target.value)} required rows={4}
-                                        placeholder="Tell us what's happening..." className="rounded-xl text-sm bg-white dark:bg-slate-800/70" />
-                                </div>
-                                <Button type="submit" disabled={submitting}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : 'Send Message'}
-                                </Button>
-                            </form>
-                        )}
-
-                        {mode === 'success' && (
-                            <div className="text-center py-6 space-y-3">
-                                <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
-                                    <CheckCircle className="w-9 h-9 text-emerald-600" />
-                                </div>
-                                <h2 className="text-base font-bold text-slate-900 dark:text-white">Phone Verified!</h2>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Taking you to your dashboard...</p>
-                                <Loader2 className="w-5 h-5 animate-spin text-slate-400 mx-auto" />
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {mode !== 'success' && (
-                    <div className="flex items-center justify-center gap-3 mt-4 text-xs">
-                        {mode !== 'message-admin' && (
-                            <>
-                                <button type="button" onClick={() => setMode('message-admin')}
-                                    className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                                    <MessageCircleQuestion className="w-3.5 h-3.5" /> Message admin
-                                </button>
-                                <span className="text-slate-300 dark:text-slate-600">·</span>
-                            </>
-                        )}
-                        <button type="button" onClick={handleLogout}
-                            className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                            <LogOut className="w-3.5 h-3.5" /> Logout
+            {mode === 'otp-verify' && (
+                <form onSubmit={handleVerifyCurrent} className="space-y-4">
+                    <div>
+                        <h2 className={headingCls}>Verify your number</h2>
+                        <p className={subCls}>
+                            Enter the 6-digit code sent to <strong className="text-ft-ink">{phoneHint}</strong>
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-otp" className={labelCls}>6-digit code</Label>
+                        <NeuInput
+                            id="vp-otp"
+                            value={otpCode}
+                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            required inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6}
+                            wrapperClassName="h-14"
+                            className="text-center text-xl font-extrabold tracking-[0.4em]"
+                        />
+                    </div>
+                    <ClayButton type="submit" disabled={otpCode.length !== 6} loading={submitting} className="w-full">
+                        {submitting ? 'Verifying…' : 'Verify and continue'}
+                    </ClayButton>
+                    <div className="flex flex-wrap items-center justify-between gap-x-2">
+                        <button type="button" onClick={sendCurrentCode} disabled={sendingCode || resendCooldown > 0} className={linkBtn}>
+                            <RefreshCw className={cn('h-4 w-4', sendingCode && 'animate-spin')} aria-hidden="true" />
+                            {sendingCode ? 'Sending…' : resendCooldown > 0 ? `Resend in ${formatCooldown(resendCooldown)}` : 'Resend code'}
+                        </button>
+                        <button type="button" onClick={startLostNumberFlow} className={linkBtn}>
+                            <ShieldQuestion className="h-4 w-4" aria-hidden="true" /> Can&apos;t access this number?
                         </button>
                     </div>
-                )}
-            </div>
-        </div>
+                </form>
+            )}
+
+            {mode === 'lost-hint' && (
+                <form onSubmit={handleGuessSubmit} className="space-y-4">
+                    <div>
+                        <h2 className={headingCls}>Confirm your old number</h2>
+                        <p className={subCls}>
+                            For your security, type the full number matching this hint: <strong className="text-ft-ink">{phoneHint}</strong>
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-old" className={labelCls}>Old mobile number</Label>
+                        <NeuInput id="vp-old" value={oldNumberGuess} onChange={e => setOldNumberGuess(e.target.value)}
+                            required type="tel" placeholder="024XXXXXXX"
+                            leading={<Phone className="h-4 w-4" aria-hidden="true" />} />
+                    </div>
+                    <ClayButton type="submit" loading={submitting} className="w-full">
+                        {submitting ? 'Checking…' : 'Confirm'}
+                    </ClayButton>
+                </form>
+            )}
+
+            {mode === 'lost-new-number' && (
+                <form onSubmit={handleNewNumberSubmit} className="space-y-4">
+                    <div>
+                        <h2 className={headingCls}>Enter your new number</h2>
+                        <p className={subCls}>We&apos;ll send a 6-digit code to confirm it.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-new" className={labelCls}>New mobile number</Label>
+                        <NeuInput id="vp-new" value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                            required type="tel" placeholder="024XXXXXXX"
+                            leading={<Phone className="h-4 w-4" aria-hidden="true" />} />
+                    </div>
+                    <ClayButton type="submit" loading={submitting} className="w-full">
+                        {submitting ? 'Sending…' : 'Send verification code'}
+                    </ClayButton>
+                </form>
+            )}
+
+            {mode === 'lost-otp-verify' && (
+                <form onSubmit={handleNewNumberOtpSubmit} className="space-y-4">
+                    <div>
+                        <h2 className={headingCls}>Verify your new number</h2>
+                        <p className={subCls}>
+                            Enter the 6-digit code sent to <strong className="text-ft-ink">{newPhone}</strong>
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-new-otp" className={labelCls}>6-digit code</Label>
+                        <NeuInput
+                            id="vp-new-otp"
+                            value={otpCode}
+                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            required inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6}
+                            wrapperClassName="h-14"
+                            className="text-center text-xl font-extrabold tracking-[0.4em]"
+                        />
+                    </div>
+                    <ClayButton type="submit" disabled={otpCode.length !== 6} loading={submitting} className="w-full">
+                        {submitting ? 'Verifying…' : 'Verify and continue'}
+                    </ClayButton>
+                    <div className="flex items-center justify-center">
+                        <button type="button" onClick={() => sendCodeToNewNumber(newPhone)} disabled={sendingCode || resendCooldown > 0} className={linkBtn}>
+                            <RefreshCw className={cn('h-4 w-4', sendingCode && 'animate-spin')} aria-hidden="true" />
+                            {sendingCode ? 'Sending…' : resendCooldown > 0 ? `Resend in ${formatCooldown(resendCooldown)}` : 'Resend code'}
+                        </button>
+                    </div>
+                </form>
+            )}
+
+            {mode === 'message-admin' && (
+                <form onSubmit={handleSupportSubmit} className="space-y-4">
+                    <div>
+                        <h2 className={headingCls}>Message admin</h2>
+                        <p className={subCls}>
+                            {lockMessage || "Describe the issue you're having verifying your number and our team will help."}
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-contact" className={labelCls}>Your phone or WhatsApp number</Label>
+                        <NeuInput id="vp-contact" value={supportContact} onChange={e => setSupportContact(e.target.value)} required
+                            type="tel" placeholder="024XXXXXXX"
+                            leading={<Phone className="h-4 w-4" aria-hidden="true" />} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-subject" className={labelCls}>Subject</Label>
+                        <NeuInput id="vp-subject" value={supportSubject} onChange={e => setSupportSubject(e.target.value)} required
+                            placeholder="e.g. Can't verify my number" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vp-message" className={labelCls}>Message</Label>
+                        <div className="ft-inset px-4 py-3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[color:var(--ft-blue)] dark:focus-within:outline-[color:var(--ft-cyan)]">
+                            <textarea id="vp-message" value={supportMessage} onChange={e => setSupportMessage(e.target.value)} required rows={4}
+                                placeholder="Tell us what's happening..."
+                                className="w-full resize-y bg-transparent text-base text-ft-ink placeholder:text-[color:var(--ft-muted)] focus:outline-none" />
+                        </div>
+                    </div>
+                    <ClayButton type="submit" loading={submitting} className="w-full">
+                        {submitting ? 'Sending…' : 'Send message'}
+                    </ClayButton>
+                </form>
+            )}
+
+            {mode === 'success' && (
+                <div className="space-y-3 py-4 text-center" role="status">
+                    <div className="ft-clay mx-auto flex h-14 w-14 items-center justify-center !rounded-full">
+                        <CheckCircle className="h-7 w-7" aria-hidden="true" />
+                    </div>
+                    <h2 className={headingCls}>Phone verified</h2>
+                    <p className="text-sm text-[color:var(--ft-muted)]">Taking you to your dashboard…</p>
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-[color:var(--ft-muted)]" aria-hidden="true" />
+                </div>
+            )}
+        </AuthShell>
     )
 }

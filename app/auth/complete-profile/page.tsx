@@ -2,60 +2,55 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { validateGhanaianPhone } from '@/lib/phone-validation'
 import { isStrongPassword, PASSWORD_REQUIREMENTS_MESSAGE } from '@/lib/password-validation'
-import { BackgroundBubbles } from '@/components/background-bubbles'
-import { BrandLogo, BrandTitle } from '@/components/ui/brand'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ClayButton, NeuInput, PasswordStrength } from '@/components/ft'
 import { Loader2, Phone, CheckCircle, Lock, Eye, EyeOff, ShieldCheck, RefreshCw, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { AuthShell } from '../_components/auth-shell'
+import { AuthAlert, FT_LINK } from '../_components/shared'
 
 type Step = 'loading' | 'phone-entry' | 'otp-verify' | 'set-password' | 'success'
 
 // ─── Step progress bar ────────────────────────────────────────────────────────
+// State is carried by a check icon, a number and a text label, not by colour alone.
 function StepProgress({ labels, currentStep }: { labels: string[]; currentStep: number }) {
     if (labels.length <= 1) return null
     return (
-        <div className="flex items-start mb-6">
+        <ol className="mb-6 flex items-start" aria-label="Progress">
             {labels.map((label, i) => {
                 const num = i + 1
                 const done = num < currentStep
                 const active = num === currentStep
                 return (
                     <Fragment key={i}>
-                        <div className="flex flex-col items-center gap-1">
-                            <div className={cn(
-                                'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all duration-300 shrink-0',
-                                done   && 'bg-emerald-500 border-emerald-500 text-white',
-                                active && 'bg-[#0056B3] border-[#0056B3] text-white shadow-[0_0_0_3px_rgba(0,86,179,0.18)]',
-                                !done && !active && 'bg-transparent border-slate-300 dark:border-slate-600 text-slate-400',
-                            )}>
-                                {done ? <CheckCircle className="w-4 h-4" /> : num}
-                            </div>
+                        <li className="flex flex-col items-center gap-1" aria-current={active ? 'step' : undefined}>
                             <span className={cn(
-                                'text-[10px] font-bold uppercase tracking-wider whitespace-nowrap',
-                                done   && 'text-emerald-600 dark:text-emerald-400',
-                                active && 'text-[#0056B3]',
-                                !done && !active && 'text-slate-400',
-                            )}>{label}</span>
-                        </div>
+                                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold',
+                                done && 'border-ft-blue bg-ft-blue text-white dark:border-[color:var(--ft-cyan)] dark:bg-[color:var(--ft-cyan)] dark:text-slate-900',
+                                active && 'ft-raised border-ft-blue text-ft-ink dark:border-[color:var(--ft-cyan)]',
+                                !done && !active && 'border-[color:var(--ft-muted)] text-[color:var(--ft-muted)]',
+                            )}>
+                                {done ? <CheckCircle className="h-4 w-4" aria-hidden="true" /> : num}
+                            </span>
+                            <span className={cn(
+                                'whitespace-nowrap text-xs font-semibold',
+                                active ? 'text-ft-ink' : 'text-[color:var(--ft-muted)]',
+                            )}>{label}{done ? ' (done)' : ''}</span>
+                        </li>
                         {i < labels.length - 1 && (
-                            <div className={cn(
-                                'flex-1 h-0.5 mt-4 mx-2 transition-all duration-500',
-                                done ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700',
+                            <div aria-hidden="true" className={cn(
+                                'mx-2 mt-[1.0625rem] h-0.5 flex-1',
+                                done ? 'bg-ft-blue dark:bg-[color:var(--ft-cyan)]' : 'bg-[color:var(--ft-lo)] opacity-60',
                             )} />
                         )}
                     </Fragment>
                 )
             })}
-        </div>
+        </ol>
     )
 }
 
@@ -158,8 +153,8 @@ export default function CompleteProfilePage() {
             if (isGoogle) {
                 // Google users always have two meaningful steps
                 const labels = adminOtp
-                    ? ['Verify Phone', 'Set Password']
-                    : ['Add Phone', 'Set Password']
+                    ? ['Verify phone', 'Set password']
+                    : ['Add phone', 'Set password']
                 setStepLabels(labels)
 
                 // Fully complete
@@ -387,13 +382,12 @@ export default function CompleteProfilePage() {
     // ── Loading screen ─────────────────────────────────────────────────────────
     if (step === 'loading') {
         return (
-            <div className="relative min-h-screen flex items-center justify-center">
-                <BackgroundBubbles scrollable />
-                <div className="flex items-center gap-2 text-slate-500 relative z-10">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Loading your profile...</span>
+            <AuthShell showBrandPanel={false}>
+                <div className="flex items-center justify-center gap-2 py-6 text-[color:var(--ft-muted)]" role="status">
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    <span className="text-sm">Loading your profile…</span>
                 </div>
-            </div>
+            </AuthShell>
         )
     }
 
@@ -401,236 +395,204 @@ export default function CompleteProfilePage() {
     const isResuming = step === 'set-password' && !!normalizedPhone
 
     return (
-        <div className="relative min-h-screen w-full flex flex-col items-center justify-center px-4 py-8 overflow-y-auto">
-            <BackgroundBubbles scrollable />
-
-            <div className="w-full max-w-[380px] sm:max-w-md relative z-10">
-                {/* Brand header */}
-                <div className="text-center mb-6">
-                    <Link href="/" className="inline-flex flex-col items-center">
-                        <div className="relative w-20 h-20 mb-3 rounded-full overflow-hidden bg-white dark:bg-slate-800 shadow-lg border-[3px] border-[#FFCC00]">
-                            <BrandLogo width={80} height={80} className="object-contain w-full h-full" />
-                        </div>
-                        <BrandTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight" />
-                    </Link>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                        {firstName ? `Welcome, ${firstName}! ` : ''}Complete your profile
-                    </p>
+        <AuthShell
+            showBrandPanel={false}
+            title="Complete your profile"
+            subtitle={firstName ? `Welcome, ${firstName}.` : undefined}
+            footer={step !== 'success' ? (
+                // Escape hatch — hidden during success redirect
+                <div className="mt-4 text-center">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            try {
+                                localStorage.removeItem('kfg_pin_verified')
+                                localStorage.removeItem('kfg_pin_verified_at')
+                            } catch {}
+                            window.location.href = '/api/auth/signout'
+                        }}
+                        className={cn('inline-flex min-h-12 items-center gap-1.5 px-3 text-sm font-semibold', FT_LINK)}
+                    >
+                        <LogOut className="h-4 w-4" aria-hidden="true" />
+                        Use a different account
+                    </button>
                 </div>
+            ) : undefined}
+        >
+            {/* Progress bar (only when 2 steps) */}
+            <StepProgress labels={stepLabels} currentStep={progressStep} />
 
-                <Card className="w-full border border-white/60 dark:border-slate-700/50 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden">
-                    <div className="h-0.5 w-full bg-gradient-to-r from-[#0056B3] via-[#00B4D8] to-[#FFCC00]" />
-                    <CardContent className="p-5 sm:p-6">
+            {/* Resume banner — shown when user comes back mid-flow */}
+            {isResuming && (
+                <div className="mb-4">
+                    <div className="ft-inset flex items-start gap-3 border-l-4 border-ft-blue px-4 py-3 text-sm font-semibold text-ft-ink dark:border-[color:var(--ft-cyan)]" role="status">
+                        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 break-words">Phone saved ({normalizedPhone}). Set your password to finish.</span>
+                    </div>
+                </div>
+            )}
 
-                        {/* Progress bar (only when 2 steps) */}
-                        <StepProgress labels={stepLabels} currentStep={progressStep} />
+            {/* Error */}
+            {error && (
+                <div className="mb-4">
+                    <AuthAlert tone="error">{error}</AuthAlert>
+                </div>
+            )}
 
-                        {/* Resume banner — shown when user comes back mid-flow */}
-                        {isResuming && (
-                            <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
-                                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-                                    Phone saved ({normalizedPhone}) — just set your password to finish.
-                                </p>
-                            </div>
-                        )}
+            {/* ── Step: phone entry ─────────────────────────────────── */}
+            {step === 'phone-entry' && (
+                <form onSubmit={handlePhoneSubmit} className="space-y-4">
+                    <div>
+                        <h2 className="ft-display text-lg font-extrabold text-ft-ink">Add your phone number</h2>
+                        <p className="mt-0.5 text-sm text-[color:var(--ft-muted)]">
+                            {otpEnabled
+                                ? "We'll send a 6-digit code to confirm your number."
+                                : 'Your number will be saved to your account.'}
+                        </p>
+                    </div>
 
-                        {/* Error */}
-                        {error && (
-                            <Alert variant="destructive" className="mb-4 py-2 bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/30">
-                                <AlertDescription className="text-red-600 dark:text-red-400 text-sm">{error}</AlertDescription>
-                            </Alert>
-                        )}
+                    <div className="space-y-2">
+                        <Label htmlFor="cp-phone" className="text-sm font-semibold text-ft-ink">Mobile number</Label>
+                        <NeuInput
+                            id="cp-phone"
+                            value={phoneNumber}
+                            onChange={e => setPhoneNumber(e.target.value)}
+                            required
+                            type="tel"
+                            autoComplete="tel"
+                            placeholder="024XXXXXXX"
+                            leading={<Phone className="h-4 w-4" aria-hidden="true" />}
+                        />
+                        <p className="text-xs text-[color:var(--ft-muted)]">Ghana number: 024XXXXXXX or 0233XXXXXXXXX</p>
+                    </div>
 
-                        {/* ── Step: phone entry ─────────────────────────────────── */}
-                        {step === 'phone-entry' && (
-                            <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Add Your Phone Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        {otpEnabled
-                                            ? "We'll send a 6-digit code to confirm your number."
-                                            : 'Your number will be saved to your account.'}
-                                    </p>
-                                </div>
+                    <ClayButton type="submit" loading={submitting} className="w-full">
+                        {submitting
+                            ? 'Please wait…'
+                            : otpEnabled ? 'Send verification code' : 'Continue'
+                        }
+                    </ClayButton>
+                </form>
+            )}
 
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                                        Mobile Number
-                                    </Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input
-                                            value={phoneNumber}
-                                            onChange={e => setPhoneNumber(e.target.value)}
-                                            required
-                                            type="tel"
-                                            autoComplete="tel"
-                                            placeholder="024XXXXXXX"
-                                            className="h-11 pl-10 rounded-xl text-sm bg-white dark:bg-slate-800/70"
-                                        />
-                                    </div>
-                                    <p className="text-[11px] text-slate-400">Ghana number: 024XXXXXXX or 0233XXXXXXXXX</p>
-                                </div>
+            {/* ── Step: OTP verify ──────────────────────────────────── */}
+            {step === 'otp-verify' && (
+                <form onSubmit={handleOtpSubmit} className="space-y-4">
+                    <div>
+                        <h2 className="ft-display text-lg font-extrabold text-ft-ink">Verify your number</h2>
+                        <p className="mt-0.5 text-sm text-[color:var(--ft-muted)]">
+                            Enter the 6-digit code sent to{' '}
+                            <strong className="text-ft-ink">{normalizedPhone}</strong>
+                        </p>
+                    </div>
 
-                                <Button type="submit" disabled={submitting}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting
-                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Please wait...</>
-                                        : otpEnabled ? 'Send Verification Code' : 'Continue'
-                                    }
-                                </Button>
-                            </form>
-                        )}
+                    <div className="space-y-2">
+                        <Label htmlFor="cp-otp" className="text-sm font-semibold text-ft-ink">6-digit code</Label>
+                        <NeuInput
+                            id="cp-otp"
+                            value={otpCode}
+                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            required
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="000000"
+                            maxLength={6}
+                            wrapperClassName="h-14"
+                            className="text-center text-xl font-extrabold tracking-[0.4em]"
+                        />
+                    </div>
 
-                        {/* ── Step: OTP verify ──────────────────────────────────── */}
-                        {step === 'otp-verify' && (
-                            <form onSubmit={handleOtpSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Verify Your Number</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Enter the 6-digit code sent to{' '}
-                                        <strong className="text-slate-700 dark:text-slate-200">{normalizedPhone}</strong>
-                                    </p>
-                                </div>
+                    <ClayButton type="submit" disabled={otpCode.length !== 6} loading={submitting} className="w-full">
+                        {submitting ? 'Verifying…' : 'Verify and continue'}
+                    </ClayButton>
 
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                                        6-Digit Code
-                                    </Label>
-                                    <Input
-                                        value={otpCode}
-                                        onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                        required
-                                        inputMode="numeric"
-                                        autoComplete="one-time-code"
-                                        placeholder="000000"
-                                        maxLength={6}
-                                        className="h-14 text-center text-2xl font-bold tracking-[0.5em] rounded-xl bg-white dark:bg-slate-800/70"
-                                    />
-                                </div>
-
-                                <Button type="submit" disabled={submitting || otpCode.length !== 6}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting
-                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</>
-                                        : 'Verify & Continue'
-                                    }
-                                </Button>
-
-                                <div className="flex items-center justify-center gap-3 text-xs">
-                                    <button type="button" onClick={handleResend} disabled={resendCooldown > 0}
-                                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors disabled:opacity-50">
-                                        <RefreshCw className="w-3 h-3" />
-                                        {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-                                    </button>
-                                    <span className="text-slate-300 dark:text-slate-600">·</span>
-                                    <button type="button"
-                                        onClick={() => { setStep('phone-entry'); setOtpCode(''); setError('') }}
-                                        className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-                                        Change number
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {/* ── Step: set password ────────────────────────────────── */}
-                        {step === 'set-password' && (
-                            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Set Your Password</h2>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Create a password so you can sign in even when Google is unavailable.
-                                    </p>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Password</Label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input
-                                            value={password}
-                                            onChange={e => setPassword(e.target.value)}
-                                            required
-                                            type={showPassword ? 'text' : 'password'}
-                                            autoComplete="new-password"
-                                            placeholder="Min 8 chars, uppercase, lowercase, number"
-                                            minLength={8}
-                                            className="h-11 pl-10 pr-10 rounded-xl text-sm bg-white dark:bg-slate-800/70"
-                                        />
-                                        <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Confirm Password</Label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                        <Input
-                                            value={confirmPassword}
-                                            onChange={e => setConfirmPassword(e.target.value)}
-                                            required
-                                            type={showConfirm ? 'text' : 'password'}
-                                            autoComplete="new-password"
-                                            placeholder="Repeat your password"
-                                            minLength={8}
-                                            className="h-11 pl-10 pr-10 rounded-xl text-sm bg-white dark:bg-slate-800/70"
-                                        />
-                                        <button type="button" onClick={() => setShowConfirm(v => !v)} tabIndex={-1}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                                            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <Button type="submit" disabled={submitting}
-                                    className="w-full h-12 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                                    {submitting
-                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Setting password...</>
-                                        : 'Complete Setup'
-                                    }
-                                </Button>
-                            </form>
-                        )}
-
-                        {/* ── Step: success ─────────────────────────────────────── */}
-                        {step === 'success' && (
-                            <div className="text-center py-6 space-y-3">
-                                <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
-                                    <CheckCircle className="w-9 h-9 text-emerald-600" />
-                                </div>
-                                <h2 className="text-base font-bold text-slate-900 dark:text-white">Profile Complete!</h2>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Taking you to your dashboard...</p>
-                                <Loader2 className="w-5 h-5 animate-spin text-slate-400 mx-auto" />
-                            </div>
-                        )}
-
-                    </CardContent>
-                </Card>
-
-                {/* Escape hatch — hidden during success redirect */}
-                {step !== 'success' && (
-                    <div className="text-center mt-4">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                try {
-                                    localStorage.removeItem('kfg_pin_verified')
-                                    localStorage.removeItem('kfg_pin_verified_at')
-                                } catch {}
-                                window.location.href = '/api/auth/signout'
-                            }}
-                            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                        >
-                            <LogOut className="w-3.5 h-3.5" />
-                            Use a different account
+                    <div className="flex items-center justify-between gap-2">
+                        <button type="button"
+                            onClick={() => { setStep('phone-entry'); setOtpCode(''); setError('') }}
+                            className="min-h-12 rounded-xl px-3 text-sm font-semibold text-ft-ink">
+                            Change number
+                        </button>
+                        <button type="button" onClick={handleResend} disabled={resendCooldown > 0}
+                            className={cn('flex min-h-12 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold disabled:opacity-60', FT_LINK)}>
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
                         </button>
                     </div>
-                )}
-            </div>
-        </div>
+                </form>
+            )}
+
+            {/* ── Step: set password ────────────────────────────────── */}
+            {step === 'set-password' && (
+                <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                    <div>
+                        <h2 className="ft-display text-lg font-extrabold text-ft-ink">Set your password</h2>
+                        <p className="mt-0.5 text-sm text-[color:var(--ft-muted)]">
+                            Create a password so you can sign in even when Google is unavailable.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="cp-password" className="text-sm font-semibold text-ft-ink">Password</Label>
+                        <NeuInput
+                            id="cp-password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            placeholder="Min 8 chars, uppercase, lowercase, number"
+                            minLength={8}
+                            leading={<Lock className="h-4 w-4" aria-hidden="true" />}
+                            trailing={
+                                <button type="button" onClick={() => setShowPassword(v => !v)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    className="-mr-3 flex h-12 w-12 items-center justify-center rounded-xl text-[color:var(--ft-muted)] hover:text-ft-ink">
+                                    {showPassword ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                                </button>
+                            }
+                        />
+                        <PasswordStrength password={password} />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="cp-confirm" className="text-sm font-semibold text-ft-ink">Confirm password</Label>
+                        <NeuInput
+                            id="cp-confirm"
+                            value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
+                            required
+                            type={showConfirm ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            placeholder="Repeat your password"
+                            minLength={8}
+                            leading={<Lock className="h-4 w-4" aria-hidden="true" />}
+                            trailing={
+                                <button type="button" onClick={() => setShowConfirm(v => !v)}
+                                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                                    className="-mr-3 flex h-12 w-12 items-center justify-center rounded-xl text-[color:var(--ft-muted)] hover:text-ft-ink">
+                                    {showConfirm ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+                                </button>
+                            }
+                        />
+                    </div>
+
+                    <ClayButton type="submit" loading={submitting} className="w-full">
+                        {submitting ? 'Setting password…' : 'Complete setup'}
+                    </ClayButton>
+                </form>
+            )}
+
+            {/* ── Step: success ─────────────────────────────────────── */}
+            {step === 'success' && (
+                <div className="space-y-3 py-4 text-center" role="status">
+                    <div className="ft-clay mx-auto flex h-14 w-14 items-center justify-center !rounded-full">
+                        <CheckCircle className="h-7 w-7" aria-hidden="true" />
+                    </div>
+                    <h2 className="ft-display text-lg font-extrabold text-ft-ink">Profile complete</h2>
+                    <p className="text-sm text-[color:var(--ft-muted)]">Taking you to your dashboard…</p>
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-[color:var(--ft-muted)]" aria-hidden="true" />
+                </div>
+            )}
+        </AuthShell>
     )
 }
