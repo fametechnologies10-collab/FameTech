@@ -67,9 +67,9 @@ export const FT_CYAN: FtRamp = {
     '500': '#00C8FF',
     '600': '#006F8F',
     '700': '#00526A',
-    '800': '#005A75',
-    '900': '#003A4D',
-    '950': '#00222E',
+    '800': '#003D50',
+    '900': '#002A39',
+    '950': '#001A24',
 }
 
 function hexToRgb(hex: string): [number, number, number] {

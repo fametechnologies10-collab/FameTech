@@ -7,6 +7,7 @@ import {
     FT_CYAN,
     contrastRatio,
     colorDistance,
+    type FtRamp,
 } from '../lib/ft-palette'
 
 let failed = 0
@@ -45,6 +46,19 @@ check('500 stops are pairwise distinct (dE76 >= 15)', () => {
         for (let j = i + 1; j < names.length; j++) {
             const d = colorDistance(stops[names[i]], stops[names[j]])
             assert.ok(d >= 15, `${names[i]} vs ${names[j]} = ${d.toFixed(1)}`)
+        }
+    }
+})
+
+check('every ramp is monotonic (luminance non-increasing 50 -> 950)', () => {
+    const ramps = { slate: FT_SLATE, blue: FT_BLUE, indigo: FT_INDIGO, iris: FT_IRIS, cyan: FT_CYAN }
+    for (const [name, ramp] of Object.entries(ramps)) {
+        for (let i = 1; i < STOPS.length; i++) {
+            // contrast vs white rises as luminance falls
+            const prev = contrastRatio('#FFFFFF', ramp[STOPS[i - 1] as keyof FtRamp])
+            const cur = contrastRatio('#FFFFFF', ramp[STOPS[i] as keyof FtRamp])
+            assert.ok(cur >= prev, `${name} ${STOPS[i - 1]} -> ${STOPS[i]} gets lighter`)
+            if (cur - prev < 0.02) console.log(`NOTE near-equal: ${name} ${STOPS[i - 1]}/${STOPS[i]}`)
         }
     }
 })
