@@ -9,7 +9,7 @@ import { clearTrustedDevice } from '@/lib/pin-crypto'
 import { toast } from '@/lib/toast'
 import { resolveLoginIdentifier } from '@/lib/login-identifier'
 
-interface AuthContextType {
+export interface AuthContextType {
     user: User | null
     dbUser: DBUser | null
     session: Session | null
@@ -54,7 +54,7 @@ interface SignUpData {
     phoneNumber: string
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // 2026-09-24: raised from 120min per user complaints of frequent logout/login
 // churn, and closing/relaunching the browser no longer signs out immediately
