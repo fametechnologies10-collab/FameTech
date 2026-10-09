@@ -316,7 +316,6 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                         {!isCollapsed && (
                             <div className="flex flex-col transition-transform group-hover:scale-105">
                                 <BrandTitle className="text-base font-bold tracking-tight text-foreground font-display" />
-                                <span className="text-[11px] font-medium text-[#C40000] dark:text-[#FF8A8A] -mt-1 tracking-widest">TECHNOLOGIES</span>
                             </div>
                         )}
                     </Link>
