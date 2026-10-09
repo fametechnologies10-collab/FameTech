@@ -112,7 +112,7 @@
 /* Opt-out of the legacy-surface bridge: real white (QR codes, print, logo tiles) */
 .ft-true-white {
     background-color: #fff !important;
-    box-shadow: none !important;
+    --ft-card-shadow: 0 0 #0000;
 }
 
 :root,

@@ -338,10 +338,11 @@
     box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
+  /* 0 0 #0000 (not none): `none` is invalid inside a comma list with the ring shadows. */
   /* Table rows and list items stay flat (no per-row shadows: low-end device
      performance). The variable inherits, so cards nested in these are flat. */
   table, thead, tbody, tr, td, th, li {
-    --ft-card-shadow: none;
+    --ft-card-shadow: 0 0 #0000;
   }
 }
 
@@ -741,4 +742,4 @@
 @keyframes kf-bar-fill {
   from { width: 0%; }
   to   { width: 100%; }
-}
+}
