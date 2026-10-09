@@ -12,33 +12,36 @@ interface FooterLink {
 }
 
 const PRODUCT_LINKS: FooterLink[] = [
-    { label: 'Data Bundles', href: '#products' },
-    { label: 'Airtime Topup', href: '#products' },
-    { label: 'SMS Platform', href: '/sms' },
-    { label: 'Bill Pay', href: '/dashboard/utilities' },
-    { label: 'AFA Registration', href: '#afa' },
+    { label: 'Data bundles', href: '#products' },
+    { label: 'Airtime top-up', href: '#products' },
+    { label: 'SMS platform', href: '/sms' },
+    { label: 'Bill pay', href: '/dashboard/utilities' },
+    { label: 'AFA registration', href: '#afa' },
     { label: 'Developer API', href: '/developers' },
 ]
 
 const COMPANY_LINKS: FooterLink[] = [
     { label: 'Wallet', href: '#wallet' },
-    { label: 'Reseller Shops', href: '#resell' },
-    { label: 'Sub-Agent Program', href: '/dashboard/recruit' },
+    { label: 'Reseller shops', href: '#resell' },
+    { label: 'Sub-agent program', href: '/dashboard/recruit' },
     { label: 'Community', href: '#community' },
+    { label: 'Get the app', href: '/download' },
 ]
 
 const LEGAL_LINKS: FooterLink[] = [
-    { label: 'Terms of Service', href: '/terms' },
-    { label: 'Privacy Policy', href: '/privacy' },
+    { label: 'Terms of service', href: '/terms' },
+    { label: 'Privacy policy', href: '/privacy' },
 ]
+
+const LINK_CLASS = 'inline-flex min-h-12 items-center text-sm font-semibold text-ft-ink hover:text-ft-blue hover:underline dark:hover:text-[color:var(--ft-cyan)]'
+const ICON_LINK_CLASS = 'ft-raised inline-flex h-12 w-12 items-center justify-center rounded-full text-ft-ink'
 
 function FooterColumnLink({ href, label }: FooterLink) {
     const isRoute = href.startsWith('/')
-    const className = "text-sm text-slate-600 dark:text-slate-400 hover:text-[#0056B3] dark:hover:text-[#FFCC00] transition-colors"
     return isRoute ? (
-        <Link href={href} className={className}>{label}</Link>
+        <Link href={href} className={LINK_CLASS}>{label}</Link>
     ) : (
-        <a href={href} className={className}>{label}</a>
+        <a href={href} className={LINK_CLASS}>{label}</a>
     )
 }
 
@@ -62,74 +65,71 @@ export function LandingFooter({
     const footerText = adminSettings?.footer_copyright_text || '2026 Fame Technologies'
 
     return (
-        <footer className={cn("relative mt-auto", className)}>
-            {/* Brand hairline — the one accent this footer spends */}
-            <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#0056B3] dark:via-[#FFCC00] to-transparent opacity-40" />
-
-            <div className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-6">
+        <footer className={cn('relative mt-auto', className)}>
+            <div className="ft-inset rounded-b-none rounded-t-[2rem]">
+                <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-6">
                         {/* Brand column — spans full width on mobile */}
-                        <div className="col-span-2 md:col-span-1">
-                            <Link href="/" className="flex items-center gap-2">
-                                <BrandLogo width={32} height={32} className="w-8 h-8" />
+                        <div className="col-span-2 min-w-0 md:col-span-1">
+                            <Link href="/" className="flex min-h-12 items-center gap-2">
+                                <BrandLogo width={32} height={32} className="h-8 w-8" />
                                 <BrandTitle className="text-lg" />
                             </Link>
-                            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 max-w-xs leading-relaxed">
-                                Ghana&apos;s all-in-one platform for data, airtime, and reseller tools — instant delivery, always.
+                            <p className="mt-3 max-w-xs text-sm leading-relaxed text-[color:var(--ft-muted)]">
+                                Ghana&apos;s all-in-one platform for data, airtime, and reseller tools. Instant delivery, always.
                             </p>
-                            <div className="flex items-center gap-4 mt-4">
+                            <div className="mt-4 flex items-center gap-3">
                                 <a
                                     href={whatsappHref}
                                     target={adminPhone ? '_blank' : undefined}
                                     rel={adminPhone ? 'noopener noreferrer' : undefined}
                                     aria-label="Chat with us on WhatsApp"
-                                    className="text-slate-500 hover:text-[#25D366] transition-colors"
+                                    className={ICON_LINK_CLASS}
                                 >
-                                    <MessageCircle className="w-5 h-5" />
+                                    <MessageCircle className="h-5 w-5" aria-hidden="true" />
                                 </a>
                                 <a
                                     href={whatsappChannelLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label="Follow our WhatsApp channel"
-                                    className="text-slate-500 hover:text-[#25D366] transition-colors"
+                                    className={ICON_LINK_CLASS}
                                 >
-                                    <Radio className="w-5 h-5" />
+                                    <Radio className="h-5 w-5" aria-hidden="true" />
                                 </a>
                                 <a
                                     href={whatsappGroupLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label="Join our WhatsApp community group"
-                                    className="text-slate-500 hover:text-[#25D366] transition-colors"
+                                    className={ICON_LINK_CLASS}
                                 >
-                                    <Users2 className="w-5 h-5" />
+                                    <Users2 className="h-5 w-5" aria-hidden="true" />
                                 </a>
                             </div>
                         </div>
 
-                        <div>
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Products</h4>
-                            <ul className="space-y-2.5">
+                        <div className="min-w-0">
+                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Products</h2>
+                            <ul>
                                 {PRODUCT_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div>
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Company</h4>
-                            <ul className="space-y-2.5">
+                        <div className="min-w-0">
+                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Company</h2>
+                            <ul>
                                 {COMPANY_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div>
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Legal</h4>
-                            <ul className="space-y-2.5">
+                        <div className="min-w-0">
+                            <h2 className="mb-1 text-sm font-semibold text-ft-ink">Legal</h2>
+                            <ul>
                                 {LEGAL_LINKS.map((link) => (
                                     <li key={link.label}><FooterColumnLink {...link} /></li>
                                 ))}
@@ -137,16 +137,16 @@ export function LandingFooter({
                         </div>
                     </div>
 
-                    <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800">
-                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Developer API</h4>
-                        <ul className="flex flex-wrap gap-x-5 gap-y-2 mb-6">
+                    <div className="mt-10 pt-6">
+                        <h2 className="mb-1 text-sm font-semibold text-ft-ink">Developer API</h2>
+                        <ul className="mb-4 flex flex-wrap gap-x-5">
                             {DEVELOPER_PRODUCTS.map((p) => (
                                 <li key={p.slug}>
                                     <FooterColumnLink href={`/developers/${p.slug}`} label={p.name} />
                                 </li>
                             ))}
                         </ul>
-                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                        <p className="text-xs text-[color:var(--ft-muted)]">
                             © {footerText}. All rights reserved.
                         </p>
                     </div>
