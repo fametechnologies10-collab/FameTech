@@ -7,9 +7,6 @@ import { toast } from '@/lib/toast'
 import { NetworkIcon } from '@/components/network-icon'
 import { styleFor } from './NetworkSelectorCard'
 import { useChargePolling } from './useChargePolling'
-import { StorefrontTermsGate } from './StorefrontTermsGate'
-import { storefrontNeedsAccept, recordStorefrontAccept, getStoredStorefrontVersion } from '@/lib/storefront-terms'
-import type { CurrentTerms } from '@/lib/terms'
 
 const MOMO_PREFIX: Record<string, 'MTN' | 'Telecel' | 'AT'> = {
     '024': 'MTN', '025': 'MTN', '053': 'MTN', '054': 'MTN', '055': 'MTN', '059': 'MTN',
@@ -56,12 +53,13 @@ export interface ChargeDescriptor {
 type Step = 'form' | 'charging' | 'otp' | 'pending' | 'received' | 'success' | 'failed'
 
 export function ServiceChargeSheet({
-    open, onClose, descriptor, brandName,
+    open, onClose, descriptor,
 }: {
     open: boolean
     onClose: () => void
     descriptor: ChargeDescriptor | null
-    brandName: string
+    /** Unused now that checkout has no terms gate; kept so callers need no change. */
+    brandName?: string
 }) {
     const [step, setStep] = useState<Step>('form')
     // Beneficiary = the number that RECEIVES the product (data/airtime/voucher SMS).
@@ -77,9 +75,6 @@ export function ServiceChargeSheet({
     const [otp, setOtp] = useState('')
     const [total, setTotal] = useState<number | null>(null)
     const [failedMessage, setFailedMessage] = useState('')
-    // Guest terms gate (storefront buyers aren't logged in).
-    const [showTermsGate, setShowTermsGate] = useState(false)
-    const [storefrontTerms, setStorefrontTerms] = useState<CurrentTerms | null>(null)
 
     const hasBeneficiary = !!descriptor?.beneficiary
     // Reference is needed inside the (memoized) poll callbacks — a ref avoids stale closures.
@@ -102,7 +97,7 @@ export function ServiceChargeSheet({
             setMomoPhone(!descriptor?.beneficiary ? toLocalMomo(descriptor?.initialMomoPhone || '') : '')
             setProvider(''); setAutoDetected(false)
             setUseSameForMomo(!!descriptor?.beneficiary); setEmail('')
-            setReference(''); refForPaid.current = ''; setOtp(''); setDisplayText(''); setTotal(null); setFailedMessage(''); setShowTermsGate(false)
+            setReference(''); refForPaid.current = ''; setOtp(''); setDisplayText(''); setTotal(null); setFailedMessage('')
         } else stop()
     }, [open, descriptor, stop])
 
@@ -129,26 +124,7 @@ export function ServiceChargeSheet({
     const authorize = async () => {
         if (!descriptor) return
 
-        // Guest terms gate — block the first charge until the current agreement is accepted.
-        let terms = storefrontTerms
-        if (!terms) {
-            try {
-                const r = await fetch('/api/terms/current')
-                const j = await r.json()
-                if (j?.success) { terms = j.data as CurrentTerms; setStorefrontTerms(terms) }
-            } catch { /* terms unavailable — fail open rather than block a sale */ }
-        }
-        if (terms && storefrontNeedsAccept(terms.minAcceptableVersion)) {
-            setShowTermsGate(true)
-            return
-        }
-        if (!terms && !getStoredStorefrontVersion()) {
-            // Couldn't load the current terms and this guest has never accepted — block
-            // rather than fail open (a blocked /api/terms/current must not bypass consent).
-            toast.error('Could not load Terms & Conditions. Please refresh and try again.')
-            return
-        }
-
+        // No terms gate here: a guest can always buy, whether or not they accepted the terms.
         const beneficiary = hasBeneficiary ? beneficiaryPhone.replace(/\s+/g, '') : momoPhone
         if (hasBeneficiary && !/^(0\d{9}|233\d{9})$/.test(beneficiary)) {
             toast.error(`Enter the ${descriptor.beneficiary!.label.toLowerCase()}`)
@@ -413,13 +389,6 @@ export function ServiceChargeSheet({
                 </div>
             </DialogContent>
         </Dialog>
-        <StorefrontTermsGate
-            open={showTermsGate}
-            terms={storefrontTerms}
-            brandName={brandName}
-            onAccept={() => { if (storefrontTerms) recordStorefrontAccept(storefrontTerms.version); setShowTermsGate(false); void authorize() }}
-            onCancel={() => setShowTermsGate(false)}
-        />
         </>
     )
 }

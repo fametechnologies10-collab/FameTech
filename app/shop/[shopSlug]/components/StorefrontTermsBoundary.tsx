@@ -1,29 +1,36 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { StorefrontTermsGate } from './StorefrontTermsGate'
 import { storefrontNeedsAccept, recordStorefrontAccept } from '@/lib/storefront-terms'
 import type { CurrentTerms } from '@/lib/terms'
 
+// Per-tab memory of a dismissed popup, so closing it (tap outside, Esc, X, Decline)
+// keeps it away on refresh/navigation. A new tab/visit shows it once again.
+const DISMISSED_KEY = 'kfg_storefront_terms_dismissed'
+
+function wasDismissed(): boolean {
+  try { return sessionStorage.getItem(DISMISSED_KEY) === '1' } catch { return false }
+}
+function rememberDismissed(): void {
+  try { sessionStorage.setItem(DISMISSED_KEY, '1') } catch { /* storage unavailable — just closes for now */ }
+}
+
 /**
- * Page-load acceptance boundary for shop storefronts. On the first visit (per browser),
- * it mounts a BLOCKING gate over the storefront — the same way the dashboard's TermsGate
- * blocks the main site — until the guest accepts the current agreement. Already-accepted
- * guests never see it (the check is false, so nothing renders / no flash). Decline leaves.
+ * Page-load terms popup for shop storefronts. It is informational, NOT a gate: a guest can
+ * close it any way they like (tap outside, Esc, X, Decline) and keep browsing and buying
+ * whether or not they accept. Once closed it does not reappear in that tab.
  */
 export function StorefrontTermsBoundary({
   brandName,
   onGateResolved,
 }: {
   brandName: string
-  /** Fires once the gate is out of the way — guest already accepted, the check
-   *  failed (fail-open, no gate renders), or the guest accepts. Lets the
-   *  storefront hold other popups (announcements) until the agreement is dealt
-   *  with, mirroring the dashboard's TERMS_ACCEPTANCE modal-queue priority. */
+  /** Fires once the popup is out of the way — guest already accepted, dismissed it, the
+   *  check failed (no popup renders), or the guest accepts. Lets the storefront hold
+   *  other popups (announcements) until the terms popup is dealt with. */
   onGateResolved?: () => void
 }) {
-  const router = useRouter()
   const [terms, setTerms] = useState<CurrentTerms | null>(null)
   const [needsAccept, setNeedsAccept] = useState(false)
   // Ref keeps the fetch effect independent of the callback's identity.
@@ -38,7 +45,7 @@ export function StorefrontTermsBoundary({
         if (!alive) return
         if (!j?.success) { resolvedRef.current?.(); return }
         setTerms(j.data)
-        const needs = storefrontNeedsAccept(j.data.minAcceptableVersion)
+        const needs = storefrontNeedsAccept(j.data.minAcceptableVersion) && !wasDismissed()
         setNeedsAccept(needs)
         if (!needs) resolvedRef.current?.()
       })
@@ -48,14 +55,15 @@ export function StorefrontTermsBoundary({
 
   if (!needsAccept || !terms) return null
 
+  const dismiss = () => { rememberDismissed(); setNeedsAccept(false); onGateResolved?.() }
+
   return (
     <StorefrontTermsGate
       open
-      blocking
       terms={terms}
       brandName={brandName}
       onAccept={() => { recordStorefrontAccept(terms.version); setNeedsAccept(false); onGateResolved?.() }}
-      onCancel={() => { router.back() }}
+      onCancel={dismiss}
     />
   )
 }

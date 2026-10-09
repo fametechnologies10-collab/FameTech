@@ -884,7 +884,7 @@ export default function ShopStorefront({
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 theme-shop">
             <PWAInstallPrompt />
-            {/* Page-load terms gate — blocks the storefront for a guest until they accept (like the main site).
+            {/* Page-load terms popup — dismissible, never blocks browsing or buying.
                 Announcements are held until it reports resolved, so terms always render first. */}
             <StorefrontTermsBoundary brandName={shop.shop_name} onGateResolved={() => setTermsGateResolved(true)} />
             {/* Shared in-app MoMo charge sheet for airtime / mashup / results checker */}
