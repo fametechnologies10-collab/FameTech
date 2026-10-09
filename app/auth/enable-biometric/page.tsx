@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { registerBiometric, isBiometricRegistered } from '@/lib/biometric-auth'
 import { BIO_NEVER_KEY } from '@/components/biometric-setup-prompt'
 import { saveUserDisplayHint } from '@/lib/pin-crypto'
-import { BackgroundBubbles } from '@/components/background-bubbles'
-import { BrandLogo, BrandTitle } from '@/components/ui/brand'
-import { Button } from '@/components/ui/button'
-import { Fingerprint, Loader2, ShieldCheck, Home, CheckCircle2 } from 'lucide-react'
+import { ClayButton } from '@/components/ft'
+import { Fingerprint, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { AuthShell } from '../_components/auth-shell'
+import { AuthAlert } from '../_components/shared'
 
 function safeNext(next: string | null): string {
     if (!next) return '/dashboard'
@@ -68,100 +67,70 @@ export default function EnableBiometricPage() {
     const hasPassword = password !== null && password !== ''
 
     return (
-        <div className="relative min-h-screen w-full flex flex-col items-center justify-center px-4 py-10 overflow-y-auto">
-            <BackgroundBubbles scrollable />
-
-            <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-50">
-                <Link href="/">
-                    <Button variant="ghost" size="sm" className="font-bold gap-2 rounded-full text-slate-700 dark:text-slate-200">
-                        <Home className="w-4 h-4" />
-                        <span className="hidden sm:inline text-sm">Home</span>
-                    </Button>
-                </Link>
-            </div>
-
-            <div className="relative z-10 w-full max-w-sm flex flex-col items-center text-center">
-                <Link href="/" className="inline-flex flex-col items-center mb-7">
-                    <div className="relative w-14 h-14 rounded-full overflow-hidden flex items-center justify-center bg-white dark:bg-slate-800 shadow-xl border-[3px] border-[#FFCC00] mb-2">
-                        <BrandLogo width={52} height={52} />
-                    </div>
-                    <BrandTitle className="text-base font-black tracking-tight" />
-                </Link>
-
-                {/* Identity block */}
-                <div className="flex flex-col items-center mb-6">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3 bg-[#0056B315] border border-[#0056B330]">
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#0056B3]" />
-                        <span className="text-xs font-bold text-[#0056B3]">Trusted Device</span>
-                    </div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                        {fullName ? `Hi, ${fullName}! 👋` : 'Welcome back'}
-                    </h2>
+        <AuthShell
+            showBrandPanel={false}
+            title={success ? 'Biometric sign-in is on' : 'Sign in faster next time'}
+            subtitle={success ? 'Taking you back now…' : 'Use your face or fingerprint instead of typing your password.'}
+        >
+            <div className="flex flex-col items-center space-y-4 text-center">
+                <div className="flex flex-col items-center gap-2">
+                    <span className="ft-inset inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ft-ink">
+                        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                        Trusted device
+                    </span>
+                    <p className="text-base font-semibold text-ft-ink">
+                        {fullName ? `Hi, ${fullName}` : 'Welcome back'}
+                    </p>
                 </div>
 
-                {/* Icon */}
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 border-2 transition-all duration-300 ${success ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700' : 'bg-[#0056B315] border-[#0056B330]'}`}>
+                <div className="ft-clay flex h-16 w-16 items-center justify-center !rounded-full">
                     {success
-                        ? <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-                        : <Fingerprint className="w-10 h-10 text-[#0056B3]" />
+                        ? <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
+                        : <Fingerprint className="h-8 w-8" aria-hidden="true" />
                     }
                 </div>
 
-                <h3 className="text-base font-black text-slate-900 dark:text-white mb-1.5">
-                    {success ? 'Biometric enabled!' : 'Sign in faster next time'}
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed px-4">
-                    {success ? 'Redirecting you now…' : 'Use your face or fingerprint to sign in instantly — no password needed.'}
-                </p>
-
                 {error && (
-                    <p className="text-sm text-red-600 dark:text-red-400 mb-4 font-semibold">{error}</p>
+                    <div className="w-full text-left">
+                        <AuthAlert tone="error">{error}</AuthAlert>
+                    </div>
                 )}
 
                 {!hasPassword ? (
                     <div className="w-full space-y-3">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
+                        <p className="text-sm leading-relaxed text-[color:var(--ft-muted)]">
                             Biometric setup requires your account password. Enable it from{' '}
-                            <strong className="text-slate-700 dark:text-slate-200">Profile → Security</strong>.
+                            <strong className="text-ft-ink">Profile → Security</strong>.
                         </p>
-                        <Button onClick={() => router.push(nextUrl)} className="w-full h-11 text-sm font-bold rounded-xl">
+                        <ClayButton onClick={() => router.push(nextUrl)} className="w-full">
                             Go back
-                        </Button>
+                        </ClayButton>
                     </div>
                 ) : (
                     <div className="w-full space-y-3">
-                        <Button
-                            onClick={handleEnable}
-                            disabled={loading}
-                            className="w-full h-11 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8] disabled:opacity-50"
-                        >
+                        <ClayButton onClick={handleEnable} loading={loading} className="w-full">
                             {loading
-                                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Setting up…</>
-                                : <><Fingerprint className="w-4 h-4 mr-2" />Enable Face ID / Fingerprint</>}
-                        </Button>
-                        <Button
+                                ? 'Setting up…'
+                                : <><Fingerprint className="h-4 w-4" aria-hidden="true" />Enable Face ID / fingerprint</>}
+                        </ClayButton>
+                        <ClayButton
                             onClick={() => router.push(nextUrl)}
                             disabled={loading}
-                            variant="outline"
-                            className="w-full h-10 text-sm font-semibold rounded-xl"
+                            variant="soft"
+                            className="w-full"
                         >
                             Maybe later
-                        </Button>
+                        </ClayButton>
                     </div>
                 )}
 
-                <button
-                    type="button"
-                    onClick={handleNever}
-                    disabled={loading}
-                    className="mt-4 text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors font-medium"
-                >
+                <ClayButton variant="ghost" onClick={handleNever} disabled={loading}>
                     Don&apos;t show this again
-                </button>
-                <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                </ClayButton>
+                <p className="text-xs text-[color:var(--ft-muted)]">
                     You can enable this anytime in Profile → Security
                 </p>
             </div>
-        </div>
+        </AuthShell>
     )
 }
