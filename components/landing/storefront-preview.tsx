@@ -38,7 +38,7 @@ export function StorefrontPreview({ guestUrl }: { guestUrl: string }) {
 
                 <NeuCard className="min-w-0 overflow-hidden p-0" role="group" aria-label="Example storefront">
                     <div className="ft-clay-bright flex items-center gap-3 rounded-b-none px-5 py-6">
-                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white" aria-hidden="true">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white ft-true-white" aria-hidden="true">
                             <Store className="h-7 w-7 text-ft-blue" />
                         </span>
                     </div>

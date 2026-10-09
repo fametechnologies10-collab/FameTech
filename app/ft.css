@@ -114,3 +114,15 @@
     background-color: #fff !important;
     box-shadow: none !important;
 }
+
+:root,
+.ft {
+    --ft-white-rgb: 230 236 245;
+    --ft-card-shadow: var(--ft-shadow-raised);
+}
+
+.dark,
+.dark .ft {
+    --ft-white-rgb: 255 255 255;
+    --ft-card-shadow: var(--ft-shadow-raised);
+}

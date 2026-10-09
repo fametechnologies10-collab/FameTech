@@ -19,6 +19,9 @@ const config = {
             },
         },
         extend: {
+            backgroundColor: {
+                white: 'rgb(var(--ft-white-rgb) / <alpha-value>)',
+            },
             fontFamily: {
                 sans: ['var(--font-ft-body)', 'system-ui', 'sans-serif'],
                 display: ['var(--font-ft-display)', 'system-ui', 'sans-serif'],

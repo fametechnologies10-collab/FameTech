@@ -28,7 +28,7 @@ export interface AuthShellProps {
 function LogoTile({ size }: { size: number }) {
     return (
         <span
-            className="flex items-center justify-center rounded-full bg-white ring-2 ring-ft-blue dark:ring-[color:var(--ft-cyan)]"
+            className="flex items-center justify-center ft-true-white rounded-full bg-white ring-2 ring-ft-blue dark:ring-[color:var(--ft-cyan)]"
             style={{ width: size + 8, height: size + 8 }}
         >
             <BrandLogo width={size} height={size} />
