@@ -107,10 +107,10 @@ export default function PullToRefresh({ children, threshold = 72 }: PullToRefres
                     className="ptr-indicator-wrap absolute top-0 left-0 right-0 flex items-center justify-center pointer-events-none z-50 transition-all duration-150"
                 >
                     <div
-                        className={`ptr-indicator w-9 h-9 rounded-full flex items-center justify-center shadow-lg border-2
+                        className={`ptr-indicator w-9 h-9 rounded-full flex items-center justify-center
                             ${refreshDone
-                                ? 'bg-emerald-500 border-emerald-400 text-white'
-                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'
+                                ? 'bg-emerald-700 text-white shadow-[0_6px_14px_rgba(4,120,87,0.3)]'
+                                : 'ft-soft text-[var(--ft-blue)] dark:text-[var(--ft-cyan)]'
                             }`}
                     >
                         <RefreshCw

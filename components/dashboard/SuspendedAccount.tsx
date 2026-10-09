@@ -13,20 +13,20 @@ export function SuspendedAccount() {
 
     return (
         <div className="min-h-[80vh] flex items-center justify-center p-4">
-            <Card className="max-w-md w-full border-red-200 shadow-2xl dark:border-red-900/30 overflow-hidden">
-                <div className="h-2 bg-red-600 w-full" />
+            <Card className="max-w-md w-full overflow-hidden rounded-3xl" role="alert">
+                <div className="h-2 bg-[#B71C1C] w-full" />
                 <CardContent className="p-8 text-center space-y-6">
                     <div className="flex justify-center">
-                        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center animate-pulse">
-                            <Ban className="w-10 h-10 text-red-600" />
+                        <div className="w-20 h-20 ft-field rounded-full flex items-center justify-center">
+                            <Ban className="w-10 h-10 text-[#B71C1C] dark:text-red-400" />
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                            YOUR ACCOUNT IS SUSPENDED
+                        <h2 className="text-2xl font-bold text-foreground tracking-tight">
+                            Your account is suspended
                         </h2>
-                        <p className="text-slate-600 dark:text-slate-400 font-medium">
+                        <p className="text-muted-foreground font-medium">
                             You can appeal this decision or contact our team below.
                         </p>
                     </div>
@@ -34,24 +34,24 @@ export function SuspendedAccount() {
                     <div className="pt-4 space-y-3">
                         <Button
                             asChild
-                            className="w-full h-12 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                            className="w-full h-12 font-bold rounded-xl"
                         >
                             <Link href="/dashboard/complaints" className="flex items-center justify-center gap-3">
                                 <Headphones className="w-5 h-5" />
-                                Open a Complaint / Appeal
+                                Open a complaint or appeal
                             </Link>
                         </Button>
                         <Button
                             onClick={handleWhatsAppClick}
-                            className="w-full h-12 bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3"
+                            className="w-full h-12 text-[#0B3D1E] [--ft-c1:#25D366] [--ft-cglow:rgba(37,211,102,0.3)] font-bold rounded-xl flex items-center justify-center gap-3"
                         >
                             <WhatsAppIcon className="w-5 h-5" />
-                            Contact Support (WhatsApp)
+                            Contact support (WhatsApp)
                         </Button>
                     </div>
 
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium pt-4 border-t border-slate-100 dark:border-slate-800">
-                        FameTech Support System
+                    <p className="text-xs text-muted-foreground font-medium pt-4 border-t border-foreground/10">
+                        FameTech support system
                     </p>
                 </CardContent>
             </Card>

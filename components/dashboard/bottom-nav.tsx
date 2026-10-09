@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { useUI } from '@/contexts/ui-context'
 import { useModalQueueContextSafe } from '@/contexts/modal-queue-context'
+import { roleTheme } from '@/lib/roles'
+import { Button } from '@/components/ui/button'
 
 // ── Dynamic 6th-tab route registries ────────────────────────────────────────
 // Keys sorted longest-first so prefix matching picks the most specific route.
@@ -67,59 +69,7 @@ const ADMIN_REGISTRY: Record<string, { label: string; icon: LucideIcon }> = {
     '/admin':                     { label: 'Dashboard',   icon: Shield },
 }
 
-// ── Role-based colors — bar background mirrors the sidebar ───────────────────
-const ROLE_COLORS = {
-    admin: {
-        barBg:      'bg-[#E5E7EB] dark:bg-[#000000]',
-        barBorder:  'border-gray-300 dark:border-gray-800',
-        barShadow:  'shadow-[0_-2px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.5)]',
-        activeBg:   'bg-red-600',
-        activeText: 'text-white dark:text-black',
-        inactiveIcon: 'text-gray-500 dark:text-gray-400',
-    },
-    'sub-admin': {
-        barBg:      'bg-[#E5E7EB] dark:bg-[#000000]',
-        barBorder:  'border-gray-300 dark:border-gray-800',
-        barShadow:  'shadow-[0_-2px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.5)]',
-        activeBg:   'bg-yellow-400',
-        activeText: 'text-black',
-        inactiveIcon: 'text-gray-500 dark:text-gray-400',
-    },
-    dealer: {
-        barBg:      'bg-gradient-to-b from-violet-600 to-violet-800',
-        barBorder:  'border-violet-900/30',
-        barShadow:  'shadow-[0_-2px_20px_rgba(124,58,237,0.35)]',
-        activeBg:   'bg-white',
-        activeText: 'text-violet-800',  // 7.1:1 contrast on white
-        inactiveIcon: 'text-white/80',  // boosted for legibility on violet
-    },
-    agent: {
-        barBg:      'bg-[#E5E7EB] dark:bg-[#000000]',
-        barBorder:  'border-gray-300 dark:border-gray-800',
-        barShadow:  'shadow-[0_-2px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.5)]',
-        activeBg:   'bg-yellow-400',
-        activeText: 'text-black',
-        inactiveIcon: 'text-gray-500 dark:text-gray-400',
-    },
-    customer: {
-        barBg:      'bg-[#E5E7EB] dark:bg-[#000000]',
-        barBorder:  'border-gray-300 dark:border-gray-800',
-        barShadow:  'shadow-[0_-2px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.5)]',
-        activeBg:   'bg-blue-600',
-        activeText: 'text-white',
-        inactiveIcon: 'text-gray-500 dark:text-gray-400',
-    },
-    subagent: {
-        barBg:      'bg-[#E5E7EB] dark:bg-[#000000]',
-        barBorder:  'border-gray-300 dark:border-gray-800',
-        barShadow:  'shadow-[0_-2px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.5)]',
-        activeBg:   'bg-[#0D9488]',
-        activeText: 'text-white',
-        inactiveIcon: 'text-gray-500 dark:text-gray-400',
-    },
-} as const
-
-type RoleKey = keyof typeof ROLE_COLORS
+type RoleKey = keyof typeof roleTheme
 
 type NavItem = {
     label: string
@@ -208,7 +158,7 @@ export function BottomNav() {
             ? 'sub-admin'
             : ((dbUser?.role as RoleKey) ?? 'customer')
 
-    const colors = ROLE_COLORS[role] ?? ROLE_COLORS.customer
+    const theme = roleTheme[role] ?? roleTheme.customer
     const isAdminArea = isAdmin || isSubAdmin
 
     const handleSidebarToggle = useCallback(() => {
@@ -261,20 +211,21 @@ export function BottomNav() {
                         exit={{ opacity: 0, y: 6, scale: 0.96 }}
                         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     >
-                        <div className="relative bg-slate-900 dark:bg-slate-100 rounded-2xl px-4 py-3 shadow-2xl max-w-xs w-full">
+                        <div className="relative ft-card rounded-2xl px-4 py-3 max-w-xs w-full">
                             {/* Arrow pointer */}
-                            <div className="absolute -bottom-[6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 dark:bg-slate-100 rotate-45 rounded-[3px]" />
+                            <div className="absolute -bottom-[6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--ft-raised-bg)] rotate-45 rounded-[3px]" />
 
-                            <p className="text-white dark:text-slate-900 text-[12px] font-semibold text-center mb-2.5 leading-snug">
+                            <p className="text-foreground text-[12px] font-semibold text-center mb-2.5 leading-snug">
                                 Tap the active tab again to open the side menu
                             </p>
-                            <button
+                            <Button
                                 type="button"
+                                size="sm"
                                 onClick={handleHintGotIt}
-                                className="w-full py-1.5 rounded-xl bg-white/20 dark:bg-slate-900/20 hover:bg-white/30 dark:hover:bg-slate-900/30 active:scale-95 transition-all text-white dark:text-slate-900 text-[11px] font-bold tracking-wide"
+                                className="w-full h-10 text-[12px] font-semibold"
                             >
-                                Got it!
-                            </button>
+                                Got it
+                            </Button>
                         </div>
                     </motion.div>
                 )}
@@ -296,23 +247,12 @@ export function BottomNav() {
                                 type="button"
                                 onClick={handleSidebarToggle}
                                 aria-label="Open side menu"
-                                className={cn(
-                                    'flex-shrink-0 w-14 rounded-full flex items-center justify-center border active:scale-90 transition-transform',
-                                    colors.barBg,
-                                    colors.barBorder,
-                                    colors.barShadow,
-                                    colors.inactiveIcon
-                                )}
+                                className="flex-shrink-0 w-14 min-h-12 rounded-full flex items-center justify-center ft-soft text-muted-foreground active:scale-90 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
                                 <Menu className="w-6 h-6 stroke-[2.2]" />
                             </button>
                             <LayoutGroup id="kfg-bottom-nav">
-                            <div className={cn(
-                                'flex-1 min-w-0 rounded-full flex items-center p-2.5 border',
-                                colors.barBg,
-                                colors.barBorder,
-                                colors.barShadow
-                            )}>
+                            <div className="flex-1 min-w-0 rounded-[1.5rem] flex items-center p-2.5 ft-card">
                                 {navItems.map((item) => {
                                     const Icon = item.icon
                                     return (
@@ -330,29 +270,32 @@ export function BottomNav() {
                                                         handleSidebarToggle()
                                                     }
                                                 }}
-                                                className="relative flex items-center justify-center h-12 w-full rounded-full overflow-hidden active:opacity-75 transition-opacity"
+                                                aria-current={item.isActive ? 'page' : undefined}
+                                                className="relative flex items-center justify-center h-12 min-h-12 w-full rounded-2xl overflow-hidden active:opacity-75 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             >
                                                 {item.isActive && (
                                                     <motion.div
                                                         layoutId="kfg-active-pill"
-                                                        className={cn('absolute inset-0 rounded-full', colors.activeBg)}
+                                                        className="absolute inset-0 rounded-2xl ft-field"
                                                         transition={{ type: 'spring', stiffness: 500, damping: 42 }}
                                                     />
                                                 )}
                                                 {item.isActive ? (
                                                     /* Active pill: icon + label + always-visible sidebar toggle hint */
-                                                    <div className={cn('relative z-10 flex items-center gap-1.5 px-3', colors.activeText)}>
+                                                    <div className="relative z-10 flex items-center gap-1.5 px-3 text-[var(--ft-blue)] dark:text-[var(--ft-cyan)]">
                                                         <Icon className="w-[18px] h-[18px] stroke-[2.2] flex-shrink-0" />
                                                         <span className="text-[11px] font-bold whitespace-nowrap truncate">
                                                             {item.label}
                                                         </span>
                                                         <Menu className="w-2.5 h-2.5 opacity-40 flex-shrink-0" />
+                                                        {/* Role accent: small dot only; identity is never colour-only */}
+                                                        <span aria-hidden="true" className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.dot }} />
                                                     </div>
                                                 ) : (
                                                     /* Inactive: icon stacked above tiny label */
-                                                    <div className={cn('relative z-10 flex flex-col items-center justify-center gap-0.5 w-full', colors.inactiveIcon)}>
+                                                    <div className="relative z-10 flex flex-col items-center justify-center gap-0.5 w-full text-muted-foreground">
                                                         <Icon className="w-[18px] h-[18px] stroke-[2] flex-shrink-0" />
-                                                        <span className="text-[9px] font-semibold leading-none tracking-tight truncate max-w-full px-1">
+                                                        <span className="text-[10px] font-semibold leading-none tracking-tight truncate max-w-full px-1">
                                                             {item.label}
                                                         </span>
                                                     </div>
