@@ -13,11 +13,20 @@ import type { TermsSection, TermsChangeEntry } from './terms'
 //  - scope: 'dashboard' hides a section from shop storefronts. Default (omitted) = shown everywhere.
 //  - storefront: optional buyer-worded body used on storefronts (falls back to `body`).
 
-export const INITIAL_TERMS_VERSION = '2026-07-02'
-export const INITIAL_EFFECTIVE_DATE = 'July 2, 2026'
+export const INITIAL_TERMS_VERSION = '2026-10-09'
+export const INITIAL_EFFECTIVE_DATE = 'October 9, 2026'
 export const INITIAL_REQUIRES_REACCEPTANCE = true
 
 export const INITIAL_CHANGELOG: TermsChangeEntry[] = [
+  {
+    version: '2026-10-09',
+    date: 'October 9, 2026',
+    summary: [
+      'Clearer refunds and reporting',
+      'Added delivery, pricing and buyer rules',
+      'Updated privacy (Act 843), liability and disputes',
+    ],
+  },
   {
     version: '2026-07-02',
     date: 'July 2, 2026',
@@ -43,6 +52,12 @@ export const INITIAL_SECTIONS: TermsSection[] = [
     storefront:
       "Please read carefully. [[amber: If anything is unclear, ask before you buy]]. [[amber: Tapping Accept means you have read, understood, and agree to everything here]]." },
 
+  { id: 'seller', title: 'Who You\'re Buying From',
+    body:
+      "{{brand}} provides the platform you use to buy data, airtime, vouchers, and other services. [[amber: We are not the mobile network or your payment provider]] — we process your payment and deliver your order on your behalf.",
+    storefront:
+      "You're buying from [[green: {{brand}}]], which sells through the FameTech platform. {{brand}} is your first point of contact, and FameTech processes the payment and delivers your order. [[amber: Neither is the mobile network or your payment provider]]." },
+
   { id: 'account', title: 'Your Account & Security', scope: 'dashboard',
     body:
       "You're responsible for keeping your login details safe, and [[amber: any activity on your account is treated as done by you]]. Keep your PIN and one-time codes private." },
@@ -59,13 +74,21 @@ export const INITIAL_SECTIONS: TermsSection[] = [
     body:
       "When you pay by card or MoMo through our gateway, [[amber: don't close the payment page until you see the final confirmation]] — closing early can delay your order. We re-check every payment amount for your safety.",
     storefront:
-      "When you pay by Mobile Money, [[amber: don't close the payment page until you see the final confirmation]] — closing early can delay your order. We re-check every payment amount for your safety." },
+      "When you pay by Mobile Money, [[amber: don't close the payment page until you see the final confirmation]] — closing early can delay your order. [[gold: The price you see at checkout is the final price]], including any payment-processing fee shown there. We re-check every payment amount for your safety. [[amber: Refunds go back to the wallet or payment method you used]], never to a different number or account." },
+
+  { id: 'delivery', title: 'Delivery & Timing',
+    body:
+      "Most orders arrive [[green: within minutes]], but delivery depends on the network and can take longer at busy times. [[amber: Don't pay again for the same order]] — check your order status first or contact support." },
+
+  { id: 'pricing', title: 'Pricing & Availability',
+    body:
+      "Prices can change at any time, but [[gold: the price is locked once you pay]]. If a network or product is temporarily unavailable, [[green: you won't be charged]], or you'll be refunded if you were." },
 
   { id: 'refunds', title: 'Refunds & the 24-Hour Window',
     body:
-      "Because data, airtime, and vouchers deliver instantly, [[red: completed orders are final]]. If something goes wrong, [[amber: report a missing or wrong order within 24 hours]] — after that we may not be able to help. We gladly refund orders still pending, processing, or clearly failed, and [[green: wallet refunds are instant]]. Please [[amber: double-check the number and network before paying]] — we can't refund items sent to a wrong number you entered.",
+      "Because data, airtime, and vouchers deliver instantly, [[red: completed orders are final]]. If something goes wrong, [[amber: report a missing or wrong order within 24 hours]] and include your [[gold: order reference, the number and network, and the time you paid]]. A pending order can take up to [[amber: 24 hours]] to deliver before we treat it as failed. We gladly refund orders still pending, processing, or clearly failed, and [[green: wallet refunds are instant]]. Please [[amber: double-check the number and network before paying]] — we can't refund items sent to a wrong number you entered. After 24 hours we may not be able to help.",
     storefront:
-      "Because data, airtime, and vouchers deliver instantly, [[red: completed orders are final]]. If something goes wrong, [[amber: report a missing or wrong order within 24 hours]] — after that we may not be able to help. Please [[amber: double-check the number and network before paying]] — we can't refund items sent to a wrong number you entered." },
+      "Because data, airtime, and vouchers deliver instantly, [[red: completed orders are final]]. If something goes wrong, [[amber: report a missing or wrong order within 24 hours]] and include your [[gold: order reference, the number and network, and the time you paid]]. A pending order can take up to [[amber: 24 hours]] to deliver before we treat it as failed. Please [[amber: double-check the number and network before paying]] — we can't refund items sent to a wrong number you entered. After 24 hours we may not be able to help." },
 
   { id: 'support', title: 'Getting Help — Our Channels Only',
     body:
@@ -103,13 +126,19 @@ export const INITIAL_SECTIONS: TermsSection[] = [
     body:
       "We monitor for abuse. [[red: Chargebacks, bot ordering, reversal fraud, and reselling restricted access can lead to suspension or permanent termination]]. We may hold or review activity that looks unsafe.",
     storefront:
-      "[[red: Chargebacks, fake payment claims, and reversing a payment after delivery are treated as fraud]] and may be reported and blocked." },
+      "[[red: Chargebacks, fake payment claims, false \"not delivered\" reports, and use of stolen payment details are treated as fraud]]. We may block your number, hold or review activity that looks unsafe, and [[red: report fraud to the relevant authorities]]." },
+
+  { id: 'acceptable-use', title: 'Acceptable Use',
+    body:
+      "Use our services only for genuine purchases. [[red: No automated or bot ordering, no abuse of the payment system, and no unlawful use]]. We may refuse or cancel orders that break these rules.",
+    storefront:
+      "Use this store only for your own genuine purchases. [[red: No automated or bot ordering, no abuse of the payment system, and no unlawful use]]. We may refuse or cancel orders that break these rules." },
 
   { id: 'privacy', title: 'Your Data & Privacy',
     body:
       "We handle your data as described in our Privacy Policy. [[amber: Account deletion is permanent]], and some financial records are kept for legal and accounting reasons even after deletion.",
     storefront:
-      "We only use your details to process and deliver your order. [[green: Your information is kept private]]." },
+      "We collect only what we need to process your order: [[gold: your phone number, the recipient number, and your payment reference]]. We use it to deliver your order, prevent fraud, and keep records required by law. [[green: We never sell your information]]. We handle personal data in line with Ghana's [[gold: Data Protection Act, 2012 (Act 843)]]. You can ask this shop or FameTech about the data held about you." },
 
   { id: 'community', title: 'Stay Updated — Join Our Community', scope: 'dashboard',
     body:
@@ -119,5 +148,17 @@ export const INITIAL_SECTIONS: TermsSection[] = [
     body:
       "We work hard to deliver every order instantly, but [[amber: we can't promise the service will never be interrupted]] — parts depend on MTN, Telecel, AirtelTigo, Paystack, and our suppliers, and [[amber: delays caused by them or events beyond our control aren't our responsibility]]. If we're ever at fault for a transaction, [[gold: the most we're responsible for is the value of that transaction]]. [[amber: We're not responsible for indirect losses]] like lost profit. [[green: Nothing here removes rights you have under Ghanaian law]], and this doesn't limit our responsibility for our own fraud or serious misconduct.",
     storefront:
-      "We work hard to deliver every order instantly, but [[amber: we can't promise the service is never interrupted]] — parts depend on MTN, Telecel, AirtelTigo, and payment providers, and [[amber: delays caused by them aren't our fault]]. If we're at fault for a transaction, [[gold: the most we're responsible for is the value of that transaction]]." },
+      "We work hard to deliver every order instantly, but [[amber: we can't promise the service is never interrupted]] — parts depend on MTN, Telecel, AirtelTigo, and payment providers, and [[amber: delays or outages caused by them aren't our fault]]. If we're at fault for a transaction, [[gold: the most we're responsible for is the value of that transaction]], and [[amber: we're not responsible for indirect losses]] such as lost profit. [[green: Nothing here removes rights you have under Ghanaian law]] or limits responsibility for our own fraud or serious misconduct." },
+
+  { id: 'changes', title: 'Changes to These Terms',
+    body:
+      "We may update these terms. [[green: The version and date are always shown at the top]]. If a change is important, we'll ask you to accept again, and [[amber: continuing to use our services after a change means you accept the new version]].",
+    storefront:
+      "We may update these terms. [[green: The version and date are always shown at the top]]. If a change is important, we'll ask you to accept again, and [[amber: continuing to buy after a change means you accept the new version]]." },
+
+  { id: 'disputes', title: 'Disputes & Governing Law',
+    body:
+      "If you have a problem, [[amber: contact us first through our official support channels]]. These terms are governed by the [[gold: laws of Ghana]].",
+    storefront:
+      "If you have a problem, [[amber: contact this shop first using Need Help or WhatsApp]]. If it isn't solved, ask the shop to escalate it to FameTech. These terms are governed by the [[gold: laws of Ghana]]." },
 ]
