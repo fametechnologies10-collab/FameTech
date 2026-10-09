@@ -174,13 +174,13 @@ export default function ShopDomainDiscoveryPage() {
                         <BrandLogo width={112} height={112} priority />
                     </div>
                     <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide mb-3 uppercase text-white">
-                        Welcome to <span>KiNG</span> <span className="text-[#FFCC00]">FLEXY GH</span> Stores
+                        Welcome to <span>Fame</span><span className="text-[#00C8FF]">Tech</span> Stores
                     </h1>
                     <p className="text-sm sm:text-base text-gray-300 font-medium mb-1">
                         Powering Digital Services in Ghana
                     </p>
                     <p className="text-xs text-gray-500 tracking-widest uppercase font-bold">
-                        By KiNG <span className="text-[#FFCC00]">FLEXY GH</span> Technologies
+                        By Fame Technologies
                     </p>
                 </div>
             </header>
@@ -453,7 +453,7 @@ export default function ShopDomainDiscoveryPage() {
                         </a>
                     </div>
                     <p className="text-xs text-gray-600 font-medium max-w-sm mx-auto">
-                        This is an official KiNG <span className="text-[#FFCC00]">FLEXY GH</span> storefront directory
+                        This is an official <span>Fame</span><span className="text-[#00C8FF]">Tech</span> storefront directory
                     </p>
                 </div>
             </footer>
