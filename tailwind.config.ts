@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss"
+import { FT_SLATE, FT_BLUE, FT_INDIGO, FT_IRIS, FT_CYAN } from "./lib/ft-palette"
 
 const config = {
     darkMode: ["class"],
@@ -43,6 +44,18 @@ const config = {
                 'ft-blue': '#0057FF',
                 'ft-cyan': '#00C8FF',
                 'ft-night': '#0A0F1C',
+                slate: FT_SLATE,
+                gray: FT_SLATE,
+                zinc: FT_SLATE,
+                neutral: FT_SLATE,
+                stone: FT_SLATE,
+                blue: FT_BLUE,
+                indigo: FT_INDIGO,
+                violet: FT_IRIS,
+                purple: FT_IRIS,
+                fuchsia: FT_IRIS,
+                sky: FT_CYAN,
+                cyan: FT_CYAN,
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",
                 ring: "hsl(var(--ring))",

@@ -1,6 +1,14 @@
 /* FameTech "FT Clay" design tokens: neumorphism + claymorphism, scoped to .ft */
 
 .ft {
+    background: var(--ft-surface);
+    color: var(--ft-ink);
+    font-family: var(--font-ft-body), system-ui, sans-serif;
+}
+
+:root,
+.ft {
+    color-scheme: light;
     --ft-surface: #E6ECF5;
     --ft-raised-bg: #E6ECF5;
     --ft-ink: #0E1A33;
@@ -14,13 +22,11 @@
     --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
     --ft-shadow-inset: inset -5px -5px 10px var(--ft-hi), inset 5px 5px 10px var(--ft-lo);
     --ft-shadow-clay: inset 0 2px 3px rgba(120, 220, 255, 0.7), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
-
-    background: var(--ft-surface);
-    color: var(--ft-ink);
-    font-family: var(--font-ft-body), system-ui, sans-serif;
 }
 
+.dark,
 .dark .ft {
+    color-scheme: dark;
     --ft-surface: #0A0F1C;
     --ft-raised-bg: #0F1626;
     --ft-ink: #E8EEFB;
