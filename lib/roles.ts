@@ -56,8 +56,57 @@ export const roleConfig: Record<UserRole, RoleConfigItem> = {
         icon: UserCircle,
         label: 'Customer',
         rank: '#6',
-        color: '#0056B3',
-        bgColor: 'rgba(0, 86, 179, 0.1)',
-        textColor: '#0056B3'
+        color: '#0057FF',
+        bgColor: 'rgba(0, 87, 255, 0.1)',
+        textColor: '#0057FF'
+    }
+}
+
+/**
+ * Role identity accents for the unified clay shell. `ring`/`dot` are the role hue;
+ * chip pairs are solid, contrast-safe (>= 4.5:1) text/background combinations for
+ * light (clay #E6ECF5) and dark (#0F1626) surfaces. Guarded by scripts/test-role-theme.ts.
+ */
+export const roleTheme: Record<UserRole, {
+    ring: string
+    dot: string
+    chipLight: { bg: string; text: string }
+    chipDark: { bg: string; text: string }
+}> = {
+    'admin': {
+        ring: '#E60000',
+        dot: '#E60000',
+        chipLight: { bg: '#E6C9D0', text: '#9E0000' },
+        chipDark: { bg: '#36121F', text: '#F26B6B' }
+    },
+    'sub-admin': {
+        ring: '#FACC15',
+        dot: '#FACC15',
+        chipLight: { bg: '#E9E7D3', text: '#5C4A06' },
+        chipDark: { bg: '#393723', text: '#FACC15' }
+    },
+    'dealer': {
+        ring: '#7C3AED',
+        dot: '#7C3AED',
+        chipLight: { bg: '#D6D1F4', text: '#5B21B6' },
+        chipDark: { bg: '#231C4A', text: '#B08CF5' }
+    },
+    'agent': {
+        ring: '#25D366',
+        dot: '#25D366',
+        chipLight: { bg: '#C9E8E0', text: '#0F5F2C' },
+        chipDark: { bg: '#133832', text: '#25D366' }
+    },
+    'subagent': {
+        ring: '#0D9488',
+        dot: '#0D9488',
+        chipLight: { bg: '#C5DFE5', text: '#0B5A52' },
+        chipDark: { bg: '#0F2D38', text: '#45B5AB' }
+    },
+    'customer': {
+        ring: '#0057FF',
+        dot: '#0057FF',
+        chipLight: { bg: '#C4D6F7', text: '#0040C0' },
+        chipDark: { bg: '#0C224D', text: '#6B9CFF' }
     }
 }
