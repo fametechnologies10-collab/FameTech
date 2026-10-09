@@ -1,6 +1,7 @@
 import { getAdminSettings } from '@/lib/admin-settings-cache'
 import { FloatingWhatsApp } from '@/components/floating-whatsapp'
 import { CopyrightFooter } from '@/components/CopyrightFooter'
+import { ftFonts } from '@/lib/ft-fonts'
 import React from 'react'
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     const guestUrl = adminSettings.guest_storefront_url || 'https://fametechgh.com/shop/felix-s-shop'
 
     return (
-        <div className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-y-auto">
+        <div className={`ft ${ftFonts.className} ${ftFonts.variable} relative min-h-screen w-full flex flex-col items-center justify-center overflow-y-auto`}>
             <div className="w-full flex-1 flex flex-col">
                 <FloatingWhatsApp phoneNumber={whatsappAdminNumber} variant="auth" />
                 {React.Children.map(children, child => {

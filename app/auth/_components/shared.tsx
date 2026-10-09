@@ -1,4 +1,11 @@
-import { Loader2, Shield, CreditCard, AlertTriangle, Clock, UserCheck } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Loader2, Shield, CreditCard, AlertTriangle, Clock, UserCheck, Info } from 'lucide-react'
+import { ClayButton } from '@/components/ft'
+import { cn } from '@/lib/utils'
+
+// Link colour that keeps >= 4.5:1 on both the light and dark ft surfaces.
+export const FT_LINK = 'text-ft-blue dark:text-[color:var(--ft-cyan)]'
+export const FT_ERROR_TEXT = 'text-red-700 dark:text-red-300'
 
 // ─── Terms content ────────────────────────────────────────────────────────────
 export const TERMS_SECTIONS = [
@@ -36,14 +43,14 @@ export const TERMS_SECTIONS = [
         icon: UserCheck,
         color: 'text-indigo-500',
         title: '6. Agent & Shop Roles',
-        body: 'Users who purchase Agent upgrades or open Shops are bound by the pricing and operational guidelines set by KiNG FLEXY GH. We reserve the right to suspend accounts that abuse the platform or violate network provider rules.',
+        body: 'Users who purchase Agent upgrades or open Shops are bound by the pricing and operational guidelines set by FameTech. We reserve the right to suspend accounts that abuse the platform or violate network provider rules.',
     },
 ]
 
 // ─── Google icon ──────────────────────────────────────────────────────────────
 export function GoogleIcon() {
     return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 24 24" className="w-5 h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
@@ -54,28 +61,39 @@ export function GoogleIcon() {
 
 export function GoogleButton({ label, isLoading, onClick }: { label: string; isLoading: boolean; onClick: () => void }) {
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-sm shadow-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <GoogleIcon />}
+        <ClayButton type="button" variant="soft" onClick={onClick} disabled={isLoading} className="w-full">
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : <GoogleIcon />}
             <span>{label}</span>
-        </button>
+        </ClayButton>
     )
 }
 
 export function OrDivider() {
     return (
-        <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700/60" />
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">or</span>
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700/60" />
+        <div className="flex items-center gap-3" role="separator">
+            <div className="flex-1 h-0.5 rounded-full bg-[color:var(--ft-lo)] opacity-60" />
+            <span className="text-xs font-semibold text-[color:var(--ft-muted)] uppercase tracking-widest">or</span>
+            <div className="flex-1 h-0.5 rounded-full bg-[color:var(--ft-lo)] opacity-60" />
         </div>
     )
 }
 
-export function BrandAccentLine() {
-    return <div className="h-1 w-full bg-gradient-to-r from-[#0056B3] via-[#00B4D8] to-[#FFCC00]" />
+// Inline status message. State is carried by icon + text + border, never by colour alone.
+export function AuthAlert({ tone, children }: { tone: 'error' | 'warn' | 'info'; children: ReactNode }) {
+    const Icon = tone === 'error' ? AlertTriangle : tone === 'warn' ? Clock : Info
+    return (
+        <div
+            role={tone === 'error' ? 'alert' : 'status'}
+            className={cn(
+                'ft-inset flex items-start gap-3 border-l-4 px-4 py-3 text-sm font-semibold text-ft-ink',
+                tone === 'error' ? 'border-red-600 dark:border-red-400' : 'border-amber-500 dark:border-amber-400'
+            )}
+        >
+            <Icon
+                className={cn('mt-0.5 h-5 w-5 shrink-0', tone === 'error' ? FT_ERROR_TEXT : 'text-amber-700 dark:text-amber-300')}
+                aria-hidden="true"
+            />
+            <span className="min-w-0 break-words">{children}</span>
+        </div>
+    )
 }

@@ -6,16 +6,14 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { usePin } from '@/contexts/pin-context'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ClayButton, NeuInput } from '@/components/ft'
 import { signInWithPasskey, browserSupportsWebAuthn } from '@/lib/passkey-client'
 import { resolveLoginIdentifier } from '@/lib/login-identifier'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { Eye, EyeOff, Loader2, LogIn, Mail, Lock, KeyRound, RefreshCw } from 'lucide-react'
-import { GoogleButton, OrDivider } from './shared'
+import { AuthAlert, FT_LINK, GoogleButton, OrDivider } from './shared'
 
 // ─── Sign In form ─────────────────────────────────────────────────────────────
 export function SignInForm({ onGoogleLoading, googleLoading }: {
@@ -173,55 +171,57 @@ export function SignInForm({ onGoogleLoading, googleLoading }: {
 
     return (
         <div className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
-                    <Alert variant="destructive" className={cn(
-                        'py-2',
-                        lockoutMinutes !== null ? 'bg-orange-500/10 border-orange-500/40' : 'bg-red-500/10 border-red-500/40'
-                    )}>
-                        <AlertDescription className={cn('text-sm', lockoutMinutes !== null ? 'text-orange-600' : 'text-red-600')}>
-                            {error}
-                        </AlertDescription>
-                    </Alert>
+                    <AuthAlert tone={lockoutMinutes !== null ? 'warn' : 'error'}>{error}</AuthAlert>
                 )}
 
-                <div className="space-y-1.5">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Email or Phone Number</Label>
-                    <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input type="text" autoComplete="username" placeholder="your@email.com or 024XXXXXXX" value={identifier}
-                            onChange={e => setIdentifier(e.target.value)} required
-                            className="h-11 pl-10 rounded-xl text-sm focus:ring-2 focus:ring-[#0056B340]" />
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="signin-identifier" className="text-sm font-semibold text-ft-ink">Email or phone number</Label>
+                    <NeuInput
+                        id="signin-identifier"
+                        type="text"
+                        autoComplete="username"
+                        placeholder="you@email.com or 024 XXX XXXX"
+                        value={identifier}
+                        onChange={e => setIdentifier(e.target.value)}
+                        required
+                        leading={<Mail className="h-4 w-4" aria-hidden="true" />}
+                    />
                 </div>
 
-                <div className="space-y-1.5">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Password</Label>
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input type={showPw ? 'text' : 'password'} autoComplete="current-password" placeholder="Enter your password" value={password}
-                            onChange={e => setPassword(e.target.value)} required
-                            className="h-11 pl-10 pr-10 rounded-xl text-sm" />
-                        <button type="button" aria-label={showPw ? 'Hide password' : 'Show password'}
-                            onClick={() => setShowPw(p => !p)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="signin-password" className="text-sm font-semibold text-ft-ink">Password</Label>
+                    <NeuInput
+                        id="signin-password"
+                        type={showPw ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        placeholder="Your password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                        leading={<Lock className="h-4 w-4" aria-hidden="true" />}
+                        trailing={
+                            <button type="button" aria-label={showPw ? 'Hide password' : 'Show password'}
+                                onClick={() => setShowPw(p => !p)}
+                                className="-mr-3 flex h-12 w-12 items-center justify-center rounded-xl text-[color:var(--ft-muted)] hover:text-ft-ink">
+                                {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                        }
+                    />
                 </div>
 
-                <Button type="submit" disabled={isLoading || lockoutMinutes !== null}
-                    className="w-full h-11 text-sm font-bold text-white rounded-xl shadow-lg transition-all disabled:opacity-50 bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                    {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in…</> : <><LogIn className="w-4 h-4 mr-2" />Sign In</>}
-                </Button>
+                <ClayButton type="submit" disabled={lockoutMinutes !== null} loading={isLoading} className="w-full">
+                    {isLoading ? 'Signing you in…' : <><LogIn className="h-4 w-4" aria-hidden="true" />Sign in</>}
+                </ClayButton>
             </form>
 
             {needsConfirm && (
                 <div className="text-center animate-in fade-in slide-in-from-top-1 duration-300">
                     <button type="button" onClick={handleResendConfirmation} disabled={resendState !== 'idle'}
-                        className="text-xs font-semibold transition-colors text-[#0056B3] inline-flex items-center justify-center gap-1 disabled:opacity-60">
-                        <RefreshCw className={cn('w-3 h-3', resendState === 'sending' && 'animate-spin')} />
-                        {resendState === 'sending' ? 'Sending…' : resendState === 'sent' ? 'Confirmation email sent — check your inbox' : 'Resend confirmation email'}
+                        className={cn('min-h-12 px-3 text-sm font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-60', FT_LINK)}>
+                        <RefreshCw className={cn('h-4 w-4', resendState === 'sending' && 'animate-spin')} aria-hidden="true" />
+                        {resendState === 'sending' ? 'Sending…' : resendState === 'sent' ? 'Confirmation email sent. Check your inbox' : 'Resend confirmation email'}
                     </button>
                 </div>
             )}
@@ -229,26 +229,27 @@ export function SignInForm({ onGoogleLoading, googleLoading }: {
             {/* Always visible — recovery must never be one failed attempt away. */}
             <div className="text-center">
                 <Link href="/auth/reset-password"
-                    className="text-xs font-semibold transition-colors text-[#0056B3] inline-flex items-center justify-center gap-1">
-                    <KeyRound className="w-3 h-3" />Forgot your password?
+                    className={cn('min-h-12 px-3 text-sm font-semibold inline-flex items-center justify-center gap-1.5', FT_LINK)}>
+                    <KeyRound className="h-4 w-4" aria-hidden="true" />Forgot your password?
                 </Link>
             </div>
 
             {passkeySupported && (
                 <>
                     <OrDivider />
-                    <button
+                    <ClayButton
                         type="button"
+                        variant="soft"
                         onClick={handlePasskey}
                         disabled={passkeyLoading || isLoading || googleLoading}
-                        className="w-full flex items-center justify-center gap-3 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-sm shadow-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full"
                     >
                         {passkeyLoading
-                            ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
-                            : <KeyRound className="w-5 h-5 text-[#0056B3] flex-shrink-0" />
+                            ? <Loader2 className="h-5 w-5 animate-spin flex-shrink-0" aria-hidden="true" />
+                            : <KeyRound className={cn('h-5 w-5 flex-shrink-0', FT_LINK)} aria-hidden="true" />
                         }
-                        <span>{passkeyLoading ? 'Authenticating…' : 'Sign in with Passkey'}</span>
-                    </button>
+                        <span>{passkeyLoading ? 'Authenticating…' : 'Sign in with a passkey'}</span>
+                    </ClayButton>
                 </>
             )}
 

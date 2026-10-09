@@ -6,9 +6,8 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ClayButton, NeuInput, PasswordStrength } from '@/components/ft'
 import dynamic from 'next/dynamic'
 const Dialog = dynamic(() => import('@/components/ui/dialog').then(m => ({ default: m.Dialog })))
 const DialogContent = dynamic(() => import('@/components/ui/dialog').then(m => ({ default: m.DialogContent })))
@@ -24,7 +23,7 @@ import {
     Eye, EyeOff, Loader2, Mail, Lock, User, Phone, ArrowLeft, UserPlus,
     MessageSquare, RefreshCw, CheckCircle2, BookOpen,
 } from 'lucide-react'
-import { GoogleButton, OrDivider, TERMS_SECTIONS } from './shared'
+import { AuthAlert, FT_ERROR_TEXT, FT_LINK, GoogleButton, OrDivider, TERMS_SECTIONS } from './shared'
 
 // ─── Create Account form ──────────────────────────────────────────────────────
 export function SignUpForm({ onGoogleLoading, googleLoading }: {
@@ -250,37 +249,32 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
         return (
             <div className="space-y-4">
                 <div className="text-center space-y-1">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                        <MessageSquare className="w-6 h-6 text-white" />
+                    <div className="ft-clay w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                        <MessageSquare className="w-6 h-6" aria-hidden="true" />
                     </div>
-                    <h3 className="font-black text-base text-slate-900 dark:text-white">Verify your phone</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Code sent to <span className="font-bold text-slate-700 dark:text-slate-200">{pendingPhone.current}</span>
+                    <h3 className="ft-display font-extrabold text-lg text-ft-ink">Check your phone</h3>
+                    <p className="text-sm text-[color:var(--ft-muted)]">
+                        We texted a 6-digit code to <span className="font-semibold text-ft-ink">{pendingPhone.current}</span>
                     </p>
                 </div>
-                {otpError && (
-                    <Alert variant="destructive" className="py-2 bg-red-500/10 border-red-500/40">
-                        <AlertDescription className="text-red-600 text-sm">{otpError}</AlertDescription>
-                    </Alert>
-                )}
-                <div className="space-y-1.5">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Verification Code</Label>
-                    <Input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d*" maxLength={6} placeholder="000000"
+                {otpError && <AuthAlert tone="error">{otpError}</AuthAlert>}
+                <div className="space-y-2">
+                    <Label htmlFor="signup-otp" className="text-sm font-semibold text-ft-ink">Verification code</Label>
+                    <NeuInput id="signup-otp" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d*" maxLength={6} placeholder="000000"
                         value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                        autoFocus className="h-12 text-center text-xl font-black tracking-[0.4em] rounded-xl" />
+                        autoFocus wrapperClassName="h-14" className="text-center text-xl font-extrabold tracking-[0.4em]" />
                 </div>
-                <Button type="button" onClick={handleVerifyOTP} disabled={otpLoading || otpCode.length !== 6}
-                    className="w-full h-11 text-sm font-bold text-white rounded-xl shadow-lg transition-all disabled:opacity-50 bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
-                    {otpLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying…</> : <><CheckCircle2 className="w-4 h-4 mr-2" />Verify & Create Account</>}
-                </Button>
-                <div className="flex items-center justify-between text-sm">
+                <ClayButton type="button" onClick={handleVerifyOTP} disabled={otpCode.length !== 6} loading={otpLoading} className="w-full">
+                    {otpLoading ? 'Checking the code…' : <><CheckCircle2 className="w-4 h-4" aria-hidden="true" />Verify and create account</>}
+                </ClayButton>
+                <div className="flex items-center justify-between gap-2">
                     <button type="button" onClick={() => { setStep('form'); setOtpCode(''); setOtpError('') }}
-                        className="font-semibold text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1 text-xs">
-                        <ArrowLeft className="w-3 h-3" /> Go back
+                        className="min-h-12 px-3 font-semibold text-ft-ink transition-colors flex items-center gap-1.5 text-sm rounded-xl">
+                        <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Go back
                     </button>
                     <button type="button" onClick={handleResendOTP} disabled={resendCooldown > 0}
-                        className="font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 text-[#0056B3] text-xs">
-                        <RefreshCw className="w-3 h-3" />
+                        className={cn('min-h-12 px-3 font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60 text-sm rounded-xl', FT_LINK)}>
+                        <RefreshCw className="w-4 h-4" aria-hidden="true" />
                         {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
                     </button>
                 </div>
@@ -291,30 +285,30 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
     // ── Success step ──────────────────────────────────────────────────────────
     if (step === 'success') {
         return (
-            <div className="text-center space-y-4 py-4">
-                <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto shadow-lg bg-gradient-to-br from-[#10b981] to-[#059669]">
-                    <CheckCircle2 className="w-7 h-7 text-white" />
+            <div className="text-center space-y-4 py-2">
+                <div className="ft-clay w-14 h-14 !rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-7 h-7" aria-hidden="true" />
                 </div>
                 <div>
-                    <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">Check Your Email</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Verification link sent to <strong className="text-slate-700 dark:text-slate-200">{formData.email}</strong>.
-                        Click it to activate your account, then sign in. Didn&apos;t get it? Check your spam folder.
+                    <h3 className="ft-display text-lg font-extrabold text-ft-ink mb-1">Check your email</h3>
+                    <p className="text-sm text-[color:var(--ft-muted)]">
+                        We sent a confirmation link to <strong className="text-ft-ink break-all">{formData.email}</strong>.
+                        Open it to activate your account, then sign in. Can&apos;t find it? Look in your spam folder.
                     </p>
                 </div>
                 {/* An unconfirmed account has NO session — never route here to /dashboard
                     (middleware just bounces it back to /auth). Offer a resend + a way
                     back to sign in instead. */}
-                <Button
+                <ClayButton
                     type="button"
                     onClick={handleResendSignupConfirmation}
                     disabled={resendCooldown > 0}
-                    className="w-full h-11 text-sm font-bold text-white rounded-xl shadow-lg bg-gradient-to-br from-[#0056B3] to-[#00B4D8] disabled:opacity-60"
+                    className="w-full"
                 >
-                    <RefreshCw className="w-4 h-4 mr-2" />
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
                     {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend confirmation email'}
-                </Button>
-                <a href="/auth" className="block text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                </ClayButton>
+                <a href="/auth" className={cn('inline-flex min-h-12 items-center px-3 text-sm font-semibold', FT_LINK)}>
                     ← Back to sign in
                 </a>
             </div>
@@ -323,7 +317,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
 
     // ── Main form step ────────────────────────────────────────────────────────
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
             {/* Google first */}
             <GoogleButton label="Sign up with Google" isLoading={googleLoading} onClick={handleGoogle} />
             <OrDivider />
@@ -333,7 +327,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                 <DialogContent className="max-w-md flex flex-col p-0 gap-0 max-h-[85vh]">
                     <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
                         <DialogTitle className="flex items-center gap-2 text-sm font-black">
-                            <BookOpen className="w-4 h-4 text-[#0056B3]" />
+                            <BookOpen className="w-4 h-4 text-primary" />
                             Terms of Service
                         </DialogTitle>
                     </DialogHeader>
@@ -353,12 +347,12 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                     </div>
                     <DialogFooter className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 flex-row gap-2">
                         <Button variant="outline" onClick={() => setShowTermsDialog(false)}
-                            className="flex-1 h-10 text-sm font-semibold rounded-xl">
+                            className="flex-1 h-12 text-sm font-semibold rounded-xl">
                             Cancel
                         </Button>
                         <Button
                             onClick={() => { setAgreedToTerms(true); setShowTermsDialog(false) }}
-                            className="flex-1 h-10 text-sm font-bold text-white rounded-xl bg-gradient-to-br from-[#0056B3] to-[#00B4D8]"
+                            className="flex-1 h-12 text-sm font-bold rounded-xl"
                         >
                             <CheckCircle2 className="w-4 h-4 mr-1.5" />
                             I Accept
@@ -367,81 +361,72 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                 </DialogContent>
             </Dialog>
 
-            <form onSubmit={handleCreateAccount} className="space-y-3">
+            <form onSubmit={handleCreateAccount} className="space-y-4">
                 {error && (
-                    <Alert variant="destructive" className={cn('py-2',
-                        lockoutMinutes !== null ? 'bg-orange-500/10 border-orange-500/40' : 'bg-red-500/10 border-red-500/40')}>
-                        <AlertDescription className={cn('text-sm', lockoutMinutes !== null ? 'text-orange-600' : 'text-red-600')}>
-                            {error}
-                        </AlertDescription>
-                    </Alert>
+                    <AuthAlert tone={lockoutMinutes !== null ? 'warn' : 'error'}>{error}</AuthAlert>
                 )}
 
-                <div className="grid grid-cols-2 gap-2">
-                    {[{ id: 'firstName', label: 'First Name', placeholder: 'First' }, { id: 'lastName', label: 'Last Name', placeholder: 'Last' }].map(f => (
-                        <div key={f.id} className="space-y-1">
-                            <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">{f.label}</Label>
-                            <div className="relative">
-                                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                <Input name={f.id} autoComplete={f.id === 'firstName' ? 'given-name' : 'family-name'} placeholder={f.placeholder} value={(formData as any)[f.id]}
-                                    onChange={handleChange} required
-                                    className={cn('h-10 pl-9 rounded-xl text-sm', fieldErrors[f.id] && 'border-red-500')} />
-                            </div>
-                            {fieldErrors[f.id] && <p className="text-red-500 text-xs">{fieldErrors[f.id]}</p>}
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+                    {[{ id: 'firstName', label: 'First name', placeholder: 'First' }, { id: 'lastName', label: 'Last name', placeholder: 'Last' }].map(f => (
+                        <div key={f.id} className="space-y-2">
+                            <Label htmlFor={`signup-${f.id}`} className="text-sm font-semibold text-ft-ink">{f.label}</Label>
+                            <NeuInput id={`signup-${f.id}`} name={f.id} autoComplete={f.id === 'firstName' ? 'given-name' : 'family-name'} placeholder={f.placeholder} value={(formData as any)[f.id]}
+                                onChange={handleChange} required
+                                aria-invalid={fieldErrors[f.id] ? true : undefined}
+                                wrapperClassName={cn(fieldErrors[f.id] && 'outline outline-2 outline-red-600 dark:outline-red-400')}
+                                leading={<User className="h-4 w-4" aria-hidden="true" />} />
+                            {fieldErrors[f.id] && <p className={cn('text-sm font-semibold', FT_ERROR_TEXT)}>{fieldErrors[f.id]}</p>}
                         </div>
                     ))}
                 </div>
 
-                <div className="space-y-1">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Email Address</Label>
-                    <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input name="email" type="email" autoComplete="email" placeholder="your@email.com" value={formData.email}
-                            onChange={handleChange} required
-                            className={cn('h-10 pl-10 rounded-xl text-sm', fieldErrors.email && 'border-red-500')} />
-                    </div>
-                    {fieldErrors.email && <p className="text-red-500 text-xs">{fieldErrors.email}</p>}
+                <div className="space-y-2">
+                    <Label htmlFor="signup-email" className="text-sm font-semibold text-ft-ink">Email address</Label>
+                    <NeuInput id="signup-email" name="email" type="email" autoComplete="email" placeholder="you@email.com" value={formData.email}
+                        onChange={handleChange} required
+                        aria-invalid={fieldErrors.email ? true : undefined}
+                        wrapperClassName={cn(fieldErrors.email && 'outline outline-2 outline-red-600 dark:outline-red-400')}
+                        leading={<Mail className="h-4 w-4" aria-hidden="true" />} />
+                    {fieldErrors.email && <p className={cn('text-sm font-semibold', FT_ERROR_TEXT)}>{fieldErrors.email}</p>}
                 </div>
 
-                <div className="space-y-1">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Mobile Number</Label>
-                    <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input name="phoneNumber" type="tel" autoComplete="tel" placeholder="024 XXX XXXX" value={formData.phoneNumber}
-                            onChange={handleChange} required
-                            className={cn('h-10 pl-10 rounded-xl text-sm', fieldErrors.phoneNumber && 'border-red-500')} />
-                    </div>
-                    {fieldErrors.phoneNumber && <p className="text-red-500 text-xs">{fieldErrors.phoneNumber}</p>}
+                <div className="space-y-2">
+                    <Label htmlFor="signup-phone" className="text-sm font-semibold text-ft-ink">Mobile number</Label>
+                    <NeuInput id="signup-phone" name="phoneNumber" type="tel" autoComplete="tel" placeholder="024 XXX XXXX" value={formData.phoneNumber}
+                        onChange={handleChange} required
+                        aria-invalid={fieldErrors.phoneNumber ? true : undefined}
+                        wrapperClassName={cn(fieldErrors.phoneNumber && 'outline outline-2 outline-red-600 dark:outline-red-400')}
+                        leading={<Phone className="h-4 w-4" aria-hidden="true" />} />
+                    {fieldErrors.phoneNumber && <p className={cn('text-sm font-semibold', FT_ERROR_TEXT)}>{fieldErrors.phoneNumber}</p>}
                 </div>
 
-                <div className="space-y-1">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Password</Label>
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input name="password" type={showPw ? 'text' : 'password'} autoComplete="new-password" placeholder="Create a strong password"
-                            value={formData.password} onChange={handleChange} required
-                            className={cn('h-10 pl-10 pr-10 rounded-xl text-sm', fieldErrors.password && 'border-red-500')} />
-                        <button type="button" aria-label={showPw ? 'Hide' : 'Show'}
-                            onClick={() => setShowPw(p => !p)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                            {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                    </div>
-                    {fieldErrors.password && <p className="text-red-500 text-xs">{fieldErrors.password}</p>}
+                <div className="space-y-2">
+                    <Label htmlFor="signup-password" className="text-sm font-semibold text-ft-ink">Password</Label>
+                    <NeuInput id="signup-password" name="password" type={showPw ? 'text' : 'password'} autoComplete="new-password" placeholder="Pick a strong password"
+                        value={formData.password} onChange={handleChange} required
+                        aria-invalid={fieldErrors.password ? true : undefined}
+                        wrapperClassName={cn(fieldErrors.password && 'outline outline-2 outline-red-600 dark:outline-red-400')}
+                        leading={<Lock className="h-4 w-4" aria-hidden="true" />}
+                        trailing={
+                            <button type="button" aria-label={showPw ? 'Hide' : 'Show'}
+                                onClick={() => setShowPw(p => !p)}
+                                className="-mr-3 flex h-12 w-12 items-center justify-center rounded-xl text-[color:var(--ft-muted)] hover:text-ft-ink">
+                                {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                        } />
+                    {fieldErrors.password && <p className={cn('text-sm font-semibold', FT_ERROR_TEXT)}>{fieldErrors.password}</p>}
+                    <PasswordStrength password={formData.password} />
                 </div>
 
-                <div className="space-y-1">
-                    <Label className="text-slate-700 dark:text-slate-200 font-semibold text-xs">Confirm Password</Label>
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input name="confirmPassword" type={showPw ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm your password"
-                            value={formData.confirmPassword} onChange={handleChange} required
-                            className="h-10 pl-10 pr-10 rounded-xl text-sm" />
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="signup-confirm" className="text-sm font-semibold text-ft-ink">Confirm password</Label>
+                    <NeuInput id="signup-confirm" name="confirmPassword" type={showPw ? 'text' : 'password'} autoComplete="new-password" placeholder="Type it once more"
+                        value={formData.confirmPassword} onChange={handleChange} required
+                        leading={<Lock className="h-4 w-4" aria-hidden="true" />} />
                 </div>
 
                 {/* Terms checkbox — opens dialog on click */}
-                <div className="flex items-start gap-2.5 py-1">
+                <div className="flex items-start gap-3 py-1">
                     <input
                         id="terms"
                         type="checkbox"
@@ -453,27 +438,26 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                                 setShowTermsDialog(true)
                             }
                         }}
-                        className="w-4 h-4 mt-0.5 border-slate-300 rounded cursor-pointer accent-[#0056B3]"
+                        className="w-6 h-6 mt-0.5 shrink-0 rounded cursor-pointer accent-[#0057FF]"
                     />
-                    <label htmlFor="terms" className="text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer leading-relaxed">
+                    <label htmlFor="terms" className="text-sm font-medium text-ft-ink cursor-pointer leading-relaxed">
                         I have read and agree to the latest{' '}
                         <button type="button" onClick={() => setShowTermsDialog(true)}
-                            className="font-bold text-[#0056B3] hover:underline">
+                            className={cn('font-bold underline', FT_LINK)}>
                             Terms of Service
                         </button>
                         {' '}(v{termsMeta.version}, effective {termsMeta.effectiveDate}){' '}and{' '}
-                        <Link href="/privacy" target="_blank" className="font-bold hover:underline text-[#0056B3]">
+                        <Link href="/privacy" target="_blank" className={cn('font-bold underline', FT_LINK)}>
                             Privacy Policy
                         </Link>
                     </label>
                 </div>
 
-                <Button type="submit" disabled={isLoading || !agreedToTerms || lockoutMinutes !== null}
-                    className="w-full h-11 text-sm font-bold text-white rounded-xl shadow-lg transition-all disabled:opacity-50 bg-gradient-to-br from-[#0056B3] to-[#00B4D8]">
+                <ClayButton type="submit" disabled={!agreedToTerms || lockoutMinutes !== null} loading={isLoading} className="w-full">
                     {isLoading
-                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing…</>
-                        : <><UserPlus className="w-4 h-4 mr-2" />Create Account</>}
-                </Button>
+                        ? 'Setting things up…'
+                        : <><UserPlus className="w-4 h-4" aria-hidden="true" />Create account</>}
+                </ClayButton>
             </form>
         </div>
     )
