@@ -6,32 +6,16 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { WebsiteRequestPromo } from '@/components/website-request-promo'
 import {
-    Smartphone,
-    Zap,
-    Shield,
-    Clock,
     ArrowRight,
-    CreditCard,
-    CheckCircle2,
-    Store,
-    ExternalLink,
-    Wallet,
-    Code2,
-    BadgeCheck,
     Users,
-    Boxes,
     MessageSquare,
-    Send,
     LifeBuoy,
     Star,
     Quote,
-    Crown,
-    Gem,
     ChevronDown,
 } from 'lucide-react'
 import { LandingFooter } from '@/components/landing-footer'
 import { WhatsAppCommunityButtons } from '@/components/whatsapp-community-buttons'
-import { NetworkIcon } from '@/components/network-icon'
 import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
 const PWAInstallPrompt = dynamic(() => import('@/components/pwa-install-prompt').then(m => ({ default: m.PWAInstallPrompt })), { ssr: false })
@@ -51,6 +35,14 @@ import { LandingNav } from '@/components/landing/landing-nav'
 import { Hero } from '@/components/landing/hero'
 import { NetworkTrough } from '@/components/landing/network-trough'
 import { ProductBento } from '@/components/landing/product-bento'
+import { HowItWorks } from '@/components/landing/how-it-works'
+import { WalletSection } from '@/components/landing/wallet'
+import { ResellerPlans } from '@/components/landing/reseller-plans'
+import { StorefrontPreview } from '@/components/landing/storefront-preview'
+import { DeveloperApi } from '@/components/landing/developer-api'
+import { SmsPromo } from '@/components/landing/sms-promo'
+import { AfaPromo } from '@/components/landing/afa-promo'
+import { PopularPackages } from '@/components/landing/popular-packages'
 
 interface FaqItem {
     question: string
@@ -208,389 +200,14 @@ export default function HomeClient({
 
             <ProductBento />
 
-            {/* 7. How It Works */}
-            <section className="py-16 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">How It Works</h2>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-xl mx-auto">Start in minutes, buy in seconds.</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-8 md:gap-6">
-                        {[
-                            { step: '01', title: 'Create Account', description: 'Sign up with your phone and basic details.', icon: Smartphone },
-                            { step: '02', title: 'Fund Your Wallet', description: 'Top up once and stay ready to buy any time.', icon: CreditCard },
-                            { step: '03', title: 'Buy Data Bundle', description: 'Choose bundle, enter number, and receive delivery instantly.', icon: CheckCircle2 },
-                        ].map((item) => (
-                            <div key={item.title} className="relative rounded-xl border border-black dark:border-white bg-white dark:bg-slate-900 p-5 sm:p-6">
-                                <div className="text-6xl font-bold text-slate-200 dark:text-slate-700 absolute -top-4 left-0">{item.step}</div>
-                                <div className="relative z-10 pt-8">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0056B3] to-[#00B4D8] flex items-center justify-center mb-4"><item.icon className="w-6 h-6 text-white" /></div>
-                                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">{item.title}</h3>
-                                    <p className="text-slate-600 dark:text-slate-400">{item.description}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-10 rounded-2xl border border-dashed border-[#0056B3]/40 dark:border-[#4da6ff]/40 bg-[#0056B3]/5 dark:bg-[#4da6ff]/5 p-5 sm:p-6">
-                        <p className="text-sm font-bold uppercase tracking-wide text-[#0056B3] dark:text-[#4da6ff] mb-3">Reseller mini flow</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
-                            {['Create Shop', 'Set Prices', 'Share Your Link', 'Earn Profit'].map((step) => (
-                                <div key={step} className="rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 font-semibold text-slate-700 dark:text-slate-200 text-center">{step}</div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* 6. Wallet */}
-            <section id="wallet" className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                <div className="max-w-6xl mx-auto">
-                    <div className="text-center mb-10">
-                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Pay With Your Wallet</h2>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Keep your balance ready, checkout faster, and enjoy smooth purchases any time of day.</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {[
-                            { title: 'Top Up', icon: CreditCard, description: 'Add funds quickly with trusted payment options.' },
-                            { title: 'Store Balance', icon: Wallet, description: 'Your wallet stays ready for anytime purchases.' },
-                            { title: 'Buy Instantly', icon: Zap, description: 'Checkout in seconds for data and airtime.' }
-                        ].map((item) => (
-                            <div key={item.title} className="rounded-xl border border-black dark:border-white bg-white dark:bg-slate-900 p-5">
-                                <div className="w-10 h-10 rounded-lg bg-[#0056B3]/10 text-[#0056B3] flex items-center justify-center mb-4"><item.icon className="w-5 h-5" /></div>
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{item.title}</h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-400">{item.description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* 3. Trust Strip */}
-            <section className="pb-10 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {[`${landingCustomerCountRaw} Happy Customers`, 'Instant Delivery', 'MTN - Telecel - AirtelTigo', 'Available 24/7'].map((item) => (
-                        <div key={item} className="rounded-xl border border-black dark:border-white bg-white/90 dark:bg-slate-900/70 px-4 py-3 text-center text-sm sm:text-base font-semibold text-slate-700 dark:text-slate-200">{item}</div>
-                    ))}
-                </div>
-            </section>
-
-            {/* 13. Features Grid */}
-            <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Why Choose FameTech?</h2>
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                        {[
-                            { icon: Zap, title: 'Ultra Fast Delivery', description: 'Data and airtime orders are processed in seconds.', gradient: 'from-yellow-500 to-orange-500' },
-                            { icon: Shield, title: 'Secure Wallet Payments', description: 'Pay from wallet with a clear transaction trail.', gradient: 'from-green-500 to-emerald-500' },
-                            { icon: Code2, title: 'Developer API', description: 'Integrate automated data and airtime purchases directly into your app.', gradient: 'from-blue-500 to-indigo-500' },
-                            { icon: Boxes, title: 'Product Sales', description: 'Access a wide range of everyday mobile products in one place.', gradient: 'from-fuchsia-500 to-pink-500' },
-                            { icon: MessageSquare, title: 'Complaint Filing', description: 'Report order issues and track resolution directly from your dashboard.', gradient: 'from-rose-400 to-red-500' },
-                            { icon: Store, title: 'Reseller Tools', description: 'Launch your branded shop and set your own profit margins.', gradient: 'from-violet-500 to-purple-600' },
-                            { icon: CheckCircle2, title: 'Order Tracking', description: 'Track order statuses and detailed history easily.', gradient: 'from-indigo-500 to-blue-600' },
-                            { icon: BadgeCheck, title: 'Agent Program', description: 'Apply for AFA registration with quick wallet funding.', gradient: 'from-sky-500 to-blue-500' },
-                            { icon: Clock, title: '24/7 Available', description: 'Buy, manage, and track your orders at any time of day.', gradient: 'from-teal-400 to-emerald-500' },
-                        ].map((feature) => (
-                            <div key={feature.title} className="group p-6 rounded-2xl bg-white dark:bg-slate-900 border border-black dark:border-white shadow-sm">
-                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4`}>
-                                    <feature.icon className="w-6 h-6 text-white" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">{feature.title}</h3>
-                                <p className="text-slate-600 dark:text-slate-400 text-sm">{feature.description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* 8. Reseller / Shop */}
-            <section id="resell" className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-4">Start Your Own Data Shop</h2>
-                        <p className="text-slate-600 dark:text-slate-400 mb-6">Create a branded storefront, set your own prices, share your link, and earn on every order.</p>
-                        <div className="space-y-3 mb-8">
-                            {['Your own branded shop link', 'Set your own profit margins', 'Track earnings and withdrawals'].map((item) => (
-                                <div key={item} className="flex items-center gap-3">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                                    <span className="text-slate-700 dark:text-slate-300 font-medium">{item}</span>
-                                </div>
-                            ))}
-                        </div>
-                        <Link href="/auth?tab=signup">
-                            <Button size="xl" className="bg-[#0056B3] hover:bg-[#004494] text-white font-bold">Open Your Shop<ArrowRight className="w-5 h-5 ml-2" /></Button>
-                        </Link>
-                    </div>
-                    <div className="rounded-2xl border border-black dark:border-white bg-white dark:bg-slate-900 p-6 shadow-sm">
-                        <div className="w-12 h-12 rounded-xl bg-[#0056B3]/10 text-[#0056B3] flex items-center justify-center mb-4"><Store className="w-6 h-6" /></div>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Built for Growth</h3>
-                        <p className="text-slate-600 dark:text-slate-400">Share your storefront with customers and grow daily recurring sales from data and airtime orders.</p>
-                    </div>
-                </div>
-            </section>
-
-            {/* 9. Storefront Preview */}
-            <section className="py-16 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto grid lg:grid-cols-[1fr_1.2fr] gap-8 items-center">
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-4">Premium Storefront Preview</h2>
-                        <p className="text-slate-600 dark:text-slate-400 mb-6">
-                            Your shop can look clean, branded, and professional with banner, logo, custom colors, and clear buy actions.
-                        </p>
-                        <div className="space-y-3">
-                            {['Upload logo and banner', 'Customize brand colors', 'Preview before publishing', 'Share one clean shop link'].map((point) => (
-                                <div key={point} className="flex items-center gap-3">
-                                    <CheckCircle2 className="w-5 h-5 text-[#0056B3]" />
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">{point}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl overflow-hidden border border-black dark:border-white bg-white dark:bg-slate-900 shadow-xl">
-                        <div className="relative h-32 sm:h-40 bg-gradient-to-r from-[#0056B3] to-[#00B4D8]">
-                            <div className="absolute inset-0 bg-black/10" />
-                            <div className="absolute left-4 right-4 bottom-3 flex items-center gap-3">
-                                <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-md">
-                                    <Store className="w-7 h-7 text-[#0056B3]" />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-black text-white text-lg leading-tight truncate">Felix&apos;s Data Hub</p>
-                                    <p className="text-white/90 text-xs">Fast data bundles and airtime, trusted by daily buyers.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {[
-                                { network: 'MTN', size: '1GB', price: '4.30' },
-                                { network: 'Telecel', size: '2GB', price: '9.00' }
-                            ].map((pkg) => (
-                                <div key={`${pkg.network}-${pkg.size}`} className="rounded-xl border border-black dark:border-white p-3 bg-slate-50 dark:bg-slate-800/50">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <NetworkIcon network={pkg.network} size={30} />
-                                        <p className="font-bold text-slate-900 dark:text-white">{pkg.size}</p>
-                                    </div>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">from <span className="font-bold text-[#0056B3]">GHS {pkg.price}</span></p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-4 sm:px-5 sm:pb-5">
-                            <Button className="w-full bg-[#0056B3] hover:bg-[#004494] text-white font-bold">Buy Now</Button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* 10. Developer API */}
-            <section className="py-16 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-5xl mx-auto rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/20 p-6 sm:p-8">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center"><Code2 className="w-5 h-5" /></div>
-                        <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-emerald-200 dark:bg-emerald-500/20 text-emerald-900 dark:text-emerald-200">Live</div>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-3">Developer API</h2>
-                    <p className="text-slate-700 dark:text-slate-300 mb-6 max-w-3xl">Integrate FameTech directly into your website or app. Automate data and airtime purchases for your customers via our API.</p>
-                    <Link href="/developers">
-                        <Button variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 font-bold">View Docs<ExternalLink className="w-4 h-4 ml-2" /></Button>
-                    </Link>
-                </div>
-            </section>
-
-            {/* 10b. KFT SMS — Bulk & Transactional Messaging */}
-            <section id="sms" className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <span className="text-xs sm:text-sm font-bold tracking-[0.2em] text-[#0056B3] dark:text-[#FFCC00]/90 uppercase block mb-2">New · KFT SMS</span>
-                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Send SMS to your customers — at scale</h2>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mt-3">Bulk and transactional SMS for Ghana businesses. Campaigns, OTPs, and order alerts — under your own sender ID, with a delivery report on every number.</p>
-                    </div>
-
-                    <div className="grid lg:grid-cols-[1.05fr_1fr] gap-8 lg:gap-10 items-center mb-10">
-                        {/* Left: value + CTAs */}
-                        <div>
-                            <div className="flex flex-wrap gap-2 mb-6">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] border border-[#0056B3]/20 dark:border-[#4da6ff]/25">
-                                    <Shield className="w-3.5 h-3.5" /> Platform mode
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
-                                    <BadgeCheck className="w-3.5 h-3.5" /> Business mode — your own sender ID
-                                </span>
-                            </div>
-                            <div className="space-y-3 mb-8">
-                                {[
-                                    'Start on our shared trusted sender, or send under your own brand',
-                                    'Per-recipient Sent → Delivered tracking on every message',
-                                    'Buy SMS credits — 160 characters = 1 credit per recipient',
-                                ].map((item) => (
-                                    <div key={item} className="flex items-start gap-3">
-                                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                                        <span className="text-slate-700 dark:text-slate-300 font-medium">{item}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <Link href="/sms" className="w-full sm:w-auto">
-                                    <Button size="xl" className="w-full bg-[#0056B3] hover:bg-[#004494] text-white font-bold">
-                                        Explore KFT SMS<ArrowRight className="w-5 h-5 ml-2" />
-                                    </Button>
-                                </Link>
-                                <Link href="/developers" className="w-full sm:w-auto">
-                                    <Button size="xl" variant="outline" className="w-full font-bold border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100">
-                                        <Code2 className="w-5 h-5 mr-2" />Read the API docs
-                                    </Button>
-                                </Link>
-                            </div>
-                        </div>
-
-                        {/* Right: delivery-report signature card */}
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-9 h-9 rounded-xl bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] flex items-center justify-center shrink-0">
-                                        <MessageSquare className="w-5 h-5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">Sender: AcmeGH</p>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Order updates · 1,204 recipients</p>
-                                    </div>
-                                </div>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Live
-                                </span>
-                            </div>
-                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {[
-                                    { phone: '024 •• •• 512', status: 'Delivered', cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
-                                    { phone: '055 •• •• 907', status: 'Delivered', cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' },
-                                    { phone: '020 •• •• 143', status: 'Sent', cls: 'bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] border-[#0056B3]/25 dark:border-[#4da6ff]/30' },
-                                    { phone: '027 •• •• 668', status: 'Undelivered', cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' },
-                                ].map((row) => (
-                                    <div key={row.phone} className="flex items-center justify-between gap-3 px-5 py-3">
-                                        <span className="font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{row.phone}</span>
-                                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border tracking-wide', row.cls)}>{row.status}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="px-5 py-4 bg-slate-50/70 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Delivery rate</span>
-                                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">98.7%</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400" style={{ width: '98.7%' }} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Feature highlights */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                            { icon: BadgeCheck, title: 'Your own sender ID', desc: 'Send under your brand name once your business is verified.' },
-                            { icon: CheckCircle2, title: 'Delivery reports', desc: 'Track every number from Sent to Delivered or Undelivered.' },
-                            { icon: Send, title: 'Bulk, scheduling & templates', desc: 'Message contact groups, schedule sends, and reuse templates.' },
-                            { icon: Code2, title: 'Developer API', desc: 'Fire OTPs and order alerts from your app with kf_live_ keys.' },
-                        ].map((f) => (
-                            <div key={f.title} className="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
-                                <div className="w-11 h-11 rounded-xl bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                                    <f.icon className="w-5 h-5" />
-                                </div>
-                                <h3 className="mt-4 font-bold text-slate-900 dark:text-white">{f.title}</h3>
-                                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{f.desc}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* 11. AFA Agent */}
-            <section id="afa" className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-4">Become an Authorized Field Agent</h2>
-                        <p className="text-slate-600 dark:text-slate-400 mb-6">Join the MTN AFA registration program through your dashboard. Submit your details, pay from wallet, and track your application status.</p>
-                        <div className="space-y-3 mb-8">
-                            {['Permanent agent membership', 'Wallet-funded application'].map((item) => (
-                                <div key={item} className="flex items-center gap-3">
-                                    <BadgeCheck className="w-5 h-5 text-[#0056B3] shrink-0" />
-                                    <span className="text-slate-700 dark:text-slate-300 font-medium">{item}</span>
-                                </div>
-                            ))}
-                        </div>
-                        <Link href="/auth?tab=signup"><Button size="xl" className="bg-[#0056B3] hover:bg-[#004494] text-white font-bold">Apply Now<ArrowRight className="w-5 h-5 ml-2" /></Button></Link>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
-                        <div className="w-12 h-12 rounded-xl bg-[#0056B3]/10 text-[#0056B3] flex items-center justify-center mb-4"><BadgeCheck className="w-6 h-6" /></div>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">AFA Pathway</h3>
-                        <p className="text-slate-600 dark:text-slate-400">Designed for users who want field-level credibility and a clear registration process with permanent membership status.</p>
-                    </div>
-                </div>
-            </section>
-
-            {/* 12. Agent Membership Pricing */}
-            <section className="py-16 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] text-[11px] font-black uppercase tracking-widest mb-4">
-                            <Crown className="w-3.5 h-3.5" />
-                            AGENT MEMBERSHIP
-                        </div>
-                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-3">Agent Membership Plans</h2>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Choose the plan that fits your journey. All plans include wholesale pricing, shop storefront, bulk orders, and <span className="font-bold text-slate-800 dark:text-slate-200">Developer API Key access</span>.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                        {landingAgentPlans.map((plan) => (
-                            <div key={plan.key} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-                                {plan.badge && (
-                                    <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-[#0056B3]/10 text-[#0056B3] mb-3">
-                                        <Crown className="w-3 h-3" />
-                                        {plan.badge}
-                                    </div>
-                                )}
-                                <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">{plan.title}</h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{plan.duration}</p>
-                                {plan.oldPrice && plan.oldPrice !== plan.price && (
-                                    <p className="text-sm text-slate-400 dark:text-slate-500 line-through mb-1">GHS {plan.oldPrice}</p>
-                                )}
-                                <p className="text-3xl font-black text-[#0056B3] dark:text-[#4da6ff] mb-4">GHS {plan.price}</p>
-                                <Link href="/auth?tab=signup">
-                                    <Button className="w-full bg-[#0056B3] hover:bg-[#004494] text-white font-bold">Get Started</Button>
-                                </Link>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Dealer tier teaser */}
-                    <div className="relative rounded-2xl overflow-hidden border border-violet-300 dark:border-violet-700 bg-gradient-to-br from-violet-950 via-purple-900 to-indigo-950 p-6 sm:p-8 shadow-xl mt-8">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-violet-600/10 via-transparent to-indigo-400/10 pointer-events-none" />
-                        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                            <div className="w-14 h-14 rounded-2xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center shrink-0">
-                                <Gem className="w-7 h-7 text-violet-300 fill-violet-400/40" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-[10px] font-black text-violet-300 uppercase tracking-widest mb-2">
-                                    <Gem className="w-3 h-3" /> DEALER TIER — EXCLUSIVE
-                                </div>
-                                <h3 className="text-xl font-black text-white mb-1">Become a Dealer</h3>
-                                <p className="text-sm text-violet-200 max-w-xl">
-                                    The highest reseller rank on FameTech. Available exclusively to <span className="font-black text-white">Lifetime Agent</span> members — unlock more discounted prices, full Developer API access with high rate limits, priority order processing, and direct priority support.
-                                </p>
-                            </div>
-                            <Link href="/auth?tab=signup" className="shrink-0">
-                                <Button className="bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-black rounded-xl shadow-lg shadow-violet-900/50 whitespace-nowrap">
-                                    <Gem className="w-4 h-4 mr-2" />
-                                    Learn More
-                                </Button>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <HowItWorks />
+            <WalletSection />
+            <ResellerPlans plans={landingAgentPlans} />
+            <StorefrontPreview guestUrl={guestUrl} />
+            <DeveloperApi />
+            <SmsPromo />
+            <AfaPromo />
+            {showPopularPackages && groupedPackageEntries.length > 0 && <PopularPackages entries={groupedPackageEntries} />}
 
             {/* 14. Support + Complaints */}
             <section className="py-16 px-4 sm:px-6 lg:px-8">
@@ -625,46 +242,6 @@ export default function HomeClient({
                     </div>
                 </div>
             </section>
-
-            {/* 15. Popular Data Packages */}
-            {showPopularPackages && (
-                <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="text-center mb-10">
-                            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">Popular Data Packages</h2>
-                            <p className="text-slate-600 dark:text-slate-400">Prices updated by our team - always competitive.</p>
-                        </div>
-
-                        <div className="space-y-8">
-                            {groupedPackageEntries.map(([network, packages]) => (
-                                <div key={network} className="flex flex-col items-center">
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6 text-center">{network}</h3>
-                                    <div className="flex flex-wrap justify-center gap-4 w-full max-w-4xl mx-auto">
-                                        {packages.map((pkg, index) => (
-                                            <div 
-                                                key={`${network}-${pkg.volume}-${pkg.price}-${index}`} 
-                                                
-                                                className="w-full sm:w-[calc(50%-1rem)] lg:w-[calc(33.333%-1rem)] min-w-[250px] max-w-[320px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow"
-                                            >
-                                                <div className="flex flex-col items-center mb-4">
-                                                    <div className="mb-3">
-                                                        <NetworkIcon network={network} size={48} />
-                                                    </div>
-                                                    <p className="text-lg font-black text-slate-900 dark:text-white">{pkg.volume}</p>
-                                                </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                                    for as low as <br />
-                                                    <span className="text-xl font-black text-[#0056B3] block mt-1">GHS {pkg.price}</span>
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            )}
 
             {/* 16. Social Proof */}
             <section className="py-16 px-4 sm:px-6 lg:px-8">
