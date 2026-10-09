@@ -301,7 +301,7 @@ export function PWAInstallButton({ className }: { className?: string }) {
                 variant="outline"
                 size="sm"
                 className={cn(
-                    'border-[#0056B3]/30 text-[#0056B3] hover:bg-[#0056B3]/10 font-bold gap-1.5 rounded-full text-xs',
+                    'border-[#0056B3]/30 text-[#0056B3] hover:bg-[#0056B3]/10 dark:border-[color:var(--ft-cyan)]/40 dark:text-[color:var(--ft-cyan)] dark:hover:bg-[color:var(--ft-cyan)]/10 font-bold gap-1.5 rounded-full text-xs',
                     className
                 )}
             >

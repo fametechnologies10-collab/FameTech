@@ -50,6 +50,8 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
     const userRole = isAdmin ? 'admin' : isSubAdmin ? 'sub-admin' : (dbUser?.role || 'customer') as keyof typeof roleConfig
     const currentRole = roleConfig[userRole] || roleConfig['customer']
     const RoleIcon = currentRole.icon
+    // Sentence case for the visible badge only; lib/roles.ts labels stay as-is for admin pages
+    const roleLabel = currentRole.label === 'Sub-Admin' ? 'Sub-admin' : currentRole.label === 'Sub-Agent' ? 'Sub-agent' : currentRole.label
     const theme = roleTheme[userRole] ?? roleTheme['customer']
     // Same technique as the sidebar: chip/ring colours come only from roleTheme, exposed as CSS variables
     const roleVars = {
@@ -82,7 +84,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                         className={cn("hidden sm:flex text-xs", chipClass)}
                         style={roleVars}
                     >
-                        {currentRole.label}
+                        {roleLabel}
                     </Badge>
 
                     {/* Notifications bell — opens modal, no page navigation */}

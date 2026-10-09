@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PathnameContext, SearchParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime'
 import { AuthContext, type AuthContextType } from '@/contexts/auth-context'
 import { UIProvider, useUI } from '@/contexts/ui-context'
@@ -82,7 +82,11 @@ function buildAuth(role: PreviewRole): AuthContextType {
 
 function UIInit({ collapsed, drawerOpen }: { collapsed: boolean; drawerOpen: boolean }) {
     const { isCollapsed, toggleCollapse, isInternalSidebarOpen, toggleSidebar } = useUI()
+    // Ref guard: StrictMode re-runs this effect with the same stale closure, which would toggle twice and undo it.
+    const applied = useRef(false)
     useEffect(() => {
+        if (applied.current) return
+        applied.current = true
         if (collapsed && !isCollapsed) toggleCollapse()
         if (drawerOpen && !isInternalSidebarOpen) toggleSidebar()
         // mount-only: apply the query-string initial state once
