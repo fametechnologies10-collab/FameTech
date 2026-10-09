@@ -20,7 +20,7 @@ const VARIANTS: Record<ClayButtonVariant, string> = {
 export const ClayButton = React.forwardRef<HTMLButtonElement, ClayButtonProps>(
     ({ className, variant = 'primary', loading = false, asChild = false, disabled, children, type, onClick, ...props }, ref) => {
         const classes = cn(
-            'inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-[1.25rem] px-6 text-base font-semibold transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60',
+            'inline-flex min-h-12 h-auto items-center justify-center gap-2 rounded-[1.25rem] px-6 py-2 text-center text-base font-semibold leading-snug transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60',
             VARIANTS[variant],
             className
         )
@@ -58,7 +58,7 @@ export const ClayButton = React.forwardRef<HTMLButtonElement, ClayButtonProps>(
                 onClick={onClick}
                 {...props}
             >
-                {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />}
                 {children}
             </button>
         )

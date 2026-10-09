@@ -111,7 +111,7 @@ export default function EnableBiometricPage() {
                         <ClayButton onClick={handleEnable} loading={loading} className="w-full">
                             {loading
                                 ? 'Setting up…'
-                                : <><Fingerprint className="h-4 w-4" aria-hidden="true" />Enable Face ID / fingerprint</>}
+                                : <><Fingerprint className="h-4 w-4 shrink-0" aria-hidden="true" />Turn on biometric sign-in</>}
                         </ClayButton>
                         <ClayButton
                             onClick={() => router.push(nextUrl)}

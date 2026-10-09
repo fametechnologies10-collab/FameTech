@@ -227,8 +227,6 @@ export default function SetupPinPage() {
                         <div className="ft-clay flex h-14 w-14 items-center justify-center !rounded-full">
                             <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
                         </div>
-                        <p className="text-base font-semibold text-ft-ink">{stepLabel}</p>
-                        <p className="text-sm text-[color:var(--ft-muted)]">{stepSub}</p>
                     </div>
                 ) : (
                     <>
