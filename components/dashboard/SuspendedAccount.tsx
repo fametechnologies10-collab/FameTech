@@ -8,7 +8,7 @@ import { WhatsAppIcon } from '@/components/icons/whatsapp-icon'
 
 export function SuspendedAccount() {
     const handleWhatsAppClick = () => {
-        window.open('https://wa.me/233578065809', '_blank')
+        window.open('https://wa.me/233578065809', '_blank', 'noopener,noreferrer')
     }
 
     return (

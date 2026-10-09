@@ -81,10 +81,10 @@ export const userNavItems = [
 
 export const adminNavItems = [
     { href: '/admin', label: 'Admin dashboard', icon: Shield },
-    { href: '/admin/top-up', label: 'Top-Up', icon: Wallet },
+    { href: '/admin/top-up', label: 'Top up', icon: Wallet },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
     { href: '/admin/orders/bulk-update', label: 'Bulk order update', icon: ListChecks },
-    { href: '/admin/results-checker', label: 'Result checker management', icon: FileText },
+    { href: '/admin/results-checker', label: 'WAEC result checker management', icon: FileText },
     { href: '/admin/ussd', label: 'USSD management', icon: Smartphone },
     { href: '/admin/fulfillment', label: 'Fulfillment', icon: Activity },
     { href: '/admin/ishare', label: 'iShare center', icon: Wifi },
@@ -243,6 +243,8 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
     // Get role config
     const userRole = isAdmin ? 'admin' : isSubAdmin ? 'sub-admin' : (dbUser?.role || 'customer') as keyof typeof roleConfig
     const currentRole = roleConfig[userRole] || roleConfig['customer']
+    // Sentence case for the visible chip only; lib/roles.ts labels stay as-is for admin pages
+    const roleLabel = currentRole.label === 'Sub-Admin' ? 'Sub-admin' : currentRole.label === 'Sub-Agent' ? 'Sub-agent' : currentRole.label
     const RoleIcon = currentRole.icon
     const theme = roleTheme[userRole] ?? roleTheme['customer']
     // Per-role chip/ring colours come only from roleTheme (contrast-checked pairs), exposed as CSS variables
@@ -284,7 +286,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                     "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out ft-card rounded-r-2xl text-foreground",
                     isCollapsed ? "w-20" : "w-80",
                     "lg:transform-none",
-                    isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+                    isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 max-lg:[--ft-card-shadow:0_0_#0000]"
                 )}
             >
 
@@ -394,7 +396,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                                         className="text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--chip-bg)] text-[var(--chip-fg)] dark:bg-[var(--chip-bg-d)] dark:text-[var(--chip-fg-d)]"
                                         style={roleVars}
                                     >
-                                        {currentRole.label}
+                                        {roleLabel}
                                     </span>
                                 </div>
                             </div>
