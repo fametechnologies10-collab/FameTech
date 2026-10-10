@@ -2,7 +2,7 @@
 //
 // Shared across airtime and utility bills: classifies a Hubtel failure signal
 // into a small, stable, customer-safe reason code (never raw Hubtel text —
-// see kingflexy-fulfillment skill checklist item 20: raw supplier text must
+// see fametech-fulfillment skill checklist item 20: raw supplier text must
 // never reach a customer-facing surface), and auto-refunds the buyer's
 // wallet for DEVELOPER-API orders only when that failure is genuinely
 // definitive.

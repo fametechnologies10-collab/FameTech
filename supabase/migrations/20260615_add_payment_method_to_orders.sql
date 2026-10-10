@@ -19,4 +19,4 @@ ALTER TABLE public.orders
     ADD COLUMN IF NOT EXISTS payment_method text DEFAULT 'momo';
 
 COMMENT ON COLUMN public.orders.payment_method IS
-    'How the order was paid: momo (default) or wallet. Used by USSD fulfillment to track Flexy-Wallet vs Mobile Money payments.';
+    'How the order was paid: momo (default) or wallet. Used by USSD fulfillment to track FameTech Wallet vs Mobile Money payments.';

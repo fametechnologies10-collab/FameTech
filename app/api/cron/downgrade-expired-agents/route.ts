@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 //
 // NOTE: downgrade-expired-dealers' own header comment claims "every 6 hours",
 // which contradicts the registered daily 02:00 UTC schedule in
-// .claude/skills/kingflexy-cron/SKILL.md. The schedule is the source of truth;
+// .claude/skills/fametech-cron/SKILL.md. The schedule is the source of truth;
 // that comment is stale.
 //
 // WHY THIS EXISTS: there was a downgrade cron for dealers but never one for

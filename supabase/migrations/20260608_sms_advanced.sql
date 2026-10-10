@@ -53,23 +53,23 @@ CREATE POLICY "sms_templates_admin_all" ON public.sms_templates FOR ALL USING (f
 INSERT INTO public.sms_templates (name, body) VALUES
     (
         'Welcome Promo',
-        'Hi [FirstName], welcome to KiNG FLEXY GH! We offer the cheapest data bundles in Ghana. Visit kingflexygh.com to place your first order today!'
+        'Hi [FirstName], welcome to FameTech! We offer the cheapest data bundles in Ghana. Visit fametechgh.com to place your first order today!'
     ),
     (
         'Order Confirmation',
-        'Hi [FirstName], your order has been received and is being processed. You will receive your bundle within 1 hour. Thank you for choosing KiNG FLEXY GH!'
+        'Hi [FirstName], your order has been received and is being processed. You will receive your bundle within 1 hour. Thank you for choosing FameTech!'
     ),
     (
         'Top-Up Reminder',
-        'Hi [FirstName], your Flexy-Wallet is running low. Top up now at kingflexygh.com and never miss a deal. Fast & reliable bundles every time!'
+        'Hi [FirstName], your FameTech Wallet is running low. Top up now at fametechgh.com and never miss a deal. Fast & reliable bundles every time!'
     ),
     (
         'Agent Renewal Reminder',
-        'Hi [FirstName], your Agent membership is expiring soon! Renew now to keep enjoying our exclusive agent prices. Visit: kingflexygh.com/dashboard/upgrade'
+        'Hi [FirstName], your Agent membership is expiring soon! Renew now to keep enjoying our exclusive agent prices. Visit: fametechgh.com/dashboard/upgrade'
     ),
     (
         'Holiday Greeting',
-        'Happy Holidays [FirstName]! From all of us at KiNG FLEXY GH, we wish you joy and celebration. Thank you for your continued trust and support!'
+        'Happy Holidays [FirstName]! From all of us at FameTech, we wish you joy and celebration. Thank you for your continued trust and support!'
     ),
     (
         'Maintenance Notice',
@@ -77,11 +77,11 @@ INSERT INTO public.sms_templates (name, body) VALUES
     ),
     (
         'Promo Announcement',
-        'Hi [FirstName]! BIG NEWS - We just dropped new data prices! Log in now at kingflexygh.com and take advantage of our latest offers. Limited time only!'
+        'Hi [FirstName]! BIG NEWS - We just dropped new data prices! Log in now at fametechgh.com and take advantage of our latest offers. Limited time only!'
     ),
     (
         'Referral Incentive',
-        'Hi [FirstName], refer a friend to KiNG FLEXY GH and both of you benefit! Share your referral link today. See your dashboard for details. Thank you!'
+        'Hi [FirstName], refer a friend to FameTech and both of you benefit! Share your referral link today. See your dashboard for details. Thank you!'
     )
 ON CONFLICT DO NOTHING;
 

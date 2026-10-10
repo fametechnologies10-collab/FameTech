@@ -1,6 +1,6 @@
 -- Fix: handle_new_user trigger now correctly parses Google OAuth full_name.
 --
--- Google OAuth provides user name as full_name / name (e.g. "King Flexy GH"),
+-- Google OAuth provides user name as full_name / name (e.g. "FameTech"),
 -- NOT as separate first_name / last_name fields. The previous trigger read
 -- first_name / last_name directly and inserted '' for all Google users.
 -- The complete-profile flow fixes this later, but the initial DB state was bad.

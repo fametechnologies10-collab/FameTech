@@ -5,7 +5,7 @@
 -- Bug: 20260820_orders_dakazina_order_code.sql added orders.dakazina_order_code (DataKazina's
 -- own ORDER-.../BULK-... identifier, stored alongside the incoming_api_ref we send) without
 -- teaching this RPC's in-place retry branch to null it. That is EXACTLY the omission the
--- "Adding a new supplier" checklist in .claude/skills/kingflexy-fulfillment/SKILL.md item 2
+-- "Adding a new supplier" checklist in .claude/skills/fametech-fulfillment/SKILL.md item 2
 -- exists to prevent, and which has now bitten Bundle Portal (2026-08-16) and HendyLinks
 -- (2026-08-19) before this.
 --

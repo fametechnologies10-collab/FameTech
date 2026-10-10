@@ -1,4 +1,4 @@
-# KiNG FLEXY GH — Claude Code Instructions
+# FameTech — Claude Code Instructions
 
 ## FIRST: Pick the right tier (don't burn tokens on small work)
 
@@ -12,13 +12,13 @@ Greetings, thanks, small talk. Questions about Claude Code or the environment it
 ### Tier 1 — Domain skill only.
 A contained change: one file (or a couple of closely-related ones), no new API surface, no new table, no new dependency, and **not** touching money or auth. Small bug fixes with an obvious cause live here.
 
-**Load only the one relevant `kingflexy-*` skill** (e.g. editing a route → `kingflexy-api-routes`). Skip the superpowers lifecycle.
+**Load only the one relevant `fametech-*` skill** (e.g. editing a route → `fametech-api-routes`). Skip the superpowers lifecycle.
 
 ### Tier 2 — Full lifecycle.
 New feature, new API route, new table/migration, new third-party integration, multi-file refactor, or anything the user frames as "build/add/implement". **Anything touching payments, wallet, fulfillment, or auth is always Tier 2 regardless of how small it looks** — that's the fintech guardrail.
 
 ```
-Skill("superpowers:using-superpowers")   # then kingflexy-workflow
+Skill("superpowers:using-superpowers")   # then fametech-workflow
 ```
 
 **Escalation rule:** if a Tier 0/1 task turns out to touch money, auth, or more files than expected, stop and escalate to Tier 2 at that point — don't retrofit the process afterward.
@@ -29,7 +29,7 @@ Skill("superpowers:using-superpowers")   # then kingflexy-workflow
 
 The generic engineering lifecycle — brainstorming, planning, worktrees, subagent-driven execution, TDD, code review, finishing a branch — is owned by the `superpowers` plugin. Its skills trigger automatically; don't skip them and don't re-invent them locally.
 
-On top of that, invoke `kingflexy-workflow` for any Tier 2 feature/fix in this repo — it adds the three project-specific gates superpowers doesn't know about: a fintech security audit (`payments-security-reviewer`) before review/finishing, a `tsc`/`lint` QA gate before push, and a Postman docs sync when the public `app/api/v2/**` surface changes. See `.claude/skills/kingflexy-workflow/SKILL.md` for exactly where each fires.
+On top of that, invoke `fametech-workflow` for any Tier 2 feature/fix in this repo — it adds the three project-specific gates superpowers doesn't know about: a fintech security audit (`payments-security-reviewer`) before review/finishing, a `tsc`/`lint` QA gate before push, and a Postman docs sync when the public `app/api/v2/**` surface changes. See `.claude/skills/fametech-workflow/SKILL.md` for exactly where each fires.
 
 **Gate rule:** Do not advance past a superpowers checkpoint (design approval, plan approval, etc.) without the user's explicit sign-off.
 
@@ -47,7 +47,7 @@ On top of that, invoke `kingflexy-workflow` for any Tier 2 feature/fix in this r
 
 ## Project Overview
 
-KiNG FLEXY GH is a Next.js 15 e-commerce platform for Ghana digital services (data bundles, airtime, vouchers, AFA registrations). It serves retail users, agents, dealers, and admins across MTN, Telecel, and AirtelTigo networks.
+FameTech is a Next.js 15 e-commerce platform for Ghana digital services (data bundles, airtime, vouchers, AFA registrations). It serves retail users, agents, dealers, and admins across MTN, Telecel, and AirtelTigo networks.
 
 **Stack:** Next.js 15 (App Router), Supabase (Postgres + Auth + RLS), Paystack, Tailwind CSS, shadcn/ui, Framer Motion, Upstash Redis
 
@@ -85,14 +85,14 @@ All skills come from installed plugins. Use the `Skill` tool with the namespaced
 - `superpowers:dispatching-parallel-agents` — concurrent subagent workflows
 - `superpowers:writing-skills` — create/edit skills
 
-### KiNG FLEXY Domain Skills (local `.claude/skills/`)
-- `kingflexy-domain` — user roles, pricing tiers, network operators, wallet system
-- `kingflexy-api-routes` — API route conventions, auth, rate limiting, response shapes
-- `kingflexy-developer-api` — the public v2 developer API surface (v1 retired and removed): key-type scoping, idempotency/race pattern, rate limiting, webhook signing
-- `kingflexy-supabase` — which DB client to use, idempotency, RLS, wallet operations
-- `kingflexy-fulfillment` — DataKazina API, circuit breaker, bundle mapping, Paystack webhooks
-- `kingflexy-cron` — all cron endpoints, schedules, re-enable process after Vercel Pro upgrade
-- `kingflexy-workflow` — project gates: fintech security audit, `tsc`/lint QA, Postman v2 docs sync
+### FameTech Domain Skills (local `.claude/skills/`)
+- `fametech-domain` — user roles, pricing tiers, network operators, wallet system
+- `fametech-api-routes` — API route conventions, auth, rate limiting, response shapes
+- `fametech-developer-api` — the public v2 developer API surface (v1 retired and removed): key-type scoping, idempotency/race pattern, rate limiting, webhook signing
+- `fametech-supabase` — which DB client to use, idempotency, RLS, wallet operations
+- `fametech-fulfillment` — DataKazina API, circuit breaker, bundle mapping, Paystack webhooks
+- `fametech-cron` — all cron endpoints, schedules, re-enable process after Vercel Pro upgrade
+- `fametech-workflow` — project gates: fintech security audit, `tsc`/lint QA, Postman v2 docs sync
 - `new-api-route` — correct scaffold template for user/admin/cron/webhook routes
 
 ### Other Plugin Skills (verified installed — do not cite skills not on this list)
@@ -110,7 +110,7 @@ All skills come from installed plugins. Use the `Skill` tool with the namespaced
 **MCP servers connected:** `supabase`, `vercel`, `postman` — all remote HTTP, OAuth-authorized. Prefer their read tools (`list_tables`, `get_logs`, `get_advisors`, `list_deployments`, `get_runtime_errors`) over guessing at live state.
 
 **Deliberately DISABLED or NOT installed — do not (re)install without asking:**
-- `security-guidance` — installed but **disabled 2026-08-09**. Its hooks fire on `UserPromptSubmit` (every prompt), `PostToolUse` for every `Edit`/`Write`/`Bash`, and `Stop`. On Windows each fires `bash sg-python.sh` in a **visible** console window, making the IDE unusable. Security coverage is preserved via the `payments-security-reviewer` subagent, the built-in `/security-review`, and the Security Gate in `kingflexy-workflow`.
+- `security-guidance` — installed but **disabled 2026-08-09**. Its hooks fire on `UserPromptSubmit` (every prompt), `PostToolUse` for every `Edit`/`Write`/`Bash`, and `Stop`. On Windows each fires `bash sg-python.sh` in a **visible** console window, making the IDE unusable. Security coverage is preserved via the `payments-security-reviewer` subagent, the built-in `/security-review`, and the Security Gate in `fametech-workflow`.
 - `chrome-devtools-mcp` — installed and removed 2026-08-09. Only plugin here that runs a **local** stdio MCP server via `npx`, spawning visible `cmd.exe`/`conhost.exe` windows per session. Verify UI changes with `npx tsc --noEmit` + `npx next lint` + manual browser checks instead.
 - `figma`, `sentry`, `coderabbit`, `firecrawl`, `commit-commands`, `remember` — no matching dependency in `package.json`; previously listed here in error.
 
@@ -122,15 +122,15 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
 
 | Task type | Tier | Skills to invoke |
 |---|---|---|
-| "Let's build X" / new feature | 2 | `superpowers:brainstorming` → `kingflexy-workflow` → `superpowers:writing-plans` |
-| Bug / issue / error report | 1 or 2 | **Search → Investigate → Isolate → Articulate the root cause FIRST, then fix.** Obvious one-liner → Tier 1, just fix it. Non-obvious or money/auth → `superpowers:systematic-debugging` → `kingflexy-workflow` → `superpowers:verification-before-completion` |
-| Any DB/Supabase work | 1–2 | `kingflexy-supabase` + `supabase:supabase` (+ `supabase:supabase-postgres-best-practices` for schema/RLS/migrations) |
-| Any API route work | 1–2 | `kingflexy-api-routes` + `new-api-route` |
-| Change to `app/api/v2/**` (public dev API) that alters its request/response contract | 2 | Above + **Postman docs gate** in `kingflexy-workflow` |
-| `app/api/v2/**` route work with no public contract change (internal refactor) | 1–2 | `kingflexy-developer-api` + `kingflexy-api-routes` — note the row above still wins for any public contract change (Tier 2 + Postman gate) |
-| Any fulfillment/order work | 2 | `kingflexy-fulfillment` |
-| Any cron work | 1–2 | `kingflexy-cron` |
-| Any business logic | 1–2 | `kingflexy-domain` |
+| "Let's build X" / new feature | 2 | `superpowers:brainstorming` → `fametech-workflow` → `superpowers:writing-plans` |
+| Bug / issue / error report | 1 or 2 | **Search → Investigate → Isolate → Articulate the root cause FIRST, then fix.** Obvious one-liner → Tier 1, just fix it. Non-obvious or money/auth → `superpowers:systematic-debugging` → `fametech-workflow` → `superpowers:verification-before-completion` |
+| Any DB/Supabase work | 1–2 | `fametech-supabase` + `supabase:supabase` (+ `supabase:supabase-postgres-best-practices` for schema/RLS/migrations) |
+| Any API route work | 1–2 | `fametech-api-routes` + `new-api-route` |
+| Change to `app/api/v2/**` (public dev API) that alters its request/response contract | 2 | Above + **Postman docs gate** in `fametech-workflow` |
+| `app/api/v2/**` route work with no public contract change (internal refactor) | 1–2 | `fametech-developer-api` + `fametech-api-routes` — note the row above still wins for any public contract change (Tier 2 + Postman gate) |
+| Any fulfillment/order work | 2 | `fametech-fulfillment` |
+| Any cron work | 1–2 | `fametech-cron` |
+| Any business logic | 1–2 | `fametech-domain` |
 | Any UI component | 1–2 | `frontend-design:frontend-design` |
 | Before finishing Tier 2 work | 2 | `superpowers:verification-before-completion` |
 | Security-sensitive changes (payments/wallet/auth) | 2 | `payments-security-reviewer` subagent + `/security-review` |
@@ -149,7 +149,7 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
 - **Local-only docs:** `docs/superpowers/plans/` and `specs/` are gitignored — don't `git add` them. `docs/security-audits/` is the opposite — committed, for race-condition/fraud audit reports.
 - **DB migrations:** No local Supabase stack in this repo (no `supabase/config.toml`) — apply migrations directly to the live project via the `apply_migration` MCP tool, then save the same SQL under `supabase/migrations/<name>.sql` for repo history.
 - **Tests:** pure-logic via `npx tsx scripts/test-*.ts`; no component test runner — UI verified by `npx tsc --noEmit` + `npx next lint` + manual. A pre-commit hook auto-runs eslint on staged files. `next lint`'s own stderr deprecation notice trips PowerShell's `2>&1` NativeCommandError wrapping (reports exit 1 even on success) — don't pipe its stderr; read for the actual `✔ No ESLint warnings or errors` line.
-- **PWA offline fallback:** use `fallbacks: { document: '/~offline' }` in `withPWAInit()` (next.config.ts) + a real page at `app/~offline/page.tsx` — the plugin auto-wires a Workbox `handlerDidError` onto every `runtimeCaching` rule (including custom `NetworkOnly` ones), no manual Workbox wiring needed. That page is a normal NESTED page (renders inside the existing root layout/providers) — it must NOT declare its own `<html>`/`<body>`, only `app/layout.tsx` may. ⚠️ `next lint` is deprecated as of Next 15.5 and will be removed in Next.js 16 (it still runs clean today) — before any Next 16 upgrade, migrate via `npx @next/codemod@canary next-lint-to-eslint-cli .` and update this line plus the QA gate in `kingflexy-workflow`. When migrating, carry over the `app/api/v2/**` `no-restricted-imports` override from `.eslintrc.json` — it enforces API-key-only auth on v2 routes and would otherwise be silently dropped.
+- **PWA offline fallback:** use `fallbacks: { document: '/~offline' }` in `withPWAInit()` (next.config.ts) + a real page at `app/~offline/page.tsx` — the plugin auto-wires a Workbox `handlerDidError` onto every `runtimeCaching` rule (including custom `NetworkOnly` ones), no manual Workbox wiring needed. That page is a normal NESTED page (renders inside the existing root layout/providers) — it must NOT declare its own `<html>`/`<body>`, only `app/layout.tsx` may. ⚠️ `next lint` is deprecated as of Next 15.5 and will be removed in Next.js 16 (it still runs clean today) — before any Next 16 upgrade, migrate via `npx @next/codemod@canary next-lint-to-eslint-cli .` and update this line plus the QA gate in `fametech-workflow`. When migrating, carry over the `app/api/v2/**` `no-restricted-imports` override from `.eslintrc.json` — it enforces API-key-only auth on v2 routes and would otherwise be silently dropped.
 - **`next` is pinned to an exact version** (`"next": "15.5.23"`, no `^`) rather than a range — deliberate, so a `next` bump only ever happens via an explicit `npm install next@<version> --save-exact`, never silently through `npm install`. Bumped from 15.1.9 on 2026-08-21 to close a critical (CVSS 9.1) middleware authorization-bypass CVE (GHSA-f82v-jwr5-mffw) plus ~26 other advisories; verify with `tsc`/`lint`/`npm run build` before ever changing this pin, not just `npm audit fix` (plain `npm audit fix` won't cross an exact pin — it reports "outside the stated dependency range" and needs the manual `npm install next@<version> --save-exact` instead).
 - **Toasts:** Always `import { toast } from '@/lib/toast'` (branded `SplitPanelToast` wrapper) — never raw `sonner`. Same call signature (`toast.success(title)` / `toast.error(title)`), so it's a drop-in swap.
 - **Shared validation primitives:** `shortTextSchema`, `longTextSchema`, `phoneSchema`, `adminLongTextSchema` all live in `lib/validation.ts`. `adminLongTextSchema` allows `<>&` (blocks only script-injection patterns) — use it for admin-authored text; the customer-facing `shortTextSchema`/`longTextSchema` reject `<>&` outright.
@@ -179,7 +179,7 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
 
 ## Plugin & Skill Setup
 
-- **Active project root is `D:\Projects\CLONED REPO KFT`.** A stale copy of this repo still exists at `D:\Projects\KingFlexyGh` (with its own outdated `CLAUDE.md`) — ignore it; it is not the working tree.
+- **Active project root is `D:\Projects\CLONED REPO KFT`.** A stale copy of this repo still exists at `D:\Projects\FameTech` (with its own outdated `CLAUDE.md`) — ignore it; it is not the working tree.
 - Plugins are installed at `scope: user` (global, in `~/.claude/settings.json` under `enabledPlugins`), so they load regardless of which directory Claude Code opens from. Manage them with the CLI, not by hand-editing JSON:
   ```
   claude plugin list                    # name, version, enabled/disabled
@@ -189,7 +189,7 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
   ```
   Note: running `claude plugin install` has been observed to silently flip *other* plugins to disabled — always re-run `claude plugin list` afterward and re-enable anything that got switched off.
 - Registered marketplaces: `claude-plugins-official` (`anthropics/claude-plugins-official`, official), `anthropic-agent-skills` (`anthropics/skills`, official), `superpowers-dev` (`obra/superpowers`, third-party). Superpowers is **not** in the official marketplace — it needs `claude plugin marketplace add obra/superpowers` first.
-- Only keep `.claude/skills/` for project-custom skills (`kingflexy-*`); delete any that duplicate plugin skills.
+- Only keep `.claude/skills/` for project-custom skills (`fametech-*`); delete any that duplicate plugin skills.
 - `.claude/settings.json` (project) holds a read-only Bash/PowerShell permission allowlist to cut permission prompts. Add only non-mutating commands there.
 
 ## Output Standards (MANDATORY on every task)
@@ -213,7 +213,7 @@ List every action Claude cannot perform (env vars, Supabase migrations, secrets,
 Create a `TodoWrite` task list before starting any multi-step work. Mark tasks `in_progress` before starting, `completed` immediately after. Never batch completions.
 
 ### 4. User-Facing Announcement Note
-After any fix, update, or new implementation, write a short customer-facing announcement the user (the platform owner) can post to KiNG FLEXY GH's own users — friendly tone, plain language, no internal jargon (no file names, function names, "root cause", ticket numbers, etc.). Focus on what changed for *them* (e.g. "Login is now smoother" / "You can now sign in with your phone number too"). Keep it short — a couple of sentences to a small paragraph, plus a one-line "what to do" if any user action is needed (e.g. re-login). Skip this note only for pure internal work with zero user-visible effect (e.g. refactors, internal tooling, CLAUDE.md edits) — state explicitly that it's being skipped and why.
+After any fix, update, or new implementation, write a short customer-facing announcement the user (the platform owner) can post to FameTech's own users — friendly tone, plain language, no internal jargon (no file names, function names, "root cause", ticket numbers, etc.). Focus on what changed for *them* (e.g. "Login is now smoother" / "You can now sign in with your phone number too"). Keep it short — a couple of sentences to a small paragraph, plus a one-line "what to do" if any user action is needed (e.g. re-login). Skip this note only for pure internal work with zero user-visible effect (e.g. refactors, internal tooling, CLAUDE.md edits) — state explicitly that it's being skipped and why.
 
 ---
 

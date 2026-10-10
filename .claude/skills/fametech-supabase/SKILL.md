@@ -1,9 +1,9 @@
 ---
-name: kingflexy-supabase
-description: Supabase patterns for KiNG FLEXY GH — which client to use (route vs server vs admin), idempotency with PGRST116, RLS-aware queries, wallet operations, and common table names. Use when writing or reviewing any database code in this project.
+name: fametech-supabase
+description: Supabase patterns for FameTech — which client to use (route vs server vs admin), idempotency with PGRST116, RLS-aware queries, wallet operations, and common table names. Use when writing or reviewing any database code in this project.
 ---
 
-# KiNG FLEXY GH — Supabase Patterns
+# FameTech — Supabase Patterns
 
 ## Which client to use
 

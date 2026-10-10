@@ -8,7 +8,7 @@
  *   the shop key so one admin keyword protects both products).
  *
  * FAIL-CLOSED RULES (Stage-2 review):
- *  - Business mode NEVER falls back to the platform sender (KINGFLEXY). If no
+ *  - Business mode NEVER falls back to the platform sender (FameTech). If no
  *    approved own sender and no pool sender resolves, the send is refused.
  *  - The requested sender must belong to the account (approved) or the admin
  *    pool — anything else is INVALID_SENDER.
@@ -192,7 +192,7 @@ export interface PolicyAccountInput {
     business_on_hold: boolean
 }
 
-const PLATFORM_SENDER = () => (process.env.HUBTEL_SENDER_ID || 'KINGFLEXY').substring(0, 11)
+const PLATFORM_SENDER = () => (process.env.HUBTEL_SENDER_ID || 'FameTech').substring(0, 11)
 
 /**
  * Resolve the effective policy for a send. `senderRows` = the account's

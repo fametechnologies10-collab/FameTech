@@ -24,7 +24,7 @@ export const CATEGORY_DESCRIPTION: Record<NotificationCategory, string> = {
     orders: 'Order status & fulfilment updates',
     payments: 'Wallet credits, debits & payment receipts',
     support: 'Replies to your complaints & support chats',
-    announcements: 'Platform-wide alerts from KiNG FLEXY',
+    announcements: 'Platform-wide alerts from FameTech',
     system: 'Account, role & general notices',
 }
 

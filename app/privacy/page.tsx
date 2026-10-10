@@ -61,7 +61,7 @@ export default function PrivacyPage() {
                                 <ul className="list-disc space-y-1 pl-5">
                                     <li>Process and fulfill your orders instantly.</li>
                                     <li>Send transactional SMS alerts and emails (e.g., order success, wallet top-ups).</li>
-                                    <li>Manage your Flexy-Wallet and Agent status.</li>
+                                    <li>Manage your FameTech Wallet and Agent status.</li>
                                     <li>Provide customer support and resolve disputes.</li>
                                 </ul>
                             </div>

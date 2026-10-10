@@ -116,7 +116,7 @@ const DUMMY_HASH = bcrypt.hashSync('___not_a_real_api_key___', 10)
 // version. The version segment is matched as a wildcard on purpose: hardcoding
 // /api/v1/... here would silently fail OPEN when v2 routes land (a standard key
 // would be allowed into /api/v2/utilities/*, and a commission key would be 403'd
-// on its own endpoint). See .claude/skills/kingflexy-developer-api/SKILL.md.
+// on its own endpoint). See .claude/skills/fametech-developer-api/SKILL.md.
 const RESTRICTED_SCOPES: Record<'commission' | 'sms', RegExp> = {
     commission: /^\/api\/v\d+\/(?:utilities|airtime)(?:\/|$)/,
     sms: /^\/api\/v\d+\/sms(?:\/|$)/,

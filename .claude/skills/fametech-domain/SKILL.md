@@ -1,9 +1,9 @@
 ---
-name: kingflexy-domain
-description: Ghana telecom domain knowledge for KiNG FLEXY GH — user roles, pricing tiers, network operators, product types, wallet system, and agent/dealer business logic. Use when reasoning about business logic, pricing, order flows, or user permissions.
+name: fametech-domain
+description: Ghana telecom domain knowledge for FameTech — user roles, pricing tiers, network operators, product types, wallet system, and agent/dealer business logic. Use when reasoning about business logic, pricing, order flows, or user permissions.
 ---
 
-# KiNG FLEXY GH — Domain Knowledge
+# FameTech — Domain Knowledge
 
 ## User roles (hierarchy: admin > sub-admin > dealer > agent > customer)
 

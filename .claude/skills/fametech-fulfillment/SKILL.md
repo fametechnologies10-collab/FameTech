@@ -1,9 +1,9 @@
 ---
-name: kingflexy-fulfillment
-description: Fulfillment patterns for KiNG FLEXY GH — DataKazina API integration, network IDs, circuit breaker, bundle mapping cache, and Paystack webhook handling. Use when working with order fulfillment, data bundle purchases, or payment webhooks.
+name: fametech-fulfillment
+description: Fulfillment patterns for FameTech — DataKazina API integration, network IDs, circuit breaker, bundle mapping cache, and Paystack webhook handling. Use when working with order fulfillment, data bundle purchases, or payment webhooks.
 ---
 
-# KiNG FLEXY GH — Fulfillment Patterns
+# FameTech — Fulfillment Patterns
 
 ## Primary fulfillment provider: DataKazina
 
@@ -434,4 +434,4 @@ Do all twenty-five of these in the SAME PR that adds the supplier, not as a foll
   behind `/api/v2/data/purchase`, and formerly `/api/v1` too before it was
   removed) now calls `lib/fulfillment-trigger.ts` directly, the same
   canonical, full-registry dispatch function the web purchase route uses. See
-  `kingflexy-developer-api` for the current developer-API handler layout.
+  `fametech-developer-api` for the current developer-API handler layout.

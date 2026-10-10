@@ -1,13 +1,13 @@
 ﻿---
-name: kingflexy-workflow
-description: KiNG FLEXY GH project-specific dev gates that layer on top of superpowers' engineering workflow â€” a fintech security audit, a Postman docs sync for the public v2 API, and a TypeScript/lint QA gate before any push. Invoke alongside superpowers on Tier 2 work in this repo.
+name: fametech-workflow
+description: FameTech project-specific dev gates that layer on top of superpowers' engineering workflow â€” a fintech security audit, a Postman docs sync for the public v2 API, and a TypeScript/lint QA gate before any push. Invoke alongside superpowers on Tier 2 work in this repo.
 ---
 
-# KiNG FLEXY Project-Specific Gates
+# FameTech Project-Specific Gates
 
 This project uses `superpowers` for the generic engineering lifecycle â€” brainstorming, planning, worktrees, subagent-driven-development, TDD, code review, and finishing a branch. Don't duplicate that here.
 
-This skill adds only the three things superpowers doesn't know about: KiNG FLEXY's fintech security checklist, its QA/push checklist, and its public-API docs sync. All slot into superpowers' existing checkpoints â€” they are not a separate parallel process.
+This skill adds only the three things superpowers doesn't know about: FameTech's fintech security checklist, its QA/push checklist, and its public-API docs sync. All slot into superpowers' existing checkpoints â€” they are not a separate parallel process.
 
 Applies to **Tier 2** work only (see CLAUDE.md). Tier 0/1 tasks skip this skill.
 
@@ -37,9 +37,9 @@ Trigger: any file under `app/api/v2/**` added, removed, or changed in a way that
 **Scope â€” `app/api/v2/**` only.** Never include `admin/`, `shop/`, `cron/`, `auth/`, `user/`, or `webhooks/` routes. Those are internal; publishing them exposes the platform's attack surface. If a task seems to call for documenting a non-v2 route publicly, stop and ask the user.
 
 1. Update the spec by hand at `postman/specs/openapi.yaml` (this is the actual live spec location, already synced to the existing Postman workspace â€” not a fresh generation). For a genuinely new project with no existing spec, start with `Skill("postman:api-engineer")`, which routes to `postman:api-documentation` (spec/collection authoring) and `postman:bootstrap` (first-time CLI/workspace setup). (Corrected 2026-09-29 â€” `postman:generate-spec`/`postman:sync`/`postman:docs` no longer exist under those names.)
-1b. **Re-copy the spec to `public/openapi.yaml`** (served at `kingflexygh.com/openapi.yaml` for AI agents and `llms.txt`), and update `lib/developer-products.ts` if an endpoint was added or renamed. `npx tsx scripts/check-ai-discoverability.ts` fails if the two spec copies drift or a listed endpoint is missing from the spec.
+1b. **Re-copy the spec to `public/openapi.yaml`** (served at `fametechgh.com/openapi.yaml` for AI agents and `llms.txt`), and update `lib/developer-products.ts` if an endpoint was added or renamed. `npx tsx scripts/check-ai-discoverability.ts` fails if the two spec copies drift or a listed endpoint is missing from the spec.
 2. Push the spec and sync the collection via the Postman MCP tools directly: find the existing spec/collection/workspace with `searchPostmanElements`, push with `updateSpecFile`, then `syncCollectionWithSpec`.
-3. Publish the docs page with `publishDocumentation` â€” **always pass `customization.appearance.themes[*].logo = "https://kingflexygh.com/logo.png"` on both light and dark themes**, or the owner's logo is dropped on that publish.
+3. Publish the docs page with `publishDocumentation` â€” **always pass `customization.appearance.themes[*].logo = "https://fametechgh.com/logo.png"` on both light and dark themes**, or the owner's logo is dropped on that publish.
 4. Confirm before moving on:
    - Every new/changed v2 endpoint appears with correct method, path, and auth scheme
    - No non-v2 path leaked into the spec
@@ -72,6 +72,6 @@ All three must pass before push. Never force-push to `main`.
 ## Also always apply
 
 - `new-api-route` for API route scaffolding
-- `kingflexy-supabase` for all database operations
-- `kingflexy-fulfillment` for all fulfillment API calls
-- `kingflexy-domain` for business logic involving roles or pricing
+- `fametech-supabase` for all database operations
+- `fametech-fulfillment` for all fulfillment API calls
+- `fametech-domain` for business logic involving roles or pricing

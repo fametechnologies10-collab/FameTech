@@ -1,19 +1,19 @@
 ---
-name: kingflexy-developer-api
-description: The public developer API surface for KiNG FLEXY GH (/api/v2/ — the only version; v1 was retired and removed) — key-type scoping, the idempotency/race pattern, rate limiting, and webhook signing. Use when adding or changing any app/api/v2/** route.
+name: fametech-developer-api
+description: The public developer API surface for FameTech (/api/v2/ — the only version; v1 was retired and removed) — key-type scoping, the idempotency/race pattern, rate limiting, and webhook signing. Use when adding or changing any app/api/v2/** route.
 ---
 
-# KiNG FLEXY GH — Developer API (v2)
+# FameTech — Developer API (v2)
 
 This skill covers the *public* developer API specifically. For general route
 auth-model selection (session vs. developer-API vs. cron), see
-`kingflexy-api-routes` first.
+`fametech-api-routes` first.
 
 ## Versioning: v2 only
 
 `/api/v1/**` was removed (v1 had no more integrator uptake worth carrying the
 dead-code cost of a parallel version). `/api/v2/**` — base URL
-`https://api.kingflexygh.com/api/v2` — is now the only developer API surface.
+`https://api.fametechgh.com/api/v2` — is now the only developer API surface.
 
 Path predicates live in `lib/api-version.ts` (`isV2Path`). The prefix constant
 carries a TRAILING SLASH on purpose — that is what stops `/api/v2x/...` and
@@ -111,7 +111,7 @@ silently share one sliding window and each judge that shared counter against
 its own threshold. That was a real bug here (all 65 instances defaulted to the
 same prefix). It is fixed, and `scripts/test-ratelimit-prefixes.ts` enforces
 this — it is wired into `npm run test:guards`, which `npm run audit:all` and
-the `kingflexy-workflow` QA gate both run. Run it after adding or renaming any
+the `fametech-workflow` QA gate both run. Run it after adding or renaming any
 limiter.
 
 Note that identifiers still matter independently of prefixes: `rateLimiters.general`

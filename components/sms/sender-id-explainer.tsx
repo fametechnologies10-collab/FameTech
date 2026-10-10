@@ -28,7 +28,7 @@ export function SenderIdExplainer({
                 <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
                     A <strong>sender ID</strong> is the name customers see instead of a phone number when you SMS
                     them — e.g. <span className="font-mono font-semibold">&quot;KFT Shop&quot;</span> (max 11 characters).
-                    Request your own so order confirmations arrive from <strong>your brand</strong>, not KINGFLEXY.
+                    Request your own so order confirmations arrive from <strong>your brand</strong>, not FameTech.
                 </p>
             </div>
         )

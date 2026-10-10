@@ -1,10 +1,10 @@
 ---
-name: kingflexy-cron
-description: KiNG FLEXY GH cron jobs — all endpoints, their schedules, security pattern, and how scheduling actually works (external cron-job.org, not GitHub Actions). Use when working on any cron route or setting up a new scheduled task.
+name: fametech-cron
+description: FameTech cron jobs — all endpoints, their schedules, security pattern, and how scheduling actually works (external cron-job.org, not GitHub Actions). Use when working on any cron route or setting up a new scheduled task.
 user-invocable: false
 ---
 
-# KiNG FLEXY Cron Jobs
+# FameTech Cron Jobs
 
 ## Security Pattern (ALL cron routes)
 

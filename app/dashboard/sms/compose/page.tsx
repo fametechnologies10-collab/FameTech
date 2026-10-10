@@ -383,7 +383,7 @@ export default function SmsComposePage() {
 
     // The fixed platform sender — resolvable from the server's default-path
     // policy (no requestedSender) even when the account can't currently send.
-    const platformSenderValue = data?.policy.sender || data?.account.default_sender || 'KINGFLEXY'
+    const platformSenderValue = data?.policy.sender || data?.account.default_sender || 'FameTech'
 
     // Initialise the sender pick once the account arrives. Business mode:
     // only ever selects an approved own sender or a pool sender — never an
@@ -408,7 +408,7 @@ export default function SmsComposePage() {
         }
     }, [data, senderOptions, platformSenderValue])
 
-    const effectiveSender = sender || data?.policy.sender || data?.account.default_sender || 'KiNG FLEXY'
+    const effectiveSender = sender || data?.policy.sender || data?.account.default_sender || 'FameTech'
 
     const scheduleMin = toLocalInputValue(new Date(Date.now() + 2 * 60_000))
     const scheduleMax = toLocalInputValue(new Date(Date.now() + 30 * 86_400_000))

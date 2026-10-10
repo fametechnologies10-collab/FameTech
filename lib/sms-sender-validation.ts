@@ -13,7 +13,7 @@ export const SENDER_TEXT_RE = /^[A-Za-z0-9 ]{3,11}$/
 
 /** Brands that may never appear in a tenant sender ID. */
 const RESERVED_BRANDS = [
-    'kingflexy', 'kfgsms', 'kft', 'kftsms',
+    'fametech', 'fametechgh', 'fametechsms', 'kingflexy', 'kfgsms', 'kft', 'kftsms',
     'mtn', 'telecel', 'vodafone', 'airteltigo', 'atmoney', 'tigo',
     'momo', 'mobilemoney', 'hubtel', 'paystack', 'moolre', 'mnotify',
     'gcb', 'ecobank', 'fidelity', 'absa', 'stanbic', 'calbank',

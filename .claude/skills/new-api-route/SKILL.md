@@ -1,12 +1,12 @@
 ---
 name: new-api-route
-description: Scaffold a new KiNG FLEXY API route with correct auth, Supabase client selection, rate limiting, and response shape. Use when creating any new app/api/** route handler.
+description: Scaffold a new FameTech API route with correct auth, Supabase client selection, rate limiting, and response shape. Use when creating any new app/api/** route handler.
 user-invocable: false
 ---
 
-# New API Route — KiNG FLEXY GH
+# New API Route — FameTech
 
-Always invoke `kingflexy-api-routes` for the full auth/rate-limit rules. This skill provides the code template.
+Always invoke `fametech-api-routes` for the full auth/rate-limit rules. This skill provides the code template.
 
 ## Choose the Right Template
 

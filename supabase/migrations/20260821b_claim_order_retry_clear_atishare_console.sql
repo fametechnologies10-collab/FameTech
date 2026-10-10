@@ -7,7 +7,7 @@
 -- orders.atishare_console_transaction_id (AT-iShare Console's client_reference we send
 -- and the EXTQ_... transaction id they return) without teaching this RPC's in-place
 -- retry branch to null them. That is EXACTLY the omission the "Adding a new supplier"
--- checklist in .claude/skills/kingflexy-fulfillment/SKILL.md item 2 exists to prevent,
+-- checklist in .claude/skills/fametech-fulfillment/SKILL.md item 2 exists to prevent,
 -- and which has already bitten Bundle Portal (2026-08-16), HendyLinks (2026-08-19) and
 -- DataKazina (2026-08-20) before this.
 --

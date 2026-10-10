@@ -19,7 +19,7 @@ COMMENT ON COLUMN public.shop_sms_activations.sms_suspended IS
     'Admin abuse switch — when true the shop cannot send SMS. Admin-write only.';
 
 -- 2. Extra allowed link domains (comma-separated host list).
---    ADDITIVE to the built-in KiNG FLEXY + social allowlist baked into
+--    ADDITIVE to the built-in FameTech + social allowlist baked into
 --    lib/sms-content-filter.ts (WhatsApp / Facebook / Instagram / X / Telegram).
 --    Lets admins permit e.g. tiktok.com or youtube.com without a deploy.
 --    Empty string = built-in defaults only. Read by the send route and editable

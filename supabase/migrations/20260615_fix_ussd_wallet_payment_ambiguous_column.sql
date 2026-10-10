@@ -1,5 +1,5 @@
 -- ============================================================
--- Fix: USSD "Pay with Flexy-Wallet" always failed for registered users
+-- Fix: USSD "Pay with FameTech Wallet" always failed for registered users
 --
 -- process_ussd_wallet_payment() declares RETURNS TABLE(wallet_id, ...),
 -- which makes `wallet_id` an OUT-parameter VARIABLE in scope for the

@@ -552,7 +552,7 @@ export default function SmsBusinessPage() {
                                     id="biz-name"
                                     value={businessName}
                                     onChange={e => setBusinessName(e.target.value.slice(0, 120))}
-                                    placeholder="e.g. Flexy Data Hub"
+                                    placeholder="e.g. Kofi Data Hub"
                                     maxLength={120}
                                     autoComplete="organization"
                                     className="h-11"
@@ -945,7 +945,7 @@ export default function SmsBusinessPage() {
                                                         setSenderError(null)
                                                         setSenderText(e.target.value.replace(/[^A-Za-z0-9 ]/g, '').slice(0, 11))
                                                     }}
-                                                    placeholder="e.g. FLEXYHUB"
+                                                    placeholder="e.g. KOFIHUB"
                                                     maxLength={11}
                                                     autoComplete="off"
                                                     className="h-11 font-mono text-sm pr-12"
@@ -1016,7 +1016,7 @@ export default function SmsBusinessPage() {
                                 </p>
                                 <ul className="text-[11px] text-muted-foreground space-y-1">
                                     <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> Send instantly, no paperwork</li>
-                                    <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> KINGFLEXY pool sender ID</li>
+                                    <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> FameTech pool sender ID</li>
                                     <li className="flex gap-1.5"><Check className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> fametechgh links only</li>
                                     <li className="flex gap-1.5"><ShieldCheck className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" /> Standard content filtering</li>
                                 </ul>

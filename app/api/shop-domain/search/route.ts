@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js'
  *     (lib/ussd/shop-resolver.ts), so disabling a shop's USSD also stops its
  *     code from resolving here.
  *
- * Partial matches (e.g. "KING" when shop is "KING FLEXY") are intentionally
+ * Partial matches (e.g. "KING" when shop is "KING FAME") are intentionally
  * rejected, treating them as "no results found". This prevents enumeration.
  */
 export async function GET(request: Request) {

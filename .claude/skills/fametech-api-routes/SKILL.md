@@ -1,9 +1,9 @@
 ---
-name: kingflexy-api-routes
-description: API route conventions for KiNG FLEXY GH — how to auth user routes vs developer API (/api/v2/) vs cron jobs, response shapes, rate limiting, and CORS. Use when writing or reviewing any app/api/** route handler.
+name: fametech-api-routes
+description: API route conventions for FameTech — how to auth user routes vs developer API (/api/v2/) vs cron jobs, response shapes, rate limiting, and CORS. Use when writing or reviewing any app/api/** route handler.
 ---
 
-# KiNG FLEXY GH — API Route Patterns
+# FameTech — API Route Patterns
 
 ## Three auth models
 
@@ -17,7 +17,7 @@ if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 ```
 
 ### 2. Developer API routes (`/api/v2/**`)
-> Key-type scoping, the idempotency/race pattern, and the rate-limiting convention all live in `kingflexy-developer-api`. Read that skill first for anything under `app/api/v2/**` — the guidance below is the generic route-auth shape only.
+> Key-type scoping, the idempotency/race pattern, and the rate-limiting convention all live in `fametech-developer-api`. Read that skill first for anything under `app/api/v2/**` — the guidance below is the generic route-auth shape only.
 
 ```ts
 import { validateApiKey, isApiError, apiSuccess, apiError, logApiRequest } from '@/lib/api-auth'
@@ -66,7 +66,7 @@ Check roles from `lib/roles.ts`. For API access, check `admin_settings.api_allow
 
 ## CORS
 
-CORS is handled in `middleware.ts`. The allowlist is `kingflexygh.com` in production and `localhost` variants in dev. Route handlers do not need to set CORS headers themselves.
+CORS is handled in `middleware.ts`. The allowlist is `fametechgh.com` in production and `localhost` variants in dev. Route handlers do not need to set CORS headers themselves.
 
 ## Gotchas
 

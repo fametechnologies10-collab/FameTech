@@ -314,7 +314,7 @@ export default function ShopUssdPage() {
                     <div className="space-y-3">
                         <p className="text-sm text-muted-foreground">
                             Activate your USSD shop code so customers can buy from your shop directly on
-                            USSD — no KiNG FLEXY account needed.
+                            USSD — no FameTech account needed.
                         </p>
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             One-time fee:{' '}

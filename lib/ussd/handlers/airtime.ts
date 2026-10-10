@@ -300,8 +300,8 @@ async function handleConfirm(req: HubtelRequest, state: USSDState, supabase: Sup
     if (user) {
         const balance = user.walletBalance ?? 0
         const balanceLine = balance >= state.price!
-            ? `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`
-            : '2. Flexy-Wallet (Insufficient)'
+            ? `2. FameTech Wallet (Bal: ${formatGHS(balance)})`
+            : '2. FameTech Wallet (Insufficient)'
         return respond(req.SessionId, ['HOW TO PAY:', '1. Mobile Money (MoMo)', balanceLine, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
     }
 
@@ -359,12 +359,12 @@ async function handlePaymentMethod(req: HubtelRequest, state: USSDState, supabas
     }
 
     if (choice === '2') {
-        // Flexy-Wallet
+        // FameTech Wallet
         if (!user || !user.walletId) return release(req.SessionId, 'Wallet not available. Please try again.')
         const balance = user.walletBalance ?? 0
         const price = state.price!
         if (balance < price) {
-            return respond(req.SessionId, ['Insufficient wallet balance.', '', '1. Mobile Money', `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
+            return respond(req.SessionId, ['Insufficient wallet balance.', '', '1. Mobile Money', `2. FameTech Wallet (Bal: ${formatGHS(balance)})`, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
         }
 
         const supabaseAdmin = createAdminClient()
@@ -380,7 +380,7 @@ async function handlePaymentMethod(req: HubtelRequest, state: USSDState, supabas
 
         if (!result.success) {
             if (result.error === 'INSUFFICIENT_BALANCE') {
-                return respond(req.SessionId, ['Insufficient wallet balance.', '', '1. Mobile Money', `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
+                return respond(req.SessionId, ['Insufficient wallet balance.', '', '1. Mobile Money', `2. FameTech Wallet (Bal: ${formatGHS(balance)})`, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
             }
             return release(req.SessionId, 'Payment failed. Please try again.')
         }
@@ -422,6 +422,6 @@ async function handlePaymentMethod(req: HubtelRequest, state: USSDState, supabas
 
     // Invalid choice — re-show payment menu.
     const balance = user?.walletBalance ?? 0
-    const balanceLine = balance >= state.price! ? `2. Flexy-Wallet (Bal: ${formatGHS(balance)})` : '2. Flexy-Wallet (Insufficient)'
+    const balanceLine = balance >= state.price! ? `2. FameTech Wallet (Bal: ${formatGHS(balance)})` : '2. FameTech Wallet (Insufficient)'
     return respond(req.SessionId, ['HOW TO PAY:', '1. Mobile Money (MoMo)', balanceLine, '0. Cancel'].join('\n'), { ...state, step: 'airtime_payment_method' }, 'Payment Method')
 }

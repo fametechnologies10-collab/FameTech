@@ -2,7 +2,7 @@
 -- USSD wallet payment idempotency + atomic debit-and-log RPC
 --
 -- Stage 4 security audit (2026-06-14) found that the USSD
--- "Pay with Flexy-Wallet" feature was not idempotent against
+-- "Pay with FameTech Wallet" feature was not idempotent against
 -- Hubtel gateway retries: a retried Response could call
 -- deduct_wallet_balance twice for the same purchase, and the
 -- wallet_transactions insert (the audit trail) was a separate,

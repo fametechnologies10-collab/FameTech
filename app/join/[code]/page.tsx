@@ -10,7 +10,7 @@ import { toast } from '@/lib/toast'
 import { Loader2, Store, CheckCircle2, ShieldCheck } from 'lucide-react'
 
 // De-branded sub-agent onboarding (spec §9, §12). Carries the UPLINE Lead's brand —
-// deliberately NO KiNG FLEXY branding. Reuses the platform auth backend
+// deliberately NO FameTech branding. Reuses the platform auth backend
 // (/api/auth/login, /api/auth/signup) then redeems the invite (/api/join).
 
 interface Preview { valid: boolean; shopName?: string; logoUrl?: string | null; brandColor?: string | null }

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.website_requests (
   features          jsonb,
   description       text NOT NULL,
   -- Free text, not a strict URL: clients describe references however they like
-  -- ("jumia.com.gh", "something like KiNG FLEXY GH", "hubtel + a booking page").
+  -- ("jumia.com.gh", "something like FameTech", "hubtel + a booking page").
   reference_sites   text,
   timeline          text CHECK (timeline IN ('asap', '1_month', '2_3_months', 'flexible')),
   contact_phone     text NOT NULL,

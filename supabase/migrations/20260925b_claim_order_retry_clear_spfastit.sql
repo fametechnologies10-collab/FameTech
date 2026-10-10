@@ -4,7 +4,7 @@
 --
 -- 20260925_spfastit_columns.sql added orders.spfastit_reference without teaching this RPC's
 -- in-place retry branch to null it — exactly the omission the "Adding a new supplier"
--- checklist in .claude/skills/kingflexy-fulfillment/SKILL.md item 2 exists to prevent.
+-- checklist in .claude/skills/fametech-fulfillment/SKILL.md item 2 exists to prevent.
 -- Function body otherwise byte-identical to 20260821b_claim_order_retry_clear_atishare_console.sql.
 -- ============================================================================
 

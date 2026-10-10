@@ -11,7 +11,7 @@ import { Loader2, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react'
 // Neutral partner portal (spec 2026-07-06). The de-branded front door of the
 // store domain: a guest types (or pastes) their shop owner's invite code and is
 // routed into the owner-branded onboarding at /join/[code]. Deliberately carries
-// NO KiNG FLEXY branding — see app/join/layout.tsx for the de-branded metadata.
+// NO FameTech branding — see app/join/layout.tsx for the de-branded metadata.
 
 // Accept a bare code OR a pasted full invite link — extract the trailing segment.
 function extractCode(raw: string): string {

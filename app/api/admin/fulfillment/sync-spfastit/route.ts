@@ -18,7 +18,7 @@ async function runInChunks<T>(items: T[], worker: (item: T) => Promise<void>) {
  * Admin-triggered twin of app/api/cron/sync-spfastit-status/route.ts — same query, same
  * per-order lookup, same double-filtered UPDATE (status='processing' AND
  * fulfillment_method='spfastit'), same side-effect gating on rows actually affected. Per
- * kingflexy-fulfillment checklist item 23, a route and its cron twin must gate identically;
+ * fametech-fulfillment checklist item 23, a route and its cron twin must gate identically;
  * this is deliberately NOT a hand-rolled reimplementation of that logic, to keep the two from
  * drifting apart the way Bundle Portal's admin/cron pair once did.
  */

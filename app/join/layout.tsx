@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 // De-branded metadata for the sub-agent onboarding surface (audit finding #4).
-// The /join pages are the one place explicitly meant to hide the KiNG FLEXY
+// The /join pages are the one place explicitly meant to hide the FameTech
 // identity, but as client components they inherit the root layout's KFG title,
 // favicon and OpenGraph card — leaking the brand in browser tabs and WhatsApp/
 // Facebook link unfurls. This server layout overrides that metadata for /join

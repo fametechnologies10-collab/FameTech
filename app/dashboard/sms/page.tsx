@@ -196,7 +196,7 @@ export default function SmsOverviewPage() {
             if (res.ok && json?.success) {
                 toast.success(next
                     ? 'Your order confirmations will now send from your sender ID'
-                    : 'Order confirmations switched back to KINGFLEXY')
+                    : 'Order confirmations switched back to FameTech')
             } else {
                 setUseOwnSender(prev)
                 toast.error(json?.error || 'Could not update this setting')
@@ -416,7 +416,7 @@ export default function SmsOverviewPage() {
                                     <div className="min-w-0">
                                         <p className="text-sm font-bold">Use my sender ID for order confirmations</p>
                                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                                            Your data, airtime and results-checker purchase confirmations will arrive from your approved sender ID instead of KINGFLEXY.
+                                            Your data, airtime and results-checker purchase confirmations will arrive from your approved sender ID instead of FameTech.
                                         </p>
                                     </div>
                                 </div>
