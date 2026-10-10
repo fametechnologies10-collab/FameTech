@@ -65,7 +65,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
 
     return (
         <header className={cn(
-            "fixed top-0 left-0 z-40 h-16 ft-card transition-all duration-300 ease-in-out",
+            "fixed top-0 left-0 z-40 h-16 bg-[var(--ft-raised-bg)] text-[var(--ft-ink)] border-b border-[var(--ft-edge)] transition-all duration-300 ease-in-out",
             "w-full lg:left-80 lg:w-[calc(100%-20rem)]",
             isCollapsed && "lg:left-20 lg:w-[calc(100%-5rem)]"
         )}>

@@ -86,7 +86,7 @@ export function FloatingRefreshButton() {
             className={cn(
                 "fixed z-[9999] flex h-14 w-14 items-center justify-center rounded-full",
                 "ft-soft text-foreground",
-                "transition-all hover:brightness-[0.97] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "transition-all hover:bg-foreground/5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 "disabled:opacity-80 cursor-grab active:cursor-grabbing select-none touch-none"
             )}
             aria-label="Refresh (drag to move)"

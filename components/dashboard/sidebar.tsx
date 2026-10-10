@@ -256,12 +256,12 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
         '--tw-ring-color': theme.ring
     } as CSSProperties
 
-    // One shared nav look for every role: flat row, active = inset tray + 3px FT blue marker + semibold
+    // One shared nav look for every role: flat row, active = tinted bg + 3px FT blue marker + semibold
     const navLinkClass = "block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     const navRowClass = (active?: boolean) => cn(
         "relative flex items-center gap-2.5 px-3 py-2 min-h-10 rounded-xl text-sm transition-colors duration-200",
         active
-            ? "ft-field font-semibold text-foreground before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-[var(--ft-blue)] dark:before:bg-[var(--ft-cyan)]"
+            ? "bg-primary/10 dark:bg-primary/15 font-semibold text-foreground before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-[var(--ft-blue)] dark:before:bg-[var(--ft-cyan)]"
             : "font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
         isCollapsed && "justify-center px-2"
     )
@@ -283,10 +283,10 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out ft-card rounded-r-2xl text-foreground",
+                    "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out bg-[var(--ft-raised-bg)] border-r border-[var(--ft-edge)] text-foreground",
                     isCollapsed ? "w-20" : "w-80",
                     "lg:transform-none",
-                    isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 max-lg:[--ft-card-shadow:0_0_#0000]"
+                    isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
                 )}
             >
 
@@ -341,12 +341,12 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
 
                 {/* Role crest + profile widget */}
                 {!isCollapsed && dbUser && (
-                    <div className="mx-4 mt-6 p-4 rounded-2xl ft-soft">
+                    <div className="mx-4 mt-6 p-4 rounded-2xl bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)]">
                         {/* User Info Row */}
                         <div className="flex items-center gap-3.5 mb-4">
                             {/* Avatar with role ring and role icon */}
                             <div
-                                className="relative w-12 h-12 rounded-full flex items-center justify-center ft-field ring-[3px] ring-offset-2 ring-offset-[var(--ft-raised-bg)] text-[var(--chip-fg)] dark:text-[var(--chip-fg-d)]"
+                                className="relative w-12 h-12 rounded-full flex items-center justify-center bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)] ring-[3px] ring-offset-2 ring-offset-[var(--ft-raised-bg)] text-[var(--chip-fg)] dark:text-[var(--chip-fg-d)]"
                                 style={roleVars}
                             >
                                 <RoleIcon className="w-6 h-6" />
@@ -405,7 +405,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                         {dbUser?.role === 'dealer' ? (
                             <div className="mt-3 space-y-2">
                                 {dealerDaysRemaining !== null && (
-                                    <div className="p-3 rounded-xl ft-field">
+                                    <div className="p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
                                         <p className="text-xs text-muted-foreground font-semibold mb-1">
                                             Dealer plan
                                         </p>
@@ -434,7 +434,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                             <div className="mt-3 space-y-2">
                                 {/* Days Remaining Display */}
                                 {daysRemaining !== null && (
-                                    <div className="p-3 rounded-xl ft-field">
+                                    <div className="p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
                                         <p className="text-xs text-muted-foreground font-semibold mb-1">
                                             Plan status
                                         </p>
@@ -474,7 +474,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                         )}
 
                         {/* Wallet Section */}
-                        <div className="mt-3 flex items-center justify-between p-3 rounded-xl ft-field">
+                        <div className="mt-3 flex items-center justify-between p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
                             <div>
                                 <p className="text-xs font-semibold text-muted-foreground mb-0.5">Balance</p>
                                 <p className="text-lg font-bold tracking-tight text-foreground">{formatCurrency(walletBalance)}</p>
