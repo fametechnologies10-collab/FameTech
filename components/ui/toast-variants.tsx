@@ -78,7 +78,7 @@ export function SplitPanelToast({ id, title, type, duration, brand = 'FameTech' 
          * Shadow: subtle depth (works in both themes) + faint type-color glow.
          * Avoid rgba(0,0,0,>0.2) — too harsh in light mode.
          */
-        boxShadow: `var(--ft-shadow-raised), 0 0 20px ${colors.shadow}`,
+        boxShadow: 'var(--ft-shadow-float)',
         animation: 'kf-toast-in 0.4s cubic-bezier(0.16,1,0.3,1) both',
       }}
     >

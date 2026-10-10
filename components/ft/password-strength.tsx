@@ -17,10 +17,10 @@ const LABELS: Record<ActiveLevel, string> = {
 }
 
 const FILLS: Record<ActiveLevel, string> = {
-    weak: 'linear-gradient(135deg, #E5484D 0%, #F26A6E 100%)',
-    fair: 'linear-gradient(135deg, #F5A524 0%, #F7B955 100%)',
-    good: 'linear-gradient(135deg, var(--ft-blue) 0%, #0A66FF 100%)',
-    strong: 'linear-gradient(135deg, #00C8FF 0%, #12D18E 100%)',
+    weak: '#E5484D',
+    fair: '#F5A524',
+    good: 'var(--ft-blue)',
+    strong: '#12D18E',
 }
 
 function strengthSegments(level: StrengthLevel): number {
@@ -53,11 +53,11 @@ export function PasswordStrength({ password, className }: PasswordStrengthProps)
         <div className={empty ? 'sr-only' : cn('space-y-3', className)}>
             <div className="flex items-center gap-3">
                 {!empty && (
-                    <div className="ft-inset flex flex-1 gap-1.5 p-1.5" aria-hidden="true">
+                    <div className="flex flex-1 gap-1.5" aria-hidden="true">
                         {[0, 1, 2, 3].map((i) => (
                             <span
                                 key={i}
-                                className="h-2 flex-1 rounded-full"
+                                className="h-1.5 flex-1 rounded-full bg-[color:var(--ft-edge)]"
                                 style={i < filled ? { background: fill } : undefined}
                             />
                         ))}

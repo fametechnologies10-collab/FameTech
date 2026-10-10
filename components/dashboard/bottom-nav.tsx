@@ -276,7 +276,7 @@ export function BottomNav() {
                                                 {item.isActive && (
                                                     <motion.div
                                                         layoutId="kfg-active-pill"
-                                                        className="absolute inset-0 rounded-2xl ft-field"
+                                                        className="absolute inset-0 rounded-2xl bg-primary/10 dark:bg-primary/15"
                                                         transition={{ type: 'spring', stiffness: 500, damping: 42 }}
                                                     />
                                                 )}

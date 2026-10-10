@@ -60,11 +60,11 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
                     <NeuCard className="relative z-10 p-6">
                         <div className="flex items-center justify-between gap-3">
                             <h2 className="ft-display text-lg font-extrabold text-ft-ink">Quick buy</h2>
-                            <span className="ft-inset px-3 py-1 text-xs font-semibold text-[color:var(--ft-muted)]">Preview</span>
+                            <span className="ft-raised px-3 py-1 text-xs font-semibold text-[color:var(--ft-muted)]">Preview</span>
                         </div>
                         <ul className="mt-4 flex flex-wrap gap-2" aria-label="Networks">
                             {PREVIEW_NETWORKS.map(n => (
-                                <li key={n.key} className="ft-inset flex min-h-12 items-center gap-2 px-3 text-sm font-semibold text-ft-ink">
+                                <li key={n.key} className="ft-raised flex min-h-12 items-center gap-2 px-3 text-sm font-semibold text-ft-ink">
                                     <NetworkIcon network={n.key} size={24} />
                                     {n.label}
                                 </li>
@@ -72,7 +72,7 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
                         </ul>
                         <ul className="mt-4 space-y-2" aria-label="Sample bundles">
                             {rows.map(row => (
-                                <li key={row.size} className="ft-inset flex min-h-12 items-center justify-between gap-3 px-4 text-ft-ink">
+                                <li key={row.size} className="ft-raised flex min-h-12 items-center justify-between gap-3 px-4 text-ft-ink">
                                     <span className="font-semibold">{row.size}</span>
                                     {row.price && <span className="text-sm font-semibold text-[color:var(--ft-muted)]">GH₵ {row.price}</span>}
                                 </li>

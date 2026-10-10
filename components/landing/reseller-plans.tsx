@@ -60,7 +60,7 @@ export function ResellerPlans({ plans }: { plans: LandingAgentPlan[] }) {
                             <li key={plan.key} className="min-w-0">
                                 <NeuCard pressed={popular} className="flex h-full flex-col p-6">
                                     {plan.badge && (
-                                        <span className="ft-inset mb-3 inline-block max-w-full self-start break-words px-3 py-1 text-xs font-semibold text-ft-ink">
+                                        <span className="ft-raised mb-3 inline-block max-w-full self-start break-words px-3 py-1 text-xs font-semibold text-ft-ink">
                                             {plan.badge}
                                         </span>
                                     )}

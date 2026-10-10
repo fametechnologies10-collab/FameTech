@@ -25,8 +25,9 @@ function check(name: string, fn: () => void) {
 
 const STOPS = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
-check('slate 500 on clay >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['500'], '#E6ECF5') >= 4.5))
-check('slate 600 on clay >= 7', () => assert.ok(contrastRatio(FT_SLATE['600'], '#E6ECF5') >= 7))
+check('slate 500 on page >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['500'], '#F4F7FB') >= 4.5))
+check('slate 600 on page >= 7', () => assert.ok(contrastRatio(FT_SLATE['600'], '#F4F7FB') >= 7))
+check('slate ramp 50..300 is the Pro ramp', () => assert.deepEqual([FT_SLATE['50'], FT_SLATE['100'], FT_SLATE['200'], FT_SLATE['300']], ['#F7F9FC', '#EEF2F7', '#E2E8F0', '#C9D3E1']))
 check('slate 400 on Night >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['400'], '#0A0F1C') >= 4.5))
 check('white on blue 600 >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', FT_BLUE['600']) >= 4.5))
 check('white on #0A66FF >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', '#0A66FF') >= 4.5))
@@ -35,8 +36,8 @@ check('slate 600 on slate 50 >= 7', () => assert.ok(contrastRatio(FT_SLATE['600'
 check('slate 500 on slate 50 >= 4.5', () => assert.ok(contrastRatio(FT_SLATE['500'], FT_SLATE['50']) >= 4.5))
 check('blue 700 on blue 50 >= 4.5', () => assert.ok(contrastRatio(FT_BLUE['700'], FT_BLUE['50']) >= 4.5))
 check('indigo 700 on indigo 50 >= 4.5', () => assert.ok(contrastRatio(FT_INDIGO['700'], FT_INDIGO['50']) >= 4.5))
-check('cyan 600 on clay >= 4.5', () => assert.ok(contrastRatio(FT_CYAN['600'], '#E6ECF5') >= 4.5))
-check('cyan 700 on clay >= 7', () => assert.ok(contrastRatio(FT_CYAN['700'], '#E6ECF5') >= 7))
+check('cyan 600 on page >= 4.5', () => assert.ok(contrastRatio(FT_CYAN['600'], '#F4F7FB') >= 4.5))
+check('cyan 700 on page >= 7', () => assert.ok(contrastRatio(FT_CYAN['700'], '#F4F7FB') >= 7))
 check('white on cyan 600 >= 4.5', () => assert.ok(contrastRatio('#FFFFFF', FT_CYAN['600']) >= 4.5))
 
 check('500 stops are pairwise distinct (dE76 >= 15)', () => {

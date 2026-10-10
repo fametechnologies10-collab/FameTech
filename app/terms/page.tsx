@@ -29,11 +29,11 @@ export default async function TermsPage() {
     return (
         <div className={`ft ${ftFonts.className} ${ftFonts.variable} min-h-screen`}>
             <header className="sticky top-3 z-50 px-3 sm:px-6">
-                <div className="ft-raised mx-auto flex max-w-3xl items-center gap-2 rounded-[2rem] px-3 py-2">
+                <div className="ft-raised mx-auto flex max-w-3xl items-center gap-2 !rounded-2xl px-3 py-2">
                     <Link
                         href="/"
                         aria-label="Back to home"
-                        className="ft-inset flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ft-ink"
+                        className="ft-raised flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ft-ink"
                     >
                         <ArrowLeft className="h-5 w-5" aria-hidden="true" />
                     </Link>
@@ -56,7 +56,7 @@ export default async function TermsPage() {
                                 <h2 className="ft-display text-lg font-extrabold text-ft-ink">
                                     {i + 1}. {s.title}
                                     {s.badge ? (
-                                        <span className="ft-inset ml-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-xs font-semibold text-ft-ink">
+                                        <span className="ft-raised ml-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-xs font-semibold text-ft-ink">
                                             {s.badge}
                                         </span>
                                     ) : null}

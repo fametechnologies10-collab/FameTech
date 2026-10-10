@@ -6,12 +6,13 @@ export const viewport: Viewport = {
     maximumScale: 1,
     userScalable: false,
     themeColor: [
-        { media: '(prefers-color-scheme: light)', color: '#E6ECF5' },
+        { media: '(prefers-color-scheme: light)', color: '#F4F7FB' },
         { media: '(prefers-color-scheme: dark)', color: '#0A0F1C' },
     ],
     interactiveWidget: 'resizes-content',
 }
 import { ftFonts } from '@/lib/ft-fonts'
+import { FT_LITE_SCRIPT } from '@/lib/ft-lite'
 import './globals.css'
 import './ft.css'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -101,6 +102,7 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <head>
+                <script dangerouslySetInnerHTML={{ __html: FT_LITE_SCRIPT }} />
                 <link rel="preload" href="/logo.png" as="image" />
             </head>
             <body className={`${ftFonts.variable} ${ftFonts.className}`}>

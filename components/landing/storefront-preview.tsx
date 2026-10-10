@@ -47,7 +47,7 @@ export function StorefrontPreview({ guestUrl }: { guestUrl: string }) {
                         <p className="text-sm text-[color:var(--ft-muted)]">Example shop</p>
                         <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                             {SAMPLE.map(pkg => (
-                                <li key={pkg.network} className="ft-inset min-w-0 p-3">
+                                <li key={pkg.network} className="ft-raised min-w-0 p-3">
                                     <div className="flex items-center gap-2">
                                         <NetworkIcon network={pkg.network} size={30} />
                                         <span className="font-semibold text-ft-ink">{pkg.size}</span>

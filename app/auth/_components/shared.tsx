@@ -71,9 +71,9 @@ export function GoogleButton({ label, isLoading, onClick }: { label: string; isL
 export function OrDivider() {
     return (
         <div className="flex items-center gap-3" role="separator">
-            <div className="flex-1 h-0.5 rounded-full bg-[color:var(--ft-lo)] opacity-60" />
+            <div className="h-px flex-1 bg-[color:var(--ft-edge)]" />
             <span className="text-xs font-semibold text-[color:var(--ft-muted)] uppercase tracking-widest">or</span>
-            <div className="flex-1 h-0.5 rounded-full bg-[color:var(--ft-lo)] opacity-60" />
+            <div className="h-px flex-1 bg-[color:var(--ft-edge)]" />
         </div>
     )
 }
@@ -85,8 +85,10 @@ export function AuthAlert({ tone, children }: { tone: 'error' | 'warn' | 'info';
         <div
             role={tone === 'error' ? 'alert' : 'status'}
             className={cn(
-                'ft-inset flex items-start gap-3 border-l-4 px-4 py-3 text-sm font-semibold text-ft-ink',
-                tone === 'error' ? 'border-red-600 dark:border-red-400' : 'border-amber-500 dark:border-amber-400'
+                'flex items-start gap-3 rounded-lg border border-l-[3px] px-4 py-3 text-sm font-semibold text-ft-ink',
+                tone === 'error'
+                    ? 'border-red-200 border-l-red-600 bg-red-50 dark:border-red-400/25 dark:border-l-red-400 dark:bg-red-500/10'
+                    : 'border-amber-200 border-l-amber-500 bg-amber-50 dark:border-amber-400/25 dark:border-l-amber-400 dark:bg-amber-500/10'
             )}
         >
             <Icon

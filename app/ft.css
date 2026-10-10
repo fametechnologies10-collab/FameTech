@@ -1,4 +1,4 @@
-/* FameTech "FT Clay" design tokens: neumorphism + claymorphism, scoped to .ft */
+/* FameTech "FT Pro" design tokens: flat, bordered, professional. Scoped to .ft */
 
 .ft {
     background: var(--ft-surface);
@@ -9,21 +9,27 @@
 :root,
 .ft {
     color-scheme: light;
-    --ft-surface: #E6ECF5;
-    --ft-raised-bg: #E6ECF5;
+    --ft-surface: #F4F7FB;
+    --ft-raised-bg: #FFFFFF;
+    --ft-field-bg: #FFFFFF;
     --ft-ink: #0E1A33;
     --ft-muted: #46557A;
     --ft-blue: #0057FF;
     --ft-cyan: #00C8FF;
     --ft-night: #0A0F1C;
-    /* Light highlight is transparent on purpose: a white top-left glow reads as a halo
-       around cards on the clay surface. Raised/inset shadows keep only the soft dark half. */
-    --ft-hi: transparent;
-    --ft-lo: #B8C4D9;
-    --ft-clay-glow: rgba(0, 87, 255, 0.35);
-    --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
-    --ft-shadow-inset: inset -5px -5px 10px var(--ft-hi), inset 5px 5px 10px var(--ft-lo);
-    --ft-shadow-clay: inset 0 2px 3px rgba(120, 220, 255, 0.7), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
+    --ft-lo: #C9D3E1;
+    --ft-edge: #E2E8F0;
+    --ft-field-edge: #8695AF;
+    --ft-clay-glow: transparent;
+    --ft-shadow-raised: 0 1px 2px rgba(14, 26, 51, 0.06);
+    --ft-shadow-raised-hover: 0 8px 24px rgba(14, 26, 51, 0.12);
+    --ft-shadow-float: 0 8px 24px rgba(14, 26, 51, 0.12);
+    --ft-shadow-inset: 0 0 #0000;
+    --ft-shadow-clay: 0 1px 2px rgba(0, 30, 120, 0.25);
+    --ft-focus-edge: #0057FF;
+    --ft-focus-ring: 0 0 0 3px rgba(0, 87, 255, 0.16);
+    --ft-error-ring: 0 0 0 3px rgba(185, 28, 28, 0.14);
+    --ft-white-rgb: 255 255 255;
 }
 
 .dark,
@@ -31,52 +37,61 @@
     color-scheme: dark;
     --ft-surface: #0A0F1C;
     --ft-raised-bg: #0F1626;
+    --ft-field-bg: #0C1322;
     --ft-ink: #E8EEFB;
     --ft-muted: #A9B6D3;
-    --ft-hi: #18223A;
     --ft-lo: #070B15;
-    --ft-clay-glow: rgba(0, 200, 255, 0.28);
+    --ft-edge: rgba(120, 140, 190, 0.18);
+    --ft-field-edge: #51638A;
+    --ft-clay-glow: transparent;
+    --ft-shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --ft-shadow-raised-hover: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --ft-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --ft-shadow-inset: 0 0 #0000;
+    --ft-focus-edge: #4D9BFF;
+    --ft-focus-ring: 0 0 0 3px rgba(77, 155, 255, 0.22);
+    --ft-error-ring: 0 0 0 3px rgba(248, 113, 113, 0.20);
+    --ft-white-rgb: 255 255 255;
 }
 
 .ft-display {
     font-family: var(--font-ft-display), system-ui, sans-serif;
 }
 
-.ft :focus-visible {
-    outline: 3px solid var(--ft-blue);
-    outline-offset: 2px;
-}
-
-.dark .ft :focus-visible {
-    outline-color: var(--ft-cyan);
-}
-
-.ft-raised {
+/* Flat bordered surface. Unlayered, so box-shadow here is ring-safe by construction.
+   Base rule wrapped in :where() so its specificity drops to 0 and same-specificity
+   consumer utilities (rounded-full, border-2, border-l-4, ...) still win. */
+:where(.ft-raised) {
     background: var(--ft-raised-bg);
-    box-shadow: var(--ft-shadow-raised);
-    border-radius: 1.25rem;
+    box-shadow: var(--ft-shadow-raised), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    border: 1px solid var(--ft-edge);
+    border-radius: 0.75rem;
 }
 
-.ft-inset {
-    background: var(--ft-surface);
-    box-shadow: var(--ft-shadow-inset);
-    border-radius: 1.25rem;
+/* Bordered flat field (no inset shadow): fill + 1px field edge. Base rule :where()'d for the
+   same reason as .ft-raised above. */
+:where(.ft-inset) {
+    background: var(--ft-field-bg);
+    box-shadow: 0 0 #0000, var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    border: 1px solid var(--ft-field-edge);
+    border-radius: 0.75rem;
 }
 
-/* Text-bearing clay fill: white text stays >= 4.5:1 across the whole gradient
-   (worst stop #0A66FF = 4.82:1, #0057FF = 5.52:1). Cyan appears only as glow + top highlight. */
+/* Text-bearing solid blue (white text 5.52:1). */
 .ft-clay {
-    background: linear-gradient(135deg, var(--ft-blue) 0%, #0A66FF 100%);
-    box-shadow: var(--ft-shadow-clay);
+    background: var(--ft-blue);
+    box-shadow: var(--ft-shadow-clay), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     color: #FFFFFF;
-    border-radius: 1.25rem;
+    border-radius: 0.75rem;
 }
 
-/* Full blue->cyan gradient: text-free decoration only (or ink text). White text fails contrast on the cyan end. */
+/* Solid blue, no shadow: decoration or white-on-blue text only. Ink text is ~3.1:1 on this
+   blue (below AA) -- do not use var(--ft-ink) text here; only confirmed no-ink usage exists
+   today (storefront-preview.tsx uses it as a plain decorative icon tile, no text). */
 .ft-clay-bright {
-    background: linear-gradient(135deg, var(--ft-blue) 0%, var(--ft-cyan) 100%);
-    box-shadow: var(--ft-shadow-clay);
-    border-radius: 1.25rem;
+    background: var(--ft-blue);
+    box-shadow: 0 0 #0000, var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    border-radius: 0.75rem;
 }
 
 /* Tilted elliptical orbit ring: gradient border via mask, no images or SVG files */
@@ -111,20 +126,169 @@
     contain-intrinsic-size: 1px 600px;
 }
 
-/* Opt-out of the legacy-surface bridge: real white (QR codes, print, logo tiles) */
+/* Real white (QR codes, print, logo tiles). bg-white is already real white; kept for call sites. */
 .ft-true-white {
     background-color: #fff !important;
-    --ft-card-shadow: 0 0 #0000;
 }
 
-:root,
-.ft {
-    --ft-white-rgb: 230 236 245;
-    --ft-card-shadow: var(--ft-shadow-raised);
+/* ── Focus system (unlayered: beats Tailwind ring/outline utilities on the same element) ──
+   Fields: ONE treatment = border -> --ft-focus-edge + soft ring, outline off. The ring is
+   intentionally NOT combined with Tailwind's --tw-ring-* stack, so a component's own
+   focus-visible:ring-2 ring-offset-2 cannot stack on top of it. */
+.ft-field:focus-within,
+.ft-field:focus,
+.ft-field:focus-visible,
+.ft-inset:focus-within,
+.ft input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"])):focus-visible,
+.ft textarea:focus-visible,
+.ft select:focus-visible {
+    outline: none;
+    border-color: var(--ft-focus-edge);
+    box-shadow: var(--ft-focus-ring);
 }
 
-.dark,
-.dark .ft {
-    --ft-white-rgb: 255 255 255;
-    --ft-card-shadow: var(--ft-shadow-raised);
+/* A bare input nested in a field wrapper (e.g. NeuInput): the wrapper shows the treatment. */
+.ft-inset input:focus-visible,
+.ft-inset textarea:focus-visible,
+.ft-inset select:focus-visible,
+.ft-field input:focus-visible,
+.ft-field textarea:focus-visible,
+.ft-field select:focus-visible {
+    outline: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* Error state: red border + faint red ring (wins over focus when both apply).
+   :has() is split into its own rule below: a browser without :has() support would
+   otherwise invalidate this entire comma-separated selector list. */
+.ft-field[aria-invalid="true"],
+.ft-field[aria-invalid="true"]:focus,
+.ft-field[aria-invalid="true"]:focus-visible,
+.ft-field[aria-invalid="true"]:focus-within,
+.ft-inset[aria-invalid="true"],
+.ft input[aria-invalid="true"],
+.ft textarea[aria-invalid="true"],
+.ft select[aria-invalid="true"] {
+    border-color: hsl(var(--destructive));
+    box-shadow: var(--ft-error-ring);
+}
+
+.ft-inset:has([aria-invalid="true"]) {
+    border-color: hsl(var(--destructive));
+    box-shadow: var(--ft-error-ring);
+}
+
+.ft-inset input[aria-invalid="true"],
+.ft-inset textarea[aria-invalid="true"],
+.ft-field input[aria-invalid="true"],
+.ft-field textarea[aria-invalid="true"] {
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* Buttons, links and other controls: 2px FT-blue outline (focus-ring edge colour in dark). */
+.ft a:not(.ft-field):focus-visible,
+.ft button:not(.ft-field):focus-visible,
+.ft [role="button"]:not(.ft-field):focus-visible,
+.ft [role="tab"]:not(.ft-field):focus-visible,
+.ft [role="switch"]:not(.ft-field):focus-visible,
+.ft [role="checkbox"]:not(.ft-field):focus-visible,
+.ft [role="menuitem"]:not(.ft-field):focus-visible,
+.ft summary:not(.ft-field):focus-visible,
+.ft [tabindex]:not([tabindex="-1"]):not(.ft-field):focus-visible {
+    outline: 2px solid var(--ft-blue);
+    outline-offset: 2px;
+}
+
+.dark .ft a:not(.ft-field):focus-visible,
+.dark .ft button:not(.ft-field):focus-visible,
+.dark .ft [role="button"]:not(.ft-field):focus-visible,
+.dark .ft [role="tab"]:not(.ft-field):focus-visible,
+.dark .ft [role="switch"]:not(.ft-field):focus-visible,
+.dark .ft [role="checkbox"]:not(.ft-field):focus-visible,
+.dark .ft [role="menuitem"]:not(.ft-field):focus-visible,
+.dark .ft summary:not(.ft-field):focus-visible,
+.dark .ft [tabindex]:not([tabindex="-1"]):not(.ft-field):focus-visible {
+    outline-color: var(--ft-focus-edge);
+}
+
+/* Browser autofill: keep the rounded field fill instead of the flat browser colour. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px var(--ft-field-bg) inset !important;
+    -webkit-text-fill-color: var(--ft-ink) !important;
+    caret-color: var(--ft-ink);
+    transition: background-color 600000s 0s;
+}
+
+input:autofill,
+textarea:autofill,
+select:autofill {
+    box-shadow: 0 0 0 1000px var(--ft-field-bg) inset !important;
+    -webkit-text-fill-color: var(--ft-ink) !important;
+    caret-color: var(--ft-ink);
+    transition: background-color 600000s 0s;
+}
+
+/* Autofill + focus/error: layer the focus/error ring on top of the autofill inset fill,
+   otherwise the plain autofill rule above (no ring) wins and hides the indicator. */
+input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-focus-ring) !important;
+}
+
+input:autofill:focus {
+    box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-focus-ring) !important;
+}
+
+input:-webkit-autofill[aria-invalid="true"] {
+    -webkit-box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-error-ring) !important;
+}
+
+input:autofill[aria-invalid="true"] {
+    box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-error-ring) !important;
+}
+
+/* No backdrop blur anywhere (low-end device performance): overrides every backdrop-blur-* /
+   backdrop-filter utility. Unlayered + !important so it beats Tailwind utilities. */
+[class*="backdrop-blur"],
+[class*="backdrop-filter"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+/* Lite mode (low-end devices / user override). Unlayered so it beats utilities.
+   Rings and focus styles are untouched: shadows are neutralised via the
+   --tw-shadow variables, never a blanket box-shadow reset. */
+html.lite,
+html.lite .ft {
+    --ft-shadow-raised: 0 0 #0000;
+    --ft-shadow-raised-hover: 0 0 #0000;
+    --ft-shadow-float: 0 0 #0000;
+}
+html.lite [class*="shadow-"],
+html.lite [class~="shadow"] {
+    --tw-shadow: 0 0 #0000 !important;
+    --tw-shadow-colored: 0 0 #0000 !important;
+}
+html.lite [class*="drop-shadow"],
+html.lite [class*="brightness-"] {
+    filter: none !important;
+}
+html.lite .animate-pulse,
+html.lite .animate-ping,
+html.lite .animate-bounce,
+html.lite .animate-spin-pause,
+html.lite .animate-elastic-ring,
+html.lite .hero-blob-a,
+html.lite .hero-blob-b,
+html.lite .hero-blob-c,
+html.lite .ft-orbit {
+    animation: none !important;
+}
+html.lite [class*="transition"] {
+    transition-duration: 0.01ms !important;
 }

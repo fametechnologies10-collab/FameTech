@@ -28,7 +28,7 @@ export interface AuthShellProps {
 function LogoTile({ size }: { size: number }) {
     return (
         <span
-            className="flex items-center justify-center ft-true-white rounded-full bg-white ring-2 ring-ft-blue dark:ring-[color:var(--ft-cyan)]"
+            className="flex items-center justify-center ft-true-white rounded-full bg-white ring-1 ring-[color:var(--ft-edge)]"
             style={{ width: size + 8, height: size + 8 }}
         >
             <BrandLogo width={size} height={size} />
@@ -40,33 +40,33 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
     return (
         <div className="relative flex min-h-screen w-full flex-col lg:flex-row">
             {showBrandPanel && (
-                <aside className="ft-raised relative m-4 hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden p-10 lg:flex xl:w-[500px] xl:p-12">
+                <aside className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-[#0A0F1C] p-10 text-white lg:flex xl:w-[500px] xl:p-12">
                     <div className="relative z-10">
                         <Link href="/" className="inline-flex items-center gap-3">
                             <LogoTile size={48} />
-                            <BrandTitle className="text-2xl" />
+                            <BrandTitle className="text-2xl [&>span:first-child]:text-white [&>span:last-child]:text-[color:var(--ft-cyan)]" />
                         </Link>
-                        <p className="ft-display mt-12 max-w-[320px] text-4xl font-extrabold leading-tight text-ft-ink">
+                        <p className="ft-display mt-12 max-w-[320px] text-4xl font-extrabold leading-tight text-white">
                             Top up, resell, repeat.
                         </p>
-                        <p className="mt-4 max-w-[340px] text-base leading-relaxed text-[color:var(--ft-muted)]">
+                        <p className="mt-4 max-w-[340px] text-base leading-relaxed text-white/70">
                             FameTech is where Ghana buys data, airtime and result vouchers, then starts earning from it.
                         </p>
                     </div>
-                    <div aria-hidden="true" className="pointer-events-none relative z-0 min-h-[200px] flex-1 overflow-hidden">
-                        <div className="absolute -right-24 top-1/2 w-[260px] -translate-y-1/2 opacity-60">
-                            <Orbit className="w-full" />
+                    <div aria-hidden="true" className="pointer-events-none relative z-0 my-6 min-h-[180px] flex-1 overflow-hidden">
+                        <div className="absolute -right-16 top-1/2 w-[280px] -translate-y-1/2 opacity-70">
+                            <Orbit className="w-full !p-[1.5px]" />
                         </div>
                     </div>
-                    <div className="relative z-10 space-y-5">
+                    <div className="relative z-10 divide-y divide-white/10 border-y border-white/10">
                         {PROOF_POINTS.map(({ icon: Icon, title: pointTitle, desc }) => (
-                            <div key={pointTitle} className="flex items-start gap-4">
-                                <span className="ft-clay flex h-11 w-11 shrink-0 items-center justify-center !rounded-2xl">
+                            <div key={pointTitle} className="flex items-start gap-4 py-4">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-[color:var(--ft-cyan)]">
                                     <Icon className="h-5 w-5" aria-hidden="true" />
                                 </span>
                                 <div>
-                                    <p className="text-base font-semibold text-ft-ink">{pointTitle}</p>
-                                    <p className="mt-0.5 text-sm text-[color:var(--ft-muted)]">{desc}</p>
+                                    <p className="text-base font-semibold text-white">{pointTitle}</p>
+                                    <p className="mt-0.5 text-sm text-white/70">{desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -97,7 +97,7 @@ export function AuthShell({ children, title, subtitle, showBrandPanel = true, fo
                         </header>
                     )}
 
-                    <NeuCard className="w-full p-5 sm:p-6">{children}</NeuCard>
+                    <NeuCard className="w-full rounded-2xl p-5 sm:p-6">{children}</NeuCard>
 
                     {footer}
 

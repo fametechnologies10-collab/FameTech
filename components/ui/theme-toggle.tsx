@@ -13,10 +13,42 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { detectAutoLite } from "@/lib/ft-lite"
+
+type PerfMode = "auto" | "lite" | "full"
 
 export function ThemeToggle({ brandName }: { brandName?: string }) {
     const { theme, setTheme } = useTheme()
     const [open, setOpen] = React.useState(false)
+
+    const [perf, setPerf] = React.useState<PerfMode>("auto")
+
+    React.useEffect(() => {
+        try {
+            const v = localStorage.getItem("ft-lite")
+            setPerf(v === "1" ? "lite" : v === "0" ? "full" : "auto")
+        } catch {
+            // storage unavailable: stay on auto
+        }
+    }, [])
+
+    const perfModes: { id: PerfMode; label: string }[] = [
+        { id: "auto", label: "Auto" },
+        { id: "lite", label: "Lite" },
+        { id: "full", label: "Full" },
+    ]
+
+    const choosePerf = (mode: PerfMode) => {
+        setPerf(mode)
+        try {
+            if (mode === "auto") localStorage.removeItem("ft-lite")
+            else localStorage.setItem("ft-lite", mode === "lite" ? "1" : "0")
+        } catch {
+            // storage unavailable: still apply for this page view
+        }
+        const on = mode === "lite" || (mode === "auto" && detectAutoLite())
+        document.documentElement.classList.toggle("lite", on)
+    }
 
     const themes = [
         { id: "light", label: "Light", icon: Sun, color: "text-amber-500", bg: "bg-amber-50" },
@@ -78,6 +110,28 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
                             </button>
                         )
                     })}
+                </div>
+                <div className="px-4 pb-4">
+                    <p className="px-1 pb-2 text-sm font-semibold">Performance</p>
+                    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Performance mode">
+                        {perfModes.map((m) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                aria-pressed={perf === m.id}
+                                onClick={() => choosePerf(m.id)}
+                                className={cn(
+                                    "min-h-[40px] rounded-lg border px-3 text-sm font-medium transition-colors",
+                                    perf === m.id
+                                        ? "border-primary bg-primary/10 text-foreground"
+                                        : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {m.label}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="px-1 pt-2 text-xs text-muted-foreground">Lite turns off shadows and animations to run faster on older phones.</p>
                 </div>
                 <div className="bg-muted/30 p-4 text-[10px] text-center text-muted-foreground font-medium uppercase tracking-widest border-t">
                     {brandName || 'Fame Technologies'} • UI PRESET

@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
         ref={ref}
         className={cn(
-            "inline-flex h-10 items-center justify-center rounded-xl ft-field p-1 text-muted-foreground",
+            "inline-flex h-10 items-center justify-center rounded-lg border border-[color:var(--ft-edge)] bg-muted p-1 text-muted-foreground",
             className
         )}
         {...props}
@@ -29,7 +29,7 @@ const TabsTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
         ref={ref}
         className={cn(
-            "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[color:var(--ft-raised-bg)] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:[box-shadow:-2px_-2px_5px_var(--ft-hi),2px_2px_5px_var(--ft-lo),var(--tw-ring-offset-shadow,0_0_#0000),var(--tw-ring-shadow,0_0_#0000)]",
+            "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium border border-transparent transition-all focus-visible:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ft-focus-edge)] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-[color:var(--ft-edge)] data-[state=active]:bg-card data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:[box-shadow:var(--ft-shadow-raised),var(--tw-ring-offset-shadow,0_0_#0000),var(--tw-ring-shadow,0_0_#0000)]",
             className
         )}
         {...props}
@@ -44,7 +44,7 @@ const TabsContent = React.forwardRef<
     <TabsPrimitive.Content
         ref={ref}
         className={cn(
-            "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "mt-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ft-focus-edge)]",
             className
         )}
         {...props}

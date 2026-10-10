@@ -107,7 +107,7 @@ export function PinPad({
                             'w-4 h-4 rounded-full transition-all duration-200',
                             i < pin.length
                                 ? 'bg-[color:var(--ft-blue)] dark:bg-[color:var(--ft-cyan)] scale-110 border-2 border-[color:var(--ft-blue)] dark:border-[color:var(--ft-cyan)]'
-                                : 'bg-[color:var(--ft-surface)] border-2 border-[color:var(--ft-muted)] [box-shadow:inset_1px_1px_3px_var(--ft-lo),inset_-1px_-1px_3px_var(--ft-hi)]'
+                                : 'bg-transparent border-2 border-[color:var(--ft-muted)]'
                         )}
                     />
                 ))}
@@ -152,9 +152,9 @@ export function PinPad({
                             disabled={isLoading}
                             className={cn(
                                 'h-16 min-w-14 rounded-2xl flex items-center justify-center transition-all duration-150 touch-manipulation',
-                                'text-2xl font-bold text-foreground ft-soft',
-                                'hover:brightness-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                'active:scale-95 active:[box-shadow:var(--ft-shadow-inset),var(--tw-ring-offset-shadow,0_0_#0000),var(--tw-ring-shadow,0_0_#0000)]',
+                                'text-2xl font-bold text-foreground bg-card border border-[color:var(--ft-edge)]',
+                                'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                'active:scale-95 active:bg-accent',
                                 isLoading && 'opacity-50 cursor-not-allowed'
                             )}
                         >

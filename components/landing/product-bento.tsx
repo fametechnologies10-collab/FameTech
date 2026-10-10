@@ -123,7 +123,7 @@ export function ProductBento() {
                             {tile.networks && (
                                 <ul className="flex flex-wrap gap-3">
                                     {NETWORK_CHIPS.map(n => (
-                                        <li key={n.key} className="ft-inset flex min-h-12 items-center gap-3 rounded-full px-4 py-2 font-semibold text-ft-ink">
+                                        <li key={n.key} className="ft-raised flex min-h-12 items-center gap-3 rounded-full px-4 py-2 font-semibold text-ft-ink">
                                             <NetworkIcon network={n.key} size={32} />
                                             {n.label}
                                         </li>
@@ -139,7 +139,7 @@ export function ProductBento() {
                 </div>
 
                 <h3 className="ft-display mt-12 text-lg font-extrabold text-ft-ink">More from FameTech</h3>
-                <div className="ft-inset mt-4 grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="ft-raised mt-4 grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-5">
                     {MORE.map(item => (
                         <Link
                             key={item.title}

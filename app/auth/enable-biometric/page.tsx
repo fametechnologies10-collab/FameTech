@@ -74,7 +74,7 @@ export default function EnableBiometricPage() {
         >
             <div className="flex flex-col items-center space-y-4 text-center">
                 <div className="flex flex-col items-center gap-2">
-                    <span className="ft-inset inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ft-ink">
+                    <span className="ft-raised inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ft-ink">
                         <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                         Trusted device
                     </span>

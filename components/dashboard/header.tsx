@@ -65,7 +65,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
 
     return (
         <header className={cn(
-            "fixed top-0 left-0 z-40 h-16 ft-card transition-all duration-300 ease-in-out",
+            "fixed top-0 left-0 z-40 h-16 bg-[var(--ft-raised-bg)] text-[var(--ft-ink)] border-b border-[var(--ft-edge)] transition-all duration-300 ease-in-out",
             "w-full lg:left-80 lg:w-[calc(100%-20rem)]",
             isCollapsed && "lg:left-20 lg:w-[calc(100%-5rem)]"
         )}>
@@ -97,7 +97,7 @@ export function DashboardHeader({ onOpenNotifications, unreadCount }: DashboardH
                     >
                         <Bell className="w-5 h-5 text-muted-foreground" />
                         {unreadCount > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 text-xs rounded-full flex items-center justify-center font-semibold bg-[#D00000] text-white shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_2px_5px_rgba(208,0,0,0.35)]">
+                            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 text-xs rounded-full flex items-center justify-center font-semibold bg-[#D00000] text-white">
                                 {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                         )}
