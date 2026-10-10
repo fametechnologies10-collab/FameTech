@@ -119,18 +119,20 @@
   .ft-card {
     background: var(--ft-raised-bg);
     color: var(--ft-ink);
+    border: 1px solid var(--ft-edge);
     box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .ft-field {
     background: var(--ft-surface);
-    border: 0;
+    border: 1px solid var(--ft-edge);
     box-shadow: var(--ft-shadow-inset), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .ft-soft {
     background: var(--ft-raised-bg);
     color: var(--ft-ink);
+    border: 1px solid var(--ft-edge);
     box-shadow: var(--ft-shadow-raised), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
@@ -140,7 +142,7 @@
     --ft-c1: #0057FF;
     --ft-cglow: var(--ft-clay-glow);
     background-color: var(--ft-c1);
-    box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0, 20, 80, 0.25), 0 8px 18px var(--ft-cglow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    box-shadow: inset 0 -2px 4px rgba(0, 30, 120, 0.28), 0 4px 10px var(--ft-cglow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   /* Raised clay card helpers. Solid token surface, NO blur (low-end device performance).
@@ -237,7 +239,7 @@
   @media (min-width: 1024px) {
     .interactive-card:hover,
     .village-card:hover {
-      box-shadow: -8px -8px 18px var(--ft-hi), 8px 8px 18px var(--ft-lo), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+      box-shadow: var(--ft-shadow-raised-hover), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     }
   }
 
@@ -709,7 +711,7 @@
 .driver-popover-next-btn {
   background: #0057FF !important;
   color: #FFFFFF !important;
-  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0, 20, 80, 0.25), 0 6px 14px var(--ft-clay-glow) !important;
+  box-shadow: inset 0 -2px 4px rgba(0, 30, 120, 0.28), 0 4px 10px var(--ft-clay-glow) !important;
 }
 
 .driver-popover-prev-btn:hover,

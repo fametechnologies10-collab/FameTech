@@ -16,14 +16,16 @@
     --ft-blue: #0057FF;
     --ft-cyan: #00C8FF;
     --ft-night: #0A0F1C;
-    /* Light highlight is transparent on purpose: a white top-left glow reads as a halo
-       around cards on the clay surface. Raised/inset shadows keep only the soft dark half. */
+    /* No light highlights anywhere: one soft dark shadow + a 1px hairline edge.
+       --ft-hi stays defined (transparent) only until its last uses are removed. */
     --ft-hi: transparent;
     --ft-lo: #B8C4D9;
-    --ft-clay-glow: rgba(0, 87, 255, 0.35);
-    --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
-    --ft-shadow-inset: inset -5px -5px 10px var(--ft-hi), inset 5px 5px 10px var(--ft-lo);
-    --ft-shadow-clay: inset 0 2px 3px rgba(120, 220, 255, 0.7), inset 0 -3px 6px rgba(0, 40, 140, 0.25), 0 10px 22px var(--ft-clay-glow);
+    --ft-edge: rgba(14, 26, 51, 0.10);
+    --ft-clay-glow: rgba(0, 87, 255, 0.30);
+    --ft-shadow-raised: 0 3px 10px rgba(14, 26, 51, 0.10);
+    --ft-shadow-raised-hover: 0 6px 16px rgba(14, 26, 51, 0.14);
+    --ft-shadow-inset: inset 0 1px 3px rgba(14, 26, 51, 0.16);
+    --ft-shadow-clay: inset 0 -2px 4px rgba(0, 30, 120, 0.28), 0 4px 10px var(--ft-clay-glow);
 }
 
 .dark,
@@ -33,9 +35,13 @@
     --ft-raised-bg: #0F1626;
     --ft-ink: #E8EEFB;
     --ft-muted: #A9B6D3;
-    --ft-hi: #18223A;
+    --ft-hi: transparent;
     --ft-lo: #070B15;
-    --ft-clay-glow: rgba(0, 200, 255, 0.28);
+    --ft-edge: rgba(120, 140, 190, 0.16);
+    --ft-clay-glow: rgba(0, 200, 255, 0.22);
+    --ft-shadow-raised: 0 3px 10px rgba(0, 0, 0, 0.50);
+    --ft-shadow-raised-hover: 0 6px 16px rgba(0, 0, 0, 0.55);
+    --ft-shadow-inset: inset 0 1px 3px rgba(0, 0, 0, 0.60);
 }
 
 .ft-display {
@@ -54,17 +60,19 @@
 .ft-raised {
     background: var(--ft-raised-bg);
     box-shadow: var(--ft-shadow-raised);
+    border: 1px solid var(--ft-edge);
     border-radius: 1.25rem;
 }
 
 .ft-inset {
     background: var(--ft-surface);
     box-shadow: var(--ft-shadow-inset);
+    border: 1px solid var(--ft-edge);
     border-radius: 1.25rem;
 }
 
 /* Text-bearing clay fill: white text stays >= 4.5:1 across the whole gradient
-   (worst stop #0A66FF = 4.82:1, #0057FF = 5.52:1). Cyan appears only as glow + top highlight. */
+   (worst stop #0A66FF = 4.82:1, #0057FF = 5.52:1). Cyan appears only as glow. */
 .ft-clay {
     background: linear-gradient(135deg, var(--ft-blue) 0%, #0A66FF 100%);
     box-shadow: var(--ft-shadow-clay);
@@ -127,4 +135,12 @@
 .dark .ft {
     --ft-white-rgb: 255 255 255;
     --ft-card-shadow: var(--ft-shadow-raised);
+}
+
+/* No backdrop blur anywhere (low-end device performance): overrides every backdrop-blur-* /
+   backdrop-filter utility. Unlayered + !important so it beats Tailwind utilities. */
+[class*="backdrop-blur"],
+[class*="backdrop-filter"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
 }
