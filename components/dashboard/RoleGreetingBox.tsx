@@ -129,7 +129,7 @@ export function RoleGreetingBox({ stats }: RoleGreetingBoxProps) {
                 />
             )}
 
-            <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-border bg-card text-card-foreground overflow-hidden">
 
                 {/* Header */}
                 <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -258,7 +258,7 @@ export function RoleGreetingBox({ stats }: RoleGreetingBoxProps) {
                                 <ShoppingCart className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                 <p className="text-xs font-semibold text-foreground">Total Orders</p>
                             </div>
-                            <p className="text-sm font-bold text-foreground tabular-nums">{stats?.totalOrders ?? 0}</p>
+                            <p className="text-sm font-bold text-foreground tabular-nums">{stats ? stats.totalOrders : '—'}</p>
                         </div>
                     )}
 

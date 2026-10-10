@@ -69,7 +69,7 @@ export function QuickActions({ showSubAgents }: { showSubAgents: boolean }) {
             key={href}
             href={href}
             id={id}
-            className={`flex min-h-16 min-w-0 flex-col items-center gap-1 rounded-xl border border-border bg-card py-2 px-1transition-colors hover:bg-muted/60 ${FOCUS_RING}`}
+            className={`flex min-h-16 min-w-0 flex-col items-center gap-1 rounded-xl border border-border bg-card py-2 px-1 transition-colors hover:bg-muted/60 ${FOCUS_RING}`}
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
               <Icon className="h-4 w-4 text-ft-blue" aria-hidden="true" />

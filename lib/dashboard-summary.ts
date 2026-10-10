@@ -31,8 +31,6 @@ export interface DashboardSummary {
     }
 }
 
-export type TrackerStatus = 'pending' | 'queued' | 'processing'
-
 export function trackerStep(status: string): 0 | 1 | 2 | 3 {
     switch (status) {
         case 'queued':
@@ -49,10 +47,6 @@ export function trackerStep(status: string): 0 | 1 | 2 | 3 {
 export function isLowBalance(balance: number | null | undefined, threshold = LOW_BALANCE_GHS): boolean {
     if (balance === null || balance === undefined) return false
     return balance < threshold
-}
-
-export function spendFor(s: DashboardSummary, window: '7d' | '30d'): number {
-    return window === '7d' ? s.spend.total7 : s.spend.total30
 }
 
 export function sparkHeights(values: number[], maxPx: number): number[] {

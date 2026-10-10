@@ -114,7 +114,7 @@ export default function DashboardPage() {
 
     return (
         <div className="ft-flat space-y-2 sm:space-y-3">
-            <RoleGreetingBox stats={{ totalOrders: summary?.counts.total ?? 0 }} />
+            <RoleGreetingBox stats={summary ? { totalOrders: summary.counts.total } : undefined} />
             <WebsiteRequestBanner activeRequest={websiteRequest} />
 
             <div className="flex flex-col gap-2 sm:gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
