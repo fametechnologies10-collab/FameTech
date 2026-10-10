@@ -27,10 +27,9 @@ export function OrderTracker({
   return (
     <Link
       href={ORDERS_HREF}
-      aria-live="polite"
       className={`block min-h-[44px] bg-card border border-border rounded-xl p-3 sm:p-4 ${FOCUS_RING}`}
     >
-      <span className="sr-only">{`Order for ${title}: ${statusLabel}.`}</span>
+      <span role="status" className="sr-only">{`Order for ${title}: ${statusLabel}.`}</span>
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate" title={title}>
@@ -43,6 +42,7 @@ export function OrderTracker({
           ) : null}
         </div>
         <span
+          aria-hidden="true"
           className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
             config?.badge ?? 'bg-muted text-muted-foreground'
           }`}

@@ -11,16 +11,23 @@ const FOCUS_RING =
 
 export function WalletHero({ balance }: { balance: number | null }) {
   const reduceMotion = useReducedMotion()
-  const animated = useCountUp(balance ?? 0, 700, 2)
-  const shown = reduceMotion ? (balance ?? 0).toFixed(2) : animated
+  // Hooks stay unconditional; under reduced motion the animation is skipped (target 0, duration 0).
+  const animated = useCountUp(reduceMotion ? 0 : (balance ?? 0), reduceMotion ? 0 : 700, 2)
   const loading = balance === null
+  // First frame of useCountUp is the bare string '0': show the real balance instead.
+  const shown =
+    balance === null
+      ? '—'
+      : reduceMotion || animated === '0'
+        ? balance.toFixed(2)
+        : animated
 
   return (
     <section
       id="wallet-card"
-      className="bg-card border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-3"
+      className="bg-card border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-2 sm:gap-3"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Wallet balance</p>
           <p className="flex items-baseline gap-2 min-w-0">
@@ -49,7 +56,7 @@ export function WalletHero({ balance }: { balance: number | null }) {
           <span>Your balance is low. Top up to keep buying.</span>
           <Link
             href={TOP_UP_HREF}
-            className={`font-semibold underline underline-offset-2 rounded-sm ${FOCUS_RING}`}
+            className={`inline-flex min-h-11 items-center font-semibold underline underline-offset-2 rounded-sm ${FOCUS_RING}`}
           >
             Top up
           </Link>

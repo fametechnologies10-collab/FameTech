@@ -86,7 +86,8 @@ export interface HendyLinksOrder {
     // "Order is processing"). Recorded into mtn_fulfillment_tracking.api_response — an
     // ADMIN-ONLY table — by the webhook and both reconciliation sweeps.
     // NEVER write this into orders.error_message: that column is customer-facing and is
-    // rendered to the buyer as "Failure Reason" by components/dashboard/RecentOrdersWidget.tsx,
+    // previously rendered to the buyer as "Failure Reason" by the (since removed) RecentOrdersWidget,
+    // and must still be treated as buyer-facing in case a surface renders it again,
     // so raw supplier text (or anything naming HendyLinks or their upstream provider) must not
     // reach it.
     message?: string
@@ -595,7 +596,7 @@ export async function applyHendyLinksHistoryMatch(
 
     const { sanitizeForStorage } = await import('@/lib/sanitize-for-storage')
     // NOT orders.error_message — that column is customer-facing, rendered as "Failure Reason"
-    // in components/dashboard/RecentOrdersWidget.tsx. This is recorded admin-only, below.
+    // by the (since removed) RecentOrdersWidget; still treat it as buyer-facing. This is recorded admin-only, below.
     const hlMessage = typeof match.message === 'string' && match.message.trim()
         ? sanitizeForStorage(match.message, 500)
         : null

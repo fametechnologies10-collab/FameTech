@@ -241,8 +241,8 @@ export async function POST(request: NextRequest) {
                 // supplier's webhook-driven failure. Record the reason where admins can see
                 // it (mtn_fulfillment_tracking is internal-only); never write to
                 // orders.error_message — that column is CUSTOMER-FACING
-                // (components/dashboard/RecentOrdersWidget.tsx renders it under "Failure
-                // Reason") and a raw supplier status must never reach it.
+                // (the since-removed RecentOrdersWidget rendered it under "Failure
+                // Reason"; treat it as buyer-facing if a surface renders it again) and a raw supplier status must never reach it.
                 const { error: trackingError } = await (supabase.from('mtn_fulfillment_tracking') as any).insert({
                     order_id: orderId,
                     status: targetStatus,
