@@ -552,7 +552,7 @@ export default function SmsBusinessPage() {
                                     id="biz-name"
                                     value={businessName}
                                     onChange={e => setBusinessName(e.target.value.slice(0, 120))}
-                                    placeholder="e.g. Flexy Data Hub"
+                                    placeholder="e.g. Kofi Data Hub"
                                     maxLength={120}
                                     autoComplete="organization"
                                     className="h-11"
@@ -945,7 +945,7 @@ export default function SmsBusinessPage() {
                                                         setSenderError(null)
                                                         setSenderText(e.target.value.replace(/[^A-Za-z0-9 ]/g, '').slice(0, 11))
                                                     }}
-                                                    placeholder="e.g. FLEXYHUB"
+                                                    placeholder="e.g. KOFIHUB"
                                                     maxLength={11}
                                                     autoComplete="off"
                                                     className="h-11 font-mono text-sm pr-12"

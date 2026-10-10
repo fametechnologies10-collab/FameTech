@@ -418,8 +418,8 @@ async function handleConfirm(
         const balance = user.walletBalance ?? 0
         const price = state.price!
         const balanceLine = balance >= price
-            ? `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`
-            : `2. Flexy-Wallet (Insufficient)`
+            ? `2. FameTech Wallet (Bal: ${formatGHS(balance)})`
+            : `2. FameTech Wallet (Insufficient)`
 
         const msg = [
             'HOW TO PAY:',
@@ -523,7 +523,7 @@ async function handleRCPaymentMethod(
     }
 
     if (choice === '2') {
-        // Flexy-Wallet path
+        // FameTech Wallet path
         const user = await findUserByMobile(supabase, Mobile)
 
         if (!user || !user.walletId) {
@@ -534,7 +534,7 @@ async function handleRCPaymentMethod(
         const price = state.price!
 
         if (balance < price) {
-            const balanceLine = `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`
+            const balanceLine = `2. FameTech Wallet (Bal: ${formatGHS(balance)})`
             const msg = [
                 'Insufficient wallet balance.',
                 '',
@@ -564,7 +564,7 @@ async function handleRCPaymentMethod(
 
         if (!result.success) {
             if (result.error === 'INSUFFICIENT_BALANCE') {
-                const balanceLine = `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`
+                const balanceLine = `2. FameTech Wallet (Bal: ${formatGHS(balance)})`
                 const msg = [
                     'Insufficient wallet balance.',
                     '',
@@ -629,8 +629,8 @@ async function handleRCPaymentMethod(
     const balance = user?.walletBalance ?? 0
     const price = state.price!
     const balanceLine = balance >= price
-        ? `2. Flexy-Wallet (Bal: ${formatGHS(balance)})`
-        : `2. Flexy-Wallet (Insufficient)`
+        ? `2. FameTech Wallet (Bal: ${formatGHS(balance)})`
+        : `2. FameTech Wallet (Insufficient)`
 
     const msg = [
         'HOW TO PAY:',

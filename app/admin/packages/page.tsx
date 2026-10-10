@@ -564,7 +564,7 @@ export default function AdminPackagesPage() {
                                     placeholder="0.00"
                                     className="border-orange-200 focus-visible:ring-orange-400"
                                 />
-                                <p className="text-[10px] text-muted-foreground">Registered users always get their role price. This price applies only to USSD users with no KiNG FLEXY account.</p>
+                                <p className="text-[10px] text-muted-foreground">Registered users always get their role price. This price applies only to USSD users with no FameTech account.</p>
                             </div>
                         </div>
                     </div>

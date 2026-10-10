@@ -455,7 +455,7 @@ function UpgradePageInner() {
                                         <span className="text-xs font-bold uppercase tracking-[0.2em]">INSTANT · SECURE · FROM WALLET</span>
                                     </div>
                                     <p className="text-base text-gray-500 dark:text-gray-400 font-bold leading-relaxed max-w-xl">
-                                        Upgrades are now powered by your Flexy-Wallet — instant activation, no external payment page needed. Keep your wallet topped up and enable Auto-Upgrade to never miss a renewal.
+                                        Upgrades are now powered by your FameTech Wallet — instant activation, no external payment page needed. Keep your wallet topped up and enable Auto-Upgrade to never miss a renewal.
                                     </p>
                                 </div>
                             </div>

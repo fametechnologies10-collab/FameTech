@@ -728,7 +728,7 @@ export async function sendWalletTopupSuccessSMS(
         newBalance: number
     }
 ) {
-    const message = `Your top-up was successful! GHS ${details.amount.toFixed(2)} has been added to your Flexy-Wallet. New balance: GHS ${details.newBalance.toFixed(2)}. Thank you!`
+    const message = `Your top-up was successful! GHS ${details.amount.toFixed(2)} has been added to your FameTech Wallet. New balance: GHS ${details.newBalance.toFixed(2)}. Thank you!`
 
     // ROUTE: Moolre
     return sendSMS({
@@ -747,7 +747,7 @@ export async function sendWelcomeSMS(
 ) {
     // DISABLED AS REQUESTED
     /*
-    const message = `Hello! Welcome to KiNG FLEXY GH. All we do here is instant Delivery (PA-TU-PA) start ordering your package now. Chat us on WhatsApp:578065809`
+    const message = `Hello! Welcome to FameTech. All we do here is instant Delivery (PA-TU-PA) start ordering your package now. Chat us on WhatsApp:578065809`
 
     return sendSMS({
         recipient: phoneNumber,
@@ -880,7 +880,7 @@ export async function sendAgentRenewalReminderSMS(
     phoneNumber: string,
     firstName: string
 ) {
-    const message = `Hi ${firstName}, your Agent plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at fametechgh.com`
+    const message = `Hi ${firstName}, your Agent plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your FameTech Wallet covers renewal, or renew at fametechgh.com`
 
     return sendSMS({
         recipient: phoneNumber,
@@ -895,7 +895,7 @@ export async function sendDealerRenewalReminderSMS(
     phoneNumber: string,
     firstName: string
 ) {
-    const message = `Hi ${firstName}, your Dealer plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your Flexy-Wallet covers renewal, or renew at fametechgh.com`
+    const message = `Hi ${firstName}, your Dealer plan expires in under 48hrs. Enable Auto-Upgrade in Settings so your FameTech Wallet covers renewal, or renew at fametechgh.com`
 
     return sendSMS({
         recipient: phoneNumber,
@@ -1236,7 +1236,7 @@ export async function sendAdminRCOrderAlertSMS(
 
 /**
  * Send SMS when auto-upgrade succeeds — wallet had sufficient funds.
- * Template: "Hi [Name]! Your [plan] was auto-renewed from your Flexy-Wallet.
+ * Template: "Hi [Name]! Your [plan] was auto-renewed from your FameTech Wallet.
  *            Active until [date]. Balance: GHS[balance]."
  */
 export async function sendAutoUpgradeSuccessSMS(
@@ -1254,14 +1254,14 @@ export async function sendAutoUpgradeSuccessSMS(
     ]
     const formattedDate = `${month} ${day}${suffix}, ${year}`
 
-    const message = `Hi ${firstName}! Your ${planLabel} was auto-renewed from your Flexy-Wallet. Active until ${formattedDate}. Balance: GHS ${newBalance.toFixed(2)}.`
+    const message = `Hi ${firstName}! Your ${planLabel} was auto-renewed from your FameTech Wallet. Active until ${formattedDate}. Balance: GHS ${newBalance.toFixed(2)}.`
 
     return sendSMS({ recipient: phoneNumber, message })
 }
 
 /**
  * Send SMS when auto-upgrade FAILS due to insufficient wallet balance.
- * Template: "Hi [Name], auto-renewal for [plan] failed. Flexy-Wallet: GHS[balance],
+ * Template: "Hi [Name], auto-renewal for [plan] failed. FameTech Wallet: GHS[balance],
  *            needed GHS[required]. Top up to continue: fametechgh.com"
  */
 export async function sendAutoUpgradeFailedSMS(
@@ -1273,7 +1273,7 @@ export async function sendAutoUpgradeFailedSMS(
 ): Promise<SMSResult> {
     const shortfall = (requiredAmount - currentBalance).toFixed(2)
 
-    const message = `Hi ${firstName}, auto-renewal for your ${planLabel} failed. Flexy-Wallet: GHS ${currentBalance.toFixed(2)}, needed GHS ${requiredAmount.toFixed(2)}. Top up to continue: fametechgh.com`
+    const message = `Hi ${firstName}, auto-renewal for your ${planLabel} failed. FameTech Wallet: GHS ${currentBalance.toFixed(2)}, needed GHS ${requiredAmount.toFixed(2)}. Top up to continue: fametechgh.com`
 
     return sendSMS({ recipient: phoneNumber, message })
 }

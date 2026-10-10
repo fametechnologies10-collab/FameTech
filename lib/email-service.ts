@@ -1,16 +1,12 @@
 ﻿/**
- * Brevo Email Service
- * 
- * This service handles all transactional emails using Brevo (formerly Sendinblue).
- * Premium high-end email templates for Fame Technologies.
+ * Email Service
+ *
+ * Transactional emails for FameTech, sent through Resend.
  */
 
-// @ts-ignore - Brevo SDK doesn't have complete type definitions
-import * as SibApiV3Sdk from '@getbrevo/brevo'
 import { createClient } from '@supabase/supabase-js'
 import { sendAdminPushNotification } from './push-service'
 import { Resend } from 'resend'
-import { MailerSend, EmailParams, Sender, Recipient } from "mailersend"
 import { Redis } from '@upstash/redis'
 
 const redis = new Redis({
@@ -18,24 +14,14 @@ const redis = new Redis({
     token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 })
 
-// Lazy singleton — `new Resend(undefined)` throws immediately at construction
-// time ("Missing API key"), which would crash this module's import (and every
-// build-time page-data collection for a route that imports it) whenever
-// RESEND_API_KEY is unset. Only construct it once a caller has already
-// confirmed the key exists (see sendResendEmail below).
+// Lazy singleton: `new Resend(undefined)` throws at construction ("Missing API
+// key"), which would crash this module's import (and build-time page-data
+// collection for any route importing it) whenever RESEND_API_KEY is unset.
 let _resend: Resend | null = null
 function getResend(): Resend {
     if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
     return _resend
 }
-const mailerSend = new MailerSend({ apiKey: process.env.MAILERSEND_API_KEY || '' })
-
-// Initialize API instance with API key
-const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi()
-
-// Set API key using the correct method
-// @ts-ignore - SDK type definitions are incomplete
-apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY || '')
 
 /**
  * SECURITY (stored XSS): HTML-escape any user-controlled value before
@@ -57,11 +43,8 @@ function escapeHtml(value: unknown): string {
         .replace(/'/g, '&#39;')
 }
 
-// Sender configuration
-const DEFAULT_SENDER = {
-    name: process.env.BREVO_SENDER_NAME || 'Fame Technologies',
-    email: process.env.BREVO_SENDER_EMAIL || 'support@fametechgh.com'
-}
+const DEFAULT_SENDER_EMAIL = 'support@fametechgh.com'
+const SENDER_NAME = 'FameTech'
 
 interface SendEmailOptions {
     to: string
@@ -77,50 +60,18 @@ interface EmailResult {
 }
 
 /**
- * Core function to send transactional email via Brevo
+ * Core function to send transactional email via Resend (the only provider).
+ * The sender address must be on the domain verified in Resend (fametechgh.com).
  */
-export async function sendEmail(options: SendEmailOptions, senderEmail?: string): Promise<EmailResult> {
-    if (!process.env.BREVO_API_KEY) {
-        console.warn('BREVO_API_KEY not set. Email not sent.')
+export async function sendEmail(options: SendEmailOptions, senderEmail: string = DEFAULT_SENDER_EMAIL): Promise<EmailResult> {
+    if (!process.env.RESEND_API_KEY) {
+        console.warn('RESEND_API_KEY not set. Email not sent.')
         return { success: false, error: 'Email service not configured' }
     }
 
     try {
-        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail()
-
-        sendSmtpEmail.sender = senderEmail ? { name: process.env.BREVO_SENDER_NAME || 'FameTech', email: senderEmail } : DEFAULT_SENDER
-        sendSmtpEmail.to = [{ email: options.to, name: options.toName || options.to }]
-        sendSmtpEmail.subject = options.subject
-        sendSmtpEmail.htmlContent = options.htmlContent
-
-        const data = await apiInstance.sendTransacEmail(sendSmtpEmail)
-        const rawMessageId = data.body?.messageId || data.response?.headers?.['x-message-id']
-        const messageId = Array.isArray(rawMessageId) ? rawMessageId[0] : rawMessageId
-        console.log('Email sent successfully:', messageId)
-
-        return { success: true, messageId }
-    } catch (error: any) {
-        console.error('Failed to send email:', error.response?.body || error.message)
-        return {
-            success: false,
-            error: error.response?.body?.message || error.message || 'Failed to send email'
-        }
-    }
-}
-
-/**
- * Core function to send critical transactional email via Resend
- * Automatically falls back to Brevo if Resend fails.
- */
-export async function sendResendEmail(options: SendEmailOptions, senderEmail: string = 'receipts@fametechgh.com'): Promise<EmailResult> {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY not set. Falling back to MailerSend → Brevo.')
-        return sendMailerSendEmail(options, senderEmail)
-    }
-
-    try {
         const data = await getResend().emails.send({
-            from: `FameTech <${senderEmail}>`,
+            from: `${SENDER_NAME} <${senderEmail}>`,
             to: options.toName ? `${options.toName} <${options.to}>` : options.to,
             subject: options.subject,
             html: options.htmlContent,
@@ -128,54 +79,21 @@ export async function sendResendEmail(options: SendEmailOptions, senderEmail: st
 
         if (data.error) {
             console.error('Resend API Error:', data.error)
-            console.warn('Falling back to MailerSend → Brevo...')
-            return sendMailerSendEmail(options, senderEmail)
+            return { success: false, error: data.error.message || 'Failed to send email' }
         }
 
         console.log('Email sent successfully via Resend:', data.data?.id)
         return { success: true, messageId: data.data?.id }
     } catch (error: any) {
         console.error('Failed to send email via Resend:', error.message)
-        console.warn('Falling back to MailerSend → Brevo...')
-        return sendMailerSendEmail(options, senderEmail)
-    }
-}
-
-/**
- * Core function to send time-sensitive transactional email via MailerSend
- * Automatically falls back to Brevo if MailerSend fails.
- */
-export async function sendMailerSendEmail(options: SendEmailOptions, senderEmail: string = 'support@fametechgh.com'): Promise<EmailResult> {
-    if (!process.env.MAILERSEND_API_KEY) {
-        console.warn('MAILERSEND_API_KEY not set. Falling back to Brevo.')
-        return sendEmail(options, senderEmail)
-    }
-
-    try {
-        const sentFrom = new Sender(senderEmail, "FameTech")
-        const recipients = [new Recipient(options.to, options.toName || options.to)]
-
-        const emailParams = new EmailParams()
-            .setFrom(sentFrom)
-            .setTo(recipients)
-            .setSubject(options.subject)
-            .setHtml(options.htmlContent)
-
-        const response = await mailerSend.email.send(emailParams)
-
-        console.log('Email sent successfully via MailerSend')
-        return { success: true }
-    } catch (error: any) {
-        console.error('Failed to send email via MailerSend:', error)
-        console.warn('Falling back to Brevo...')
-        return sendEmail(options, senderEmail)
+        return { success: false, error: error.message || 'Failed to send email' }
     }
 }
 
 /**
  * Premium high-end HTML email template
  */
-function generateProfessionalTemplate(title: string, content: string, accentColor: string = '#FFCC00'): string {
+function generateProfessionalTemplate(title: string, content: string, accentColor: string = '#0057FF'): string {
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -275,7 +193,7 @@ function generateProfessionalTemplate(title: string, content: string, accentColo
         
         .logo-text {
             font-size: 36px;
-            color: #1a1a2e;
+            color: #ffffff;
             font-weight: 700;
         }
         
@@ -429,13 +347,13 @@ function generateProfessionalTemplate(title: string, content: string, accentColo
         
         .status-pending {
             background-color: ${accentColor};
-            color: #1a1a2e;
+            color: #ffffff;
         }
-        
+
         .cta-button {
             display: inline-block;
             background-color: ${accentColor};
-            color: #1a1a2e !important;
+            color: #ffffff !important;
             text-decoration: none;
             padding: 16px 40px;
             border-radius: 12px;
@@ -548,9 +466,9 @@ function generateProfessionalTemplate(title: string, content: string, accentColo
             <div class="header">
                 <div class="logo-container">
                     <div class="logo-icon">
-                        <span class="logo-text">K</span>
+                        <span class="logo-text">F</span>
                     </div>
-                    <div class="brand-name"><span style="color: #ffffff;">KiNG </span><span style="color: #FFCC00;">FLEXY GH</span></div>
+                    <div class="brand-name"><span style="color: #ffffff;">Fame</span><span style="color: #00C8FF;">Tech</span></div>
                     <div class="brand-tagline">Powering Digital Services in Ghana</div>
                 </div>
             </div>
@@ -705,7 +623,7 @@ export async function sendOrderSuccessEmail(
         </div>
     `
 
-    return sendResendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Order Confirmed - ${orderDetails.referenceCode}`,
@@ -783,7 +701,7 @@ export async function sendOrderFailedEmail(
         </div>
     `
 
-    return sendResendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Order Failed - ${orderDetails.referenceCode}`,
@@ -849,7 +767,7 @@ export async function sendWalletTopupSuccessEmail(
         </div>
     `
 
-    return sendResendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Wallet Credited - GHS ${amount.toFixed(2)}`,
@@ -925,7 +843,7 @@ export async function sendWalletTopupFailedEmail(
         </div>
     `
 
-    return sendResendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Payment Failed - GHS ${amount.toFixed(2)}`,
@@ -988,7 +906,7 @@ export async function sendComplaintResolvedEmail(
         </div>
     `
 
-    return sendMailerSendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Complaint Update - ${complaintDetails.orderRef} [${statusText}]`,
@@ -1115,7 +1033,7 @@ export async function sendPermanentAgentUpgradeSuccessEmail(
         </div>
     `
 
-    return sendMailerSendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Permanent Agent Status Activated`,
@@ -1186,7 +1104,7 @@ export async function sendDealerActivationSuccessEmail(
             </a>
         </div>
     `
-    return sendMailerSendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Dealer Status Activated  -  Expires ${formatted}`,
@@ -1253,7 +1171,7 @@ export async function sendDealerExtensionSuccessEmail(
             </a>
         </div>
     `
-    return sendMailerSendEmail({
+    return sendEmail({
         to: email,
         toName: firstName,
         subject: `Dealer Membership Extended  -  New Expiry: ${formatted}`,
@@ -1535,7 +1453,7 @@ export async function sendShopWithdrawalProcessedEmail(
         <p class="message-text">Thank you for selling with FameTech. Keep growing!</p>
         <div class="cta-container"><a href="${siteUrl}/dashboard/shop/withdraw" class="cta-button">View Withdrawal History</a></div>
     `
-    return sendMailerSendEmail({ to: email, toName: firstName, subject: `Net Payout of GH${netAmount.toFixed(2)} Sent  -  ${shopName}`, htmlContent: generateProfessionalTemplate('Payout Successful', content, '#10b981') }, 'billing@fametechgh.com')
+    return sendEmail({ to: email, toName: firstName, subject: `Net Payout of GH${netAmount.toFixed(2)} Sent  -  ${shopName}`, htmlContent: generateProfessionalTemplate('Payout Successful', content, '#10b981') }, 'billing@fametechgh.com')
 }
 
 /**
@@ -1562,7 +1480,7 @@ export async function sendShopWithdrawalRejectedEmail(
         <div style="text-align: center; margin: 25px 0;"><span class="status-badge status-failed">Rejected</span></div>
         <div class="cta-container"><a href="${siteUrl}/dashboard/shop/withdraw" class="cta-button">Update &amp; Resubmit</a></div>
     `
-    return sendMailerSendEmail({ to: email, toName: firstName, subject: `Withdrawal Request Rejected  -  ${shopName}`, htmlContent: generateProfessionalTemplate('Withdrawal Rejected', content, '#ef4444') }, 'billing@fametechgh.com')
+    return sendEmail({ to: email, toName: firstName, subject: `Withdrawal Request Rejected  -  ${shopName}`, htmlContent: generateProfessionalTemplate('Withdrawal Rejected', content, '#ef4444') }, 'billing@fametechgh.com')
 }
 
 // ==========================================
@@ -1893,7 +1811,7 @@ export async function sendAdminRCOrderEmail(orderDetails: {
 
 /**
  * Send MoMo claim success email to the claiming user.
- * Uses the existing Brevo premium template system (emerald accent).
+ * Uses the premium template system (emerald accent).
  */
 export async function sendMomoClaimSuccessEmail(
     email: string,
@@ -1937,7 +1855,7 @@ export async function sendMomoClaimSuccessEmail(
 
         <p class="message-text">
             Hi ${firstName}, your MoMo claim has been successfully processed and your
-            Flexy-Wallet has been credited. You can now use your balance to purchase
+            FameTech Wallet has been credited. You can now use your balance to purchase
             data bundles for any network.
         </p>
 
@@ -2055,7 +1973,7 @@ export async function sendDealerRenewalReminderEmail(
 
         <p class="message-text">
             Hi ${firstName}, your Dealer Role plan is expiring in less than 48 hours.
-            Enable Auto-Upgrade in your dashboard settings so your Flexy-Wallet covers the renewal automatically —
+            Enable Auto-Upgrade in your dashboard settings so your FameTech Wallet covers the renewal automatically —
             or renew manually before it expires to keep your Dealer benefits uninterrupted.
         </p>
 
@@ -2147,7 +2065,7 @@ export async function sendShopSalesSummaryEmail(
         </div>
     `
 
-    // Uses Brevo for automated reports to avoid hitting limits on transactional IPs
+    // Sent via Resend
     return sendEmail({
         to: email,
         toName: firstName,
@@ -2175,7 +2093,7 @@ export async function sendAutoUpgradeFailedEmail(
         <p class="subtitle">Your wallet balance was insufficient to renew your membership</p>
 
         <p class="message-text">
-            Hi ${firstName}, your scheduled auto-upgrade for <strong>${planLabel}</strong> could not be completed because your Flexy-Wallet balance was too low. Auto-upgrade has been temporarily disabled.
+            Hi ${firstName}, your scheduled auto-upgrade for <strong>${planLabel}</strong> could not be completed because your FameTech Wallet balance was too low. Auto-upgrade has been temporarily disabled.
         </p>
 
         <div class="info-card">
@@ -2198,7 +2116,7 @@ export async function sendAutoUpgradeFailedEmail(
         </div>
 
         <p class="message-text">
-            To restore your membership and re-enable auto-upgrade, top up your Flexy-Wallet with at least <strong>GHS ${shortfall}</strong> then head to the Upgrade page to re-enable auto-upgrade.
+            To restore your membership and re-enable auto-upgrade, top up your FameTech Wallet with at least <strong>GHS ${shortfall}</strong> then head to the Upgrade page to re-enable auto-upgrade.
         </p>
 
         <div style="text-align: center; margin: 25px 0;">

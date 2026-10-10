@@ -1064,7 +1064,7 @@ export default function ShopPricingPage() {
                                     </span>
                                     {lockedByAdmin && (
                                         <span className="text-[10px] text-amber-600">
-                                            Temporarily unavailable platform-wide — set by KiNG FLEXY
+                                            Temporarily unavailable platform-wide — set by FameTech
                                         </span>
                                     )}
                                 </div>

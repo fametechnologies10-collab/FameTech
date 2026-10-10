@@ -229,7 +229,7 @@ export default function AutoUpgradeQuickModal({
                             )}>
                                 <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                                 <span>
-                                    Your membership will be auto-renewed from your Flexy-Wallet on expiry. Keep at least{' '}
+                                    Your membership will be auto-renewed from your FameTech Wallet on expiry. Keep at least{' '}
                                     <strong>GHS {prices[currentPlan as Plan] ? prices[currentPlan as Plan].toFixed(2) : price.toFixed(2)}</strong>{' '}
                                     in your wallet to avoid interruption.
                                 </span>
@@ -323,7 +323,7 @@ export default function AutoUpgradeQuickModal({
                             )}>
                                 <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                                 <span>
-                                    Keep at least <strong>GHS {price.toFixed(2)}</strong> in your Flexy-Wallet before your expiry date. If balance is too low, auto-upgrade is disabled and you'll be notified by SMS.
+                                    Keep at least <strong>GHS {price.toFixed(2)}</strong> in your FameTech Wallet before your expiry date. If balance is too low, auto-upgrade is disabled and you'll be notified by SMS.
                                 </span>
                             </div>
 

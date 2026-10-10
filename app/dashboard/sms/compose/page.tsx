@@ -408,7 +408,7 @@ export default function SmsComposePage() {
         }
     }, [data, senderOptions, platformSenderValue])
 
-    const effectiveSender = sender || data?.policy.sender || data?.account.default_sender || 'KiNG FLEXY'
+    const effectiveSender = sender || data?.policy.sender || data?.account.default_sender || 'FameTech'
 
     const scheduleMin = toLocalInputValue(new Date(Date.now() + 2 * 60_000))
     const scheduleMax = toLocalInputValue(new Date(Date.now() + 30 * 86_400_000))

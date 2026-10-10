@@ -452,7 +452,7 @@ export default function ShopSmsAdminClient() {
                                 <Link2 className="w-3.5 h-3.5 text-blue-500" /> Extra allowed link domains
                             </label>
                             <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                                Comma-separated. <strong>In addition to</strong> KiNG FLEXY + WhatsApp/Facebook/Instagram/X/Telegram
+                                Comma-separated. <strong>In addition to</strong> FameTech + WhatsApp/Facebook/Instagram/X/Telegram
                                 (always allowed). Add e.g. <code className="bg-muted px-1 rounded">tiktok.com, youtube.com</code>.
                                 Every other external link is blocked.
                             </p>

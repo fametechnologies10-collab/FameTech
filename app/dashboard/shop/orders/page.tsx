@@ -170,7 +170,7 @@ export default function ShopOrdersPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     // Retry state — refunded storefront/USSD orders can be retried from the owner's
-    // Flexy-Wallet. Only data-bundle shop orders are retryable (RC/vouchers and airtime
+    // FameTech Wallet. Only data-bundle shop orders are retryable (RC/vouchers and airtime
     // have no matching data_packages row for retry pricing, so they're excluded below).
     const [retryTarget, setRetryTarget] = useState<ShopOrder | null>(null)
     const [retryBusy, setRetryBusy] = useState(false)
@@ -1356,7 +1356,7 @@ export default function ShopOrdersPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Retry Confirm Dialog — charges the shop owner's Flexy-Wallet, not the customer */}
+            {/* Retry Confirm Dialog — charges the shop owner's FameTech Wallet, not the customer */}
             <Dialog open={!!retryTarget} onOpenChange={(o) => { if (!o && !retryBusy) setRetryTarget(null) }}>
                 <DialogContent>
                     <DialogHeader>
@@ -1368,7 +1368,7 @@ export default function ShopOrdersPage() {
                     <div className="space-y-3">
                         <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2.5">
                             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                            <span>Today&apos;s cost price will be charged to your Flexy-Wallet — this may differ from what you originally paid. You&apos;ll see the exact amount charged once the retry succeeds.</span>
+                            <span>Today&apos;s cost price will be charged to your FameTech Wallet — this may differ from what you originally paid. You&apos;ll see the exact amount charged once the retry succeeds.</span>
                         </div>
                         <div className="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-2.5">
                             <RefreshCw className="w-4 h-4 mt-0.5 shrink-0" />
