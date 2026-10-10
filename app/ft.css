@@ -19,7 +19,7 @@
     --ft-night: #0A0F1C;
     --ft-lo: #C9D3E1;
     --ft-edge: #E2E8F0;
-    --ft-field-edge: #C5CFDD;
+    --ft-field-edge: #8695AF;
     --ft-clay-glow: transparent;
     --ft-shadow-raised: 0 1px 2px rgba(14, 26, 51, 0.06);
     --ft-shadow-raised-hover: 0 8px 24px rgba(14, 26, 51, 0.12);
@@ -42,7 +42,7 @@
     --ft-muted: #A9B6D3;
     --ft-lo: #070B15;
     --ft-edge: rgba(120, 140, 190, 0.18);
-    --ft-field-edge: rgba(120, 140, 190, 0.32);
+    --ft-field-edge: #51638A;
     --ft-clay-glow: transparent;
     --ft-shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.4);
     --ft-shadow-raised-hover: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -177,28 +177,28 @@
 }
 
 /* Buttons, links and other controls: 2px FT-blue outline (focus-ring edge colour in dark). */
-.ft a:focus-visible,
-.ft button:focus-visible,
-.ft [role="button"]:focus-visible,
-.ft [role="tab"]:focus-visible,
-.ft [role="switch"]:focus-visible,
-.ft [role="checkbox"]:focus-visible,
-.ft [role="menuitem"]:focus-visible,
-.ft summary:focus-visible,
-.ft [tabindex]:not([tabindex="-1"]):focus-visible {
+.ft a:not(.ft-field):focus-visible,
+.ft button:not(.ft-field):focus-visible,
+.ft [role="button"]:not(.ft-field):focus-visible,
+.ft [role="tab"]:not(.ft-field):focus-visible,
+.ft [role="switch"]:not(.ft-field):focus-visible,
+.ft [role="checkbox"]:not(.ft-field):focus-visible,
+.ft [role="menuitem"]:not(.ft-field):focus-visible,
+.ft summary:not(.ft-field):focus-visible,
+.ft [tabindex]:not([tabindex="-1"]):not(.ft-field):focus-visible {
     outline: 2px solid var(--ft-blue);
     outline-offset: 2px;
 }
 
-.dark .ft a:focus-visible,
-.dark .ft button:focus-visible,
-.dark .ft [role="button"]:focus-visible,
-.dark .ft [role="tab"]:focus-visible,
-.dark .ft [role="switch"]:focus-visible,
-.dark .ft [role="checkbox"]:focus-visible,
-.dark .ft [role="menuitem"]:focus-visible,
-.dark .ft summary:focus-visible,
-.dark .ft [tabindex]:not([tabindex="-1"]):focus-visible {
+.dark .ft a:not(.ft-field):focus-visible,
+.dark .ft button:not(.ft-field):focus-visible,
+.dark .ft [role="button"]:not(.ft-field):focus-visible,
+.dark .ft [role="tab"]:not(.ft-field):focus-visible,
+.dark .ft [role="switch"]:not(.ft-field):focus-visible,
+.dark .ft [role="checkbox"]:not(.ft-field):focus-visible,
+.dark .ft [role="menuitem"]:not(.ft-field):focus-visible,
+.dark .ft summary:not(.ft-field):focus-visible,
+.dark .ft [tabindex]:not([tabindex="-1"]):not(.ft-field):focus-visible {
     outline-color: var(--ft-focus-edge);
 }
 
