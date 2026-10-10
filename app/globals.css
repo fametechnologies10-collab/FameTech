@@ -5,26 +5,26 @@
 
 @layer base {
   :root {
-    --background: 216 43% 93%;
+    --background: 214 38% 97%;
     --foreground: 220 57% 13%;
-    --card: 216 43% 93%;
+    --card: 0 0% 100%;
     --card-foreground: 220 57% 13%;
-    --popover: 216 43% 93%;
+    --popover: 0 0% 100%;
     --popover-foreground: 220 57% 13%;
     --primary: 220 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 216 40% 90%;
+    --secondary: 214 32% 94%;
     --secondary-foreground: 220 57% 13%;
-    --muted: 216 40% 90%;
+    --muted: 214 32% 94%;
     --muted-foreground: 223 27% 38%;
-    --accent: 216 40% 90%;
+    --accent: 214 32% 94%;
     --accent-foreground: 220 57% 13%;
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 218 35% 85%;
-    --input: 218 35% 85%;
+    --border: 214 28% 90%;
+    --input: 214 24% 80%;
     --ring: 220 100% 50%;
-    --radius: 1rem;
+    --radius: 0.625rem;
   }
 
   .dark {
@@ -44,8 +44,8 @@
     --accent-foreground: 221 70% 95%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 222 41% 16%;
-    --input: 222 41% 16%;
+    --border: 222 32% 20%;
+    --input: 222 26% 30%;
     --ring: 221 100% 62%;
   }
 }
@@ -113,20 +113,22 @@
 }
 
 @layer components {
-  /* FT Clay surface primitives (components layer so Tailwind utilities such as
-     bg-transparent / shadow-none on a consumer still win). Shadows compose with
-     the Tailwind ring so focus rings keep working. */
+  /* FT Pro surface primitives (components layer so Tailwind utilities such as
+     bg-transparent / shadow-none / border-* on a consumer still win). Shadows compose with
+     the Tailwind ring so rings keep working. --ft-card-shadow is an optional per-element
+     override hook (falls back to the raised token). */
   .ft-card {
     background: var(--ft-raised-bg);
     color: var(--ft-ink);
     border: 1px solid var(--ft-edge);
-    box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    box-shadow: var(--ft-card-shadow, var(--ft-shadow-raised)), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
+  /* Field: fill + 1px field edge, no shadow. Focus/error treatment lives (unlayered) in app/ft.css. */
   .ft-field {
-    background: var(--ft-surface);
-    border: 1px solid var(--ft-edge);
-    box-shadow: var(--ft-shadow-inset), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    background: var(--ft-field-bg);
+    border: 1px solid var(--ft-field-edge);
+    box-shadow: 0 0 #0000, var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .ft-soft {
@@ -136,27 +138,35 @@
     box-shadow: var(--ft-shadow-raised), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
-  /* Clay button fill: SOLID background-color (no background-image) so consumer bg-* utilities win.
-     Variants override --ft-c1 / --ft-cglow; --ft-c2 is only used by the gradient variant. */
+  /* Solid blue button: SOLID background-color (no background-image) so consumer bg-* utilities win.
+     Variants override --ft-c1 only; hover/active are derived from it (no filter/brightness). */
   .ft-clay-btn {
     --ft-c1: #0057FF;
-    --ft-cglow: var(--ft-clay-glow);
     background-color: var(--ft-c1);
-    box-shadow: inset 0 -2px 4px rgba(0, 30, 120, 0.28), 0 4px 10px var(--ft-cglow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    box-shadow: 0 1px 2px rgba(0, 30, 120, 0.25), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
-  /* Raised clay card helpers. Solid token surface, NO blur (low-end device performance).
-     Shadow list is ring-safe so focus rings keep working. Components layer: consumer
+  .ft-clay-btn:hover {
+    background-color: color-mix(in srgb, var(--ft-c1) 86%, #000);
+  }
+
+  .ft-clay-btn:active {
+    background-color: color-mix(in srgb, var(--ft-c1) 75%, #000);
+  }
+
+  /* Raised card helpers. Solid token surface, NO blur (low-end device performance).
+     Shadow list is ring-safe so rings keep working. Components layer: consumer
      utilities (bg-*, shadow-*, border) still win. */
   .glass-card,
   .village-card {
     background-color: var(--ft-raised-bg);
     color: var(--ft-ink);
-    box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    border: 1px solid var(--ft-edge);
+    box-shadow: var(--ft-card-shadow, var(--ft-shadow-raised)), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .village-card {
-    transition: box-shadow 200ms ease, transform 200ms ease;
+    transition: box-shadow 200ms ease, border-color 200ms ease;
   }
 
   /* Gradient fills. Each pair is text-safe (>= 4.5:1) on BOTH stops for the colour set here.
@@ -232,21 +242,15 @@
   }
 
   .interactive-card {
-    transition: box-shadow 200ms ease, transform 200ms ease;
+    transition: box-shadow 200ms ease, border-color 200ms ease;
   }
 
-  /* Hover: subtle shadow swap everywhere >= 1024px; 1px lift only when motion is allowed. */
+  /* Hover (>= 1024px): border colour change + float shadow. No lift. */
   @media (min-width: 1024px) {
     .interactive-card:hover,
     .village-card:hover {
-      box-shadow: var(--ft-shadow-raised-hover), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
-    }
-  }
-
-  @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
-    .interactive-card:hover,
-    .village-card:hover {
-      transform: translateY(-1px);
+      border-color: var(--ft-field-edge);
+      box-shadow: var(--ft-shadow-float), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     }
   }
 
@@ -360,53 +364,10 @@
     animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   }
 
-  /* ── FT legacy-surface bridge ──────────────────────────────────────────
-     Hand-written pages inherit the raised clay look with zero edits.
-     - Light recolour of bg-white is done in tailwind.config.ts (theme
-       backgroundColor.white -> --ft-white-rgb, defined in app/ft.css) so it
-       stays a normal utility that hover:/md:/data-[state] variants can beat.
-     - Raised shadow below keeps the ring stack (ring-*) intact and never
-       touches border-color. No :is()/complex :not() (old Android Chrome).
-     - Known trade-off: hover:shadow-* on bridged cards is overridden by the
-       raised shadow (specificity); the interactive-card helper handles lift.
-     - Known trade-off: repeated div list rows using bg-white rounded-xl each get
-       a raised shadow (unlike li/tr); add .ft-flat to the row to flatten it.
-     - Opt out with .ft-true-white (app/ft.css). */
-
-  /* Light raised cards: bg-white + rounded-xl/2xl/3xl */
-  html:not(.dark) .bg-white.rounded-xl,
-  html:not(.dark) .bg-white.rounded-2xl,
-  html:not(.dark) .bg-white.rounded-3xl,
-  /* Dark raised cards: 6 dark:bg-* classes x 3 radii (generated) */
-  .dark [class~="dark:bg-slate-900"].rounded-xl,
-  .dark [class~="dark:bg-slate-900"].rounded-2xl,
-  .dark [class~="dark:bg-slate-900"].rounded-3xl,
-  .dark [class~="dark:bg-gray-900"].rounded-xl,
-  .dark [class~="dark:bg-gray-900"].rounded-2xl,
-  .dark [class~="dark:bg-gray-900"].rounded-3xl,
-  .dark [class~="dark:bg-zinc-900"].rounded-xl,
-  .dark [class~="dark:bg-zinc-900"].rounded-2xl,
-  .dark [class~="dark:bg-zinc-900"].rounded-3xl,
-  .dark [class~="dark:bg-slate-800"].rounded-xl,
-  .dark [class~="dark:bg-slate-800"].rounded-2xl,
-  .dark [class~="dark:bg-slate-800"].rounded-3xl,
-  .dark [class~="dark:bg-gray-800"].rounded-xl,
-  .dark [class~="dark:bg-gray-800"].rounded-2xl,
-  .dark [class~="dark:bg-gray-800"].rounded-3xl,
-  .dark [class~="dark:bg-card"].rounded-xl,
-  .dark [class~="dark:bg-card"].rounded-2xl,
-  .dark [class~="dark:bg-card"].rounded-3xl {
-    box-shadow: var(--ft-card-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
-  }
-
-  /* 0 0 #0000 (not none): `none` is invalid inside a comma list with the ring shadows. */
-  /* .ft-flat: for repeated div rows using the bridged bg-white rounded-xl pattern
-     (Phase 3/4 apply it); same flat behaviour as table rows below. */
-  /* Table rows and list items stay flat (no per-row shadows: low-end device
-     performance). The variable inherits, so cards nested in these are flat. */
-  table, thead, tbody, tr, td, th, li,
+  /* .ft-flat: harmless no-op kept so existing references still compile (the legacy-surface
+     bridge it opted out of was removed). */
   .ft-flat {
-    --ft-card-shadow: 0 0 #0000;
+    --ft-flat: 1;
   }
 }
 
@@ -558,22 +519,17 @@
 
 /* Glow effects - Simplified for mobile */
 @layer components {
+  /* No glows: soft token outlines instead. */
   .glow-primary {
-    box-shadow: 0 0 10px var(--ft-clay-glow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    box-shadow: 0 0 0 1px rgba(0, 87, 255, 0.35), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .glow-success {
-    box-shadow: 0 0 10px rgba(4, 120, 87, 0.35), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+    box-shadow: 0 0 0 1px rgba(4, 120, 87, 0.35), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 
   .glow-warning {
-    box-shadow: 0 0 10px rgba(180, 83, 9, 0.35), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
-  }
-
-  @media (min-width: 1024px) {
-    .glow-primary {
-      box-shadow: 0 0 20px var(--ft-clay-glow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
-    }
+    box-shadow: 0 0 0 1px rgba(180, 83, 9, 0.35), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
 }
 
@@ -589,13 +545,13 @@
   z-index: 10000 !important;
 }
 
-/* Main popover: raised clay surface, ink text (tokens switch with .dark) */
+/* Main popover: flat bordered surface with float shadow, ink text (tokens switch with .dark) */
 .driver-popover {
   background: var(--ft-raised-bg) !important;
   color: var(--ft-ink) !important;
-  border: none !important;
-  border-radius: 1.25rem !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), var(--ft-shadow-raised) !important;
+  border: 1px solid var(--ft-edge) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: var(--ft-shadow-float) !important;
   padding: 1.25rem !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
@@ -694,14 +650,14 @@
 .driver-popover-next-btn {
   background: var(--ft-raised-bg) !important;
   color: var(--ft-ink) !important;
-  border: none !important;
+  border: 1px solid var(--ft-field-edge) !important;
   padding: 0.75rem 1.5rem !important;
   border-radius: 9999px !important;
   /* Pill shape */
   font-weight: 700 !important;
   font-size: 0.9rem !important;
   cursor: pointer !important;
-  box-shadow: var(--ft-shadow-raised) !important;
+  box-shadow: none !important;
   min-width: 90px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
@@ -711,12 +667,12 @@
 .driver-popover-next-btn {
   background: #0057FF !important;
   color: #FFFFFF !important;
-  box-shadow: inset 0 -2px 4px rgba(0, 30, 120, 0.28), 0 4px 10px var(--ft-clay-glow) !important;
+  border-color: #0057FF !important;
+  box-shadow: 0 1px 2px rgba(0, 30, 120, 0.25) !important;
 }
 
-.driver-popover-prev-btn:hover,
 .driver-popover-next-btn:hover {
-  transform: translateY(-2px) !important;
+  background: #004ADB !important;
 }
 
 /* Highlighted element overlay */
