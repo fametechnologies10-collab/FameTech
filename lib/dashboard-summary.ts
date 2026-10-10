@@ -24,7 +24,7 @@ export interface DashboardSummary {
         id: string
         network: string
         size: string
-        phone_masked: string
+        phone_masked: string | null
         status: string
         created_at: string
         updated_at: string
@@ -107,7 +107,7 @@ export function normalizeSummary(raw: unknown): DashboardSummary {
                   id: str(ao.id),
                   network: str(ao.network),
                   size: str(ao.size),
-                  phone_masked: str(ao.phone_masked),
+                  phone_masked: typeof ao.phone_masked === 'string' ? ao.phone_masked : null,
                   status: str(ao.status),
                   created_at: str(ao.created_at),
                   updated_at: str(ao.updated_at),

@@ -111,6 +111,12 @@ check('normalizeSummary keeps active order', () => {
     assert.equal(s.active_order?.status, 'queued')
 })
 
+check('normalizeSummary keeps phone_masked nullable', () => {
+    const base = { id: 'x', network: 'MTN', size: '1GB', status: 'queued', created_at: 'a', updated_at: 'b' }
+    assert.equal(normalizeSummary({ active_order: { ...base, phone_masked: null } }).active_order?.phone_masked, null)
+    assert.equal(normalizeSummary({ active_order: { ...base, phone_masked: '••••4568' } }).active_order?.phone_masked, '••••4568')
+})
+
 check('spendFor', () => {
     const s = normalizeSummary({ spend: { total7: 7, total30: 30 } })
     assert.equal(spendFor(s, '7d'), 7)
