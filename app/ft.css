@@ -16,7 +16,9 @@
     --ft-blue: #0057FF;
     --ft-cyan: #00C8FF;
     --ft-night: #0A0F1C;
-    --ft-hi: #FFFFFF;
+    /* Light highlight is transparent on purpose: a white top-left glow reads as a halo
+       around cards on the clay surface. Raised/inset shadows keep only the soft dark half. */
+    --ft-hi: transparent;
     --ft-lo: #B8C4D9;
     --ft-clay-glow: rgba(0, 87, 255, 0.35);
     --ft-shadow-raised: -6px -6px 14px var(--ft-hi), 6px 6px 14px var(--ft-lo);
