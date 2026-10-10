@@ -707,7 +707,7 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                                                 <>
                                                     <span className="flex-1">{item.label}</span>
                                                     {badgeCount > 0 && (
-                                                        <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-[#D00000] rounded-full shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_2px_rgba(0,0,0,0.25)]">
+                                                        <div className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-[#D00000] rounded-full">
                                                             <span className="text-[10px] font-bold text-white">
                                                                 {badgeCount > 9 ? '9+' : badgeCount}
                                                             </span>

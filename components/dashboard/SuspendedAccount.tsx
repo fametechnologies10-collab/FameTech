@@ -43,7 +43,7 @@ export function SuspendedAccount() {
                         </Button>
                         <Button
                             onClick={handleWhatsAppClick}
-                            className="w-full h-12 text-[#0B3D1E] [--ft-c1:#25D366] [--ft-cglow:rgba(37,211,102,0.3)] font-bold rounded-xl flex items-center justify-center gap-3"
+                            className="w-full h-12 text-[#0B3D1E] [--ft-c1:#25D366] font-bold rounded-xl flex items-center justify-center gap-3"
                         >
                             <WhatsAppIcon className="w-5 h-5" />
                             Contact support (WhatsApp)

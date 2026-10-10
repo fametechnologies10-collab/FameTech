@@ -17,9 +17,6 @@
     --ft-blue: #0057FF;
     --ft-cyan: #00C8FF;
     --ft-night: #0A0F1C;
-    /* No light highlights anywhere. --ft-hi stays defined (transparent) only until its
-       last consumers are removed. */
-    --ft-hi: transparent;
     --ft-lo: #C9D3E1;
     --ft-edge: #E2E8F0;
     --ft-field-edge: #C5CFDD;
@@ -43,7 +40,6 @@
     --ft-field-bg: #0C1322;
     --ft-ink: #E8EEFB;
     --ft-muted: #A9B6D3;
-    --ft-hi: transparent;
     --ft-lo: #070B15;
     --ft-edge: rgba(120, 140, 190, 0.18);
     --ft-field-edge: rgba(120, 140, 190, 0.32);

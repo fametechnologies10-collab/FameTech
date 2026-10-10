@@ -53,14 +53,14 @@ const SheetContent = React.forwardRef<
         <DialogPrimitive.Content
             ref={ref}
             className={cn(
-                "fixed z-50 gap-4 ft-card [--ft-card-shadow:var(--ft-shadow-raised)] p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+                "fixed z-50 gap-4 ft-card [--ft-card-shadow:var(--ft-shadow-float)] p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
                 sheetSideVariants[side],
                 className
             )}
             {...props}
         >
             {!hideCloseButton && (
-                <DialogPrimitive.Close className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full ft-soft text-foreground ring-offset-background transition-opacity hover:brightness-[0.97] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+                <DialogPrimitive.Close className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full ft-soft text-foreground transition-opacity hover:bg-accent focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ft-focus-edge)] disabled:pointer-events-none">
                     <X className="h-4 w-4" />
                     <span className="sr-only">Close</span>
                 </DialogPrimitive.Close>
