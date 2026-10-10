@@ -768,7 +768,18 @@ export async function middleware(request: NextRequest) {
 
         authUser = data?.claims?.sub ? { id: data.claims.sub as string } : null
     } catch (error) {
-        console.error('Middleware session error:', error)
+        // A stale/revoked session cookie (after logout, a password reset or
+        // sign-out-everywhere) is a normal logged-out visit, not a server
+        // fault: Supabase answers 400 refresh_token_not_found and @supabase/ssr
+        // clears the cookie itself. Log only real failures (timeouts, outages).
+        const code = (error as { code?: string } | null)?.code
+        const expectedSessionEnd =
+            code === 'refresh_token_not_found' ||
+            code === 'refresh_token_already_used' ||
+            code === 'session_not_found'
+        if (!expectedSessionEnd) {
+            console.error('Middleware session error:', error)
+        }
         // On error or timeout, treat as no session
         authUser = null
     }
