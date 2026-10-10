@@ -71,11 +71,11 @@ function getTimeSinceJoined(createdAt?: string): string {
 }
 
 const ROLE_PILL: Record<string, { label: string; dot: string; pill: string }> = {
-    admin:     { label: 'System Administrator', dot: 'bg-red-500',    pill: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800' },
-    sub_admin: { label: 'Sub-Administrator',    dot: 'bg-indigo-500', pill: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' },
-    dealer:    { label: 'Authorized Dealer',    dot: 'bg-violet-500', pill: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800' },
-    agent:     { label: 'Authorized Agent',     dot: 'bg-amber-500',  pill: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' },
-    subagent:  { label: 'Sub-Agent',            dot: 'bg-teal-500',   pill: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800' },
+    admin:     { label: 'System Administrator', dot: 'bg-yellow-600', pill: 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800' },
+    sub_admin: { label: 'Sub-Administrator',    dot: 'bg-pink-600',   pill: 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800' },
+    dealer:    { label: 'Authorized Dealer',    dot: 'bg-orange-600', pill: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' },
+    agent:     { label: 'Authorized Agent',     dot: 'bg-emerald-600', pill: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' },
+    subagent:  { label: 'Sub-Agent',            dot: 'bg-lime-600',   pill: 'bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-900/30 dark:text-lime-300 dark:border-lime-800' },
     customer:  { label: 'Valued Customer',      dot: 'bg-blue-500',   pill: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' },
 }
 

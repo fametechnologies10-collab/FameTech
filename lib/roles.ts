@@ -1,4 +1,4 @@
-import { Crown, Star, BadgeCheck, UserCircle, Gem, UserCheck, LucideIcon } from 'lucide-react'
+import { Shield, ShieldCheck, Gem, Award, Users, UserCircle, LucideIcon } from 'lucide-react'
 
 export type UserRole = 'admin' | 'sub-admin' | 'dealer' | 'agent' | 'subagent' | 'customer'
 
@@ -13,44 +13,44 @@ interface RoleConfigItem {
 
 export const roleConfig: Record<UserRole, RoleConfigItem> = {
     'admin': {
-        icon: Crown,
+        icon: Shield,
         label: 'Admin',
         rank: '#1',
-        color: '#E60000',
-        bgColor: 'rgba(230, 0, 0, 0.1)',
-        textColor: '#E60000'
+        color: '#CA8A04',
+        bgColor: 'rgba(202, 138, 4, 0.1)',
+        textColor: '#CA8A04'
     },
     'sub-admin': {
-        icon: Star,
+        icon: ShieldCheck,
         label: 'Sub-Admin',
         rank: '#2',
-        color: '#FACC15',
-        bgColor: 'rgba(250, 204, 21, 0.15)',
-        textColor: '#B59410'
+        color: '#DB2777',
+        bgColor: 'rgba(219, 39, 119, 0.1)',
+        textColor: '#DB2777'
     },
     'dealer': {
         icon: Gem,
         label: 'Dealer',
         rank: '#3',
-        color: '#7C3AED',
-        bgColor: 'rgba(124, 58, 237, 0.1)',
-        textColor: '#7C3AED'
+        color: '#C2410C',
+        bgColor: 'rgba(194, 65, 12, 0.1)',
+        textColor: '#C2410C'
     },
     'agent': {
-        icon: BadgeCheck,
+        icon: Award,
         label: 'Agent',
         rank: '#4',
-        color: '#25D366',
-        bgColor: 'rgba(37, 211, 102, 0.1)',
-        textColor: '#25D366'
+        color: '#059669',
+        bgColor: 'rgba(5, 150, 105, 0.1)',
+        textColor: '#059669'
     },
     'subagent': {
-        icon: UserCheck,
+        icon: Users,
         label: 'Sub-Agent',
         rank: '#5',
-        color: '#0D9488',
-        bgColor: 'rgba(13, 148, 136, 0.1)',
-        textColor: '#0D9488'
+        color: '#65A30D',
+        bgColor: 'rgba(101, 163, 13, 0.1)',
+        textColor: '#65A30D'
     },
     'customer': {
         icon: UserCircle,
@@ -74,34 +74,34 @@ export const roleTheme: Record<UserRole, {
     chipDark: { bg: string; text: string }
 }> = {
     'admin': {
-        ring: '#E60000',
-        dot: '#E60000',
-        chipLight: { bg: '#E6C9D0', text: '#9E0000' },
-        chipDark: { bg: '#36121F', text: '#F26B6B' }
+        ring: '#CA8A04',
+        dot: '#CA8A04',
+        chipLight: { bg: '#F0DEB0', text: '#7A4A05' },
+        chipDark: { bg: '#3A2A0C', text: '#F2B84B' }
     },
     'sub-admin': {
-        ring: '#FACC15',
-        dot: '#FACC15',
-        chipLight: { bg: '#E9E7D3', text: '#5C4A06' },
-        chipDark: { bg: '#393723', text: '#FACC15' }
+        ring: '#DB2777',
+        dot: '#DB2777',
+        chipLight: { bg: '#F7D3E3', text: '#9D174D' },
+        chipDark: { bg: '#3B0D22', text: '#F472B6' }
     },
     'dealer': {
-        ring: '#7C3AED',
-        dot: '#7C3AED',
-        chipLight: { bg: '#D6D1F4', text: '#5B21B6' },
-        chipDark: { bg: '#231C4A', text: '#B08CF5' }
+        ring: '#C2410C',
+        dot: '#C2410C',
+        chipLight: { bg: '#F5D9C4', text: '#7C2D12' },
+        chipDark: { bg: '#341207', text: '#FB923C' }
     },
     'agent': {
-        ring: '#25D366',
-        dot: '#25D366',
-        chipLight: { bg: '#C9E8E0', text: '#0F5F2C' },
-        chipDark: { bg: '#133832', text: '#25D366' }
+        ring: '#059669',
+        dot: '#059669',
+        chipLight: { bg: '#C7EDDD', text: '#065F46' },
+        chipDark: { bg: '#0B2F24', text: '#34D399' }
     },
     'subagent': {
-        ring: '#0D9488',
-        dot: '#0D9488',
-        chipLight: { bg: '#C5DFE5', text: '#0B5A52' },
-        chipDark: { bg: '#0F2D38', text: '#45B5AB' }
+        ring: '#65A30D',
+        dot: '#65A30D',
+        chipLight: { bg: '#E1EDBE', text: '#3F5F0B' },
+        chipDark: { bg: '#222B0C', text: '#BEF264' }
     },
     'customer': {
         ring: '#0057FF',

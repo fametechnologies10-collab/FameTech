@@ -46,11 +46,11 @@ check('roleConfig customer uses FT blue', () => {
 })
 
 check('roleConfig other roles unchanged', () => {
-    assert.equal(roleConfig.admin.color, '#E60000')
-    assert.equal(roleConfig['sub-admin'].color, '#FACC15')
-    assert.equal(roleConfig.dealer.color, '#7C3AED')
-    assert.equal(roleConfig.agent.color, '#25D366')
-    assert.equal(roleConfig.subagent.color, '#0D9488')
+    assert.equal(roleConfig.admin.color, '#CA8A04')
+    assert.equal(roleConfig['sub-admin'].color, '#DB2777')
+    assert.equal(roleConfig.dealer.color, '#C2410C')
+    assert.equal(roleConfig.agent.color, '#059669')
+    assert.equal(roleConfig.subagent.color, '#65A30D')
 })
 
 if (failed > 0) {
