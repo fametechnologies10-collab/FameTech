@@ -11,7 +11,7 @@ const buttonVariants = cva(
             variant: {
                 default: "ft-clay-btn text-white",
                 destructive: "ft-clay-btn text-white [--ft-c1:#B71C1C]",
-                outline: "bg-background text-foreground border border-input hover:bg-accent hover:text-accent-foreground",
+                outline: "bg-card text-foreground border border-input hover:bg-accent hover:text-accent-foreground",
                 secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",

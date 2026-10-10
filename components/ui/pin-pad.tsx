@@ -152,7 +152,7 @@ export function PinPad({
                             disabled={isLoading}
                             className={cn(
                                 'h-16 min-w-14 rounded-2xl flex items-center justify-center transition-all duration-150 touch-manipulation',
-                                'text-2xl font-bold text-foreground bg-background dark:bg-card border border-[color:var(--ft-edge)]',
+                                'text-2xl font-bold text-foreground bg-card border border-[color:var(--ft-edge)]',
                                 'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                 'active:scale-95 active:bg-accent',
                                 isLoading && 'opacity-50 cursor-not-allowed'

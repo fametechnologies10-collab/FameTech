@@ -6,7 +6,7 @@ export const viewport: Viewport = {
     maximumScale: 1,
     userScalable: false,
     themeColor: [
-        { media: '(prefers-color-scheme: light)', color: '#E6ECF5' },
+        { media: '(prefers-color-scheme: light)', color: '#F4F7FB' },
         { media: '(prefers-color-scheme: dark)', color: '#0A0F1C' },
     ],
     interactiveWidget: 'resizes-content',

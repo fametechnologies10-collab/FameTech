@@ -18,7 +18,7 @@ export function PinDots({ filled, length = 6, shake }: { filled: number; length?
                         'w-5 h-5 rounded-full transition-all duration-200',
                         i < filled
                             ? 'scale-110 bg-ft-blue dark:bg-[color:var(--ft-cyan)]'
-                            : 'ft-inset !rounded-full'
+                            : 'ft-raised !rounded-full'
                     )}
                 />
             ))}

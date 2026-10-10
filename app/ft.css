@@ -58,16 +58,19 @@
     font-family: var(--font-ft-display), system-ui, sans-serif;
 }
 
-/* Flat bordered surface. Unlayered, so box-shadow here is ring-safe by construction. */
-.ft-raised {
+/* Flat bordered surface. Unlayered, so box-shadow here is ring-safe by construction.
+   Base rule wrapped in :where() so its specificity drops to 0 and same-specificity
+   consumer utilities (rounded-full, border-2, border-l-4, ...) still win. */
+:where(.ft-raised) {
     background: var(--ft-raised-bg);
     box-shadow: var(--ft-shadow-raised), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     border: 1px solid var(--ft-edge);
     border-radius: 0.75rem;
 }
 
-/* Bordered flat field (no inset shadow): fill + 1px field edge. */
-.ft-inset {
+/* Bordered flat field (no inset shadow): fill + 1px field edge. Base rule :where()'d for the
+   same reason as .ft-raised above. */
+:where(.ft-inset) {
     background: var(--ft-field-bg);
     box-shadow: 0 0 #0000, var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
     border: 1px solid var(--ft-field-edge);
@@ -82,7 +85,9 @@
     border-radius: 0.75rem;
 }
 
-/* Solid blue, no shadow: decoration or ink/white-on-blue text only. */
+/* Solid blue, no shadow: decoration or white-on-blue text only. Ink text is ~3.1:1 on this
+   blue (below AA) -- do not use var(--ft-ink) text here; only confirmed no-ink usage exists
+   today (storefront-preview.tsx uses it as a plain decorative icon tile, no text). */
 .ft-clay-bright {
     background: var(--ft-blue);
     box-shadow: 0 0 #0000, var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
@@ -154,16 +159,22 @@
     box-shadow: none;
 }
 
-/* Error state: red border + faint red ring (wins over focus when both apply). */
+/* Error state: red border + faint red ring (wins over focus when both apply).
+   :has() is split into its own rule below: a browser without :has() support would
+   otherwise invalidate this entire comma-separated selector list. */
 .ft-field[aria-invalid="true"],
 .ft-field[aria-invalid="true"]:focus,
 .ft-field[aria-invalid="true"]:focus-visible,
 .ft-field[aria-invalid="true"]:focus-within,
 .ft-inset[aria-invalid="true"],
-.ft-inset:has([aria-invalid="true"]),
 .ft input[aria-invalid="true"],
 .ft textarea[aria-invalid="true"],
 .ft select[aria-invalid="true"] {
+    border-color: hsl(var(--destructive));
+    box-shadow: var(--ft-error-ring);
+}
+
+.ft-inset:has([aria-invalid="true"]) {
     border-color: hsl(var(--destructive));
     box-shadow: var(--ft-error-ring);
 }
@@ -223,6 +234,24 @@ select:autofill {
     transition: background-color 600000s 0s;
 }
 
+/* Autofill + focus/error: layer the focus/error ring on top of the autofill inset fill,
+   otherwise the plain autofill rule above (no ring) wins and hides the indicator. */
+input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-focus-ring) !important;
+}
+
+input:autofill:focus {
+    box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-focus-ring) !important;
+}
+
+input:-webkit-autofill[aria-invalid="true"] {
+    -webkit-box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-error-ring) !important;
+}
+
+input:autofill[aria-invalid="true"] {
+    box-shadow: 0 0 0 1000px var(--ft-field-bg) inset, var(--ft-error-ring) !important;
+}
+
 /* No backdrop blur anywhere (low-end device performance): overrides every backdrop-blur-* /
    backdrop-filter utility. Unlayered + !important so it beats Tailwind utilities. */
 [class*="backdrop-blur"],
@@ -234,12 +263,14 @@ select:autofill {
 /* Lite mode (low-end devices / user override). Unlayered so it beats utilities.
    Rings and focus styles are untouched: shadows are neutralised via the
    --tw-shadow variables, never a blanket box-shadow reset. */
-html.lite {
+html.lite,
+html.lite .ft {
     --ft-shadow-raised: 0 0 #0000;
     --ft-shadow-raised-hover: 0 0 #0000;
     --ft-shadow-float: 0 0 #0000;
 }
-html.lite [class*="shadow-"] {
+html.lite [class*="shadow-"],
+html.lite [class~="shadow"] {
     --tw-shadow: 0 0 #0000 !important;
     --tw-shadow-colored: 0 0 #0000 !important;
 }

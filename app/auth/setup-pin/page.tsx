@@ -91,7 +91,7 @@ function PinPad({ pin, onChange, isLoading }: { pin: string; onChange: (p: strin
                 aria-label="Delete last digit"
                 onPointerDown={(e) => { e.preventDefault(); handleDelete() }}
                 disabled={isLoading || pin.length === 0}
-                className="touch-manipulation h-16 rounded-2xl flex items-center justify-center text-ft-ink hover:shadow-neu-raised active:scale-95 transition-transform duration-100 disabled:opacity-40"
+                className="touch-manipulation h-16 rounded-2xl flex items-center justify-center text-ft-ink active:scale-95 transition-transform duration-100 disabled:opacity-40"
             >
                 <svg viewBox="0 0 24 24" className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
@@ -213,7 +213,7 @@ export default function SetupPinPage() {
         <AuthShell showBrandPanel={false} title={stepLabel} subtitle={stepSub}>
             <div className="space-y-4">
                 <div className="flex flex-col items-center gap-2 text-center">
-                    <span className="ft-inset inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ft-ink">
+                    <span className="ft-raised inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ft-ink">
                         <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                         Trusted device
                     </span>
