@@ -12,6 +12,7 @@ export const viewport: Viewport = {
     interactiveWidget: 'resizes-content',
 }
 import { ftFonts } from '@/lib/ft-fonts'
+import { FT_LITE_SCRIPT } from '@/lib/ft-lite'
 import './globals.css'
 import './ft.css'
 import { AuthProvider } from '@/contexts/auth-context'
@@ -101,6 +102,7 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <head>
+                <script dangerouslySetInnerHTML={{ __html: FT_LITE_SCRIPT }} />
                 <link rel="preload" href="/logo.png" as="image" />
             </head>
             <body className={`${ftFonts.variable} ${ftFonts.className}`}>

@@ -230,3 +230,34 @@ select:autofill {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }
+
+/* Lite mode (low-end devices / user override). Unlayered so it beats utilities.
+   Rings and focus styles are untouched: shadows are neutralised via the
+   --tw-shadow variables, never a blanket box-shadow reset. */
+html.lite {
+    --ft-shadow-raised: 0 0 #0000;
+    --ft-shadow-raised-hover: 0 0 #0000;
+    --ft-shadow-float: 0 0 #0000;
+}
+html.lite [class*="shadow-"] {
+    --tw-shadow: 0 0 #0000 !important;
+    --tw-shadow-colored: 0 0 #0000 !important;
+}
+html.lite [class*="drop-shadow"],
+html.lite [class*="brightness-"] {
+    filter: none !important;
+}
+html.lite .animate-pulse,
+html.lite .animate-ping,
+html.lite .animate-bounce,
+html.lite .animate-spin-pause,
+html.lite .animate-elastic-ring,
+html.lite .hero-blob-a,
+html.lite .hero-blob-b,
+html.lite .hero-blob-c,
+html.lite .ft-orbit {
+    animation: none !important;
+}
+html.lite [class*="transition"] {
+    transition-duration: 0.01ms !important;
+}
