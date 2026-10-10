@@ -66,7 +66,7 @@ export function LandingFooter({
 
     return (
         <footer className={cn('relative mt-auto', className)}>
-            <div className="ft-inset rounded-b-none rounded-t-[2rem]">
+            <div className="ft-raised rounded-b-none rounded-t-[2rem]">
                 <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
                     <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-6">
                         {/* Brand column — spans full width on mobile */}

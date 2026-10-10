@@ -87,7 +87,7 @@ export function Faq({ guestUrl }: { guestUrl: string }) {
                         const buttonId = `faq-button-${index}`
                         const panelId = `faq-panel-${index}`
                         return (
-                            <div key={item.question} className={cn(open ? 'ft-inset' : 'ft-raised', 'min-w-0')}>
+                            <div key={item.question} className={cn('ft-raised', 'min-w-0')}>
                                 <h3>
                                     <button
                                         type="button"

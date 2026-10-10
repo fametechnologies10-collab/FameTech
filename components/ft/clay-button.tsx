@@ -12,15 +12,15 @@ export interface ClayButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
 }
 
 const VARIANTS: Record<ClayButtonVariant, string> = {
-    primary: 'ft-clay',
-    soft: 'ft-raised text-ft-ink',
-    ghost: 'bg-transparent text-ft-ink hover:shadow-neu-raised',
+    primary: 'ft-clay-btn text-white',
+    soft: 'ft-raised text-ft-ink hover:bg-[color:var(--ft-surface)]',
+    ghost: 'bg-transparent text-ft-ink hover:bg-[color:var(--ft-edge)]',
 }
 
 export const ClayButton = React.forwardRef<HTMLButtonElement, ClayButtonProps>(
     ({ className, variant = 'primary', loading = false, asChild = false, disabled, children, type, onClick, ...props }, ref) => {
         const classes = cn(
-            'inline-flex min-h-12 h-auto items-center justify-center gap-2 rounded-[1.25rem] px-6 py-2 text-center text-base font-semibold leading-snug transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60',
+            'inline-flex min-h-12 h-auto items-center justify-center gap-2 rounded-xl px-6 py-2 text-center text-base font-semibold leading-snug transition-colors duration-150 disabled:pointer-events-none disabled:opacity-60',
             VARIANTS[variant],
             className
         )

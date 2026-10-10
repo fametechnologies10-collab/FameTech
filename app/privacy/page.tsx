@@ -11,17 +11,17 @@ export const metadata: Metadata = {
 
 const BODY = 'mt-2 break-words text-base leading-[1.7] text-[color:var(--ft-muted)]'
 const HEADING = 'ft-display text-lg font-extrabold text-ft-ink'
-const BADGE = 'ft-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ft-ink'
+const BADGE = 'ft-raised flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ft-ink'
 
 export default function PrivacyPage() {
     return (
         <div className={`ft ${ftFonts.className} ${ftFonts.variable} min-h-screen`}>
             <header className="sticky top-3 z-50 px-3 sm:px-6">
-                <div className="ft-raised mx-auto flex max-w-3xl items-center gap-2 rounded-[2rem] px-3 py-2">
+                <div className="ft-raised mx-auto flex max-w-3xl items-center gap-2 !rounded-2xl px-3 py-2">
                     <Link
                         href="/"
                         aria-label="Back to home"
-                        className="ft-inset flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ft-ink"
+                        className="ft-raised flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ft-ink"
                     >
                         <ArrowLeft className="h-5 w-5" aria-hidden="true" />
                     </Link>

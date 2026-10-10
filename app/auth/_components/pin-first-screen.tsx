@@ -111,7 +111,7 @@ export function PinFirstScreen({
         <div className="w-full flex flex-col items-center">
             {/* Identity */}
             <div className="text-center mb-5">
-                <div className="ft-inset inline-flex items-center gap-1.5 px-3 py-1.5 !rounded-full mb-3">
+                <div className="ft-raised inline-flex items-center gap-1.5 px-3 py-1.5 !rounded-full mb-3">
                     <ShieldCheck className={`w-4 h-4 ${FT_LINK}`} aria-hidden="true" />
                     <span className="text-sm font-semibold text-ft-ink">Trusted device</span>
                 </div>

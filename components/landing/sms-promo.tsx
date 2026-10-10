@@ -37,11 +37,11 @@ export function SmsPromo() {
                 <div className="mt-10 grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
                     <div className="min-w-0">
                         <ul className="mb-6 flex flex-wrap gap-2">
-                            <li className="ft-inset inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-ft-ink">
+                            <li className="ft-raised inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-ft-ink">
                                 <Shield className="h-4 w-4 shrink-0" aria-hidden="true" />
                                 Platform mode
                             </li>
-                            <li className="ft-inset inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-ft-ink">
+                            <li className="ft-raised inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-ft-ink">
                                 <BadgeCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
                                 Business mode: your own sender ID
                             </li>

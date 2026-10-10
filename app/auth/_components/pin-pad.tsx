@@ -77,7 +77,7 @@ export function PinPadFast({ pin, onChange, isLoading }: { pin: string; onChange
                 aria-label="Delete last digit"
                 onPointerDown={(e) => { e.preventDefault(); handleDelete() }}
                 disabled={isLoading || pin.length === 0}
-                className="touch-manipulation h-16 min-h-14 rounded-2xl flex items-center justify-center text-ft-ink hover:shadow-neu-raised active:scale-95 transition-all duration-100 disabled:opacity-40"
+                className="touch-manipulation h-16 min-h-14 rounded-2xl flex items-center justify-center text-ft-ink hover:bg-[color:var(--ft-edge)] active:scale-95 transition-all duration-100 disabled:opacity-40"
             >
                 <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />

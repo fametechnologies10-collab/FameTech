@@ -11,7 +11,7 @@ export const NeuInput = React.forwardRef<HTMLInputElement, NeuInputProps>(
     ({ className, wrapperClassName, leading, trailing, ...props }, ref) => (
         <div
             className={cn(
-                'ft-inset flex h-12 items-center gap-2 px-4 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[color:var(--ft-blue)] dark:focus-within:outline-[color:var(--ft-cyan)]',
+                'ft-inset flex h-12 items-center gap-2 px-4',
                 wrapperClassName
             )}
         >

@@ -17,7 +17,7 @@ export interface SegmentedControlProps<T extends string> {
 
 export function SegmentedControl<T extends string>({ value, onChange, options, ariaLabel, className }: SegmentedControlProps<T>) {
     return (
-        <div role="tablist" aria-label={ariaLabel} className={cn('ft-inset flex gap-1 p-1.5', className)}>
+        <div role="tablist" aria-label={ariaLabel} className={cn('flex gap-1 rounded-xl border border-[color:var(--ft-edge)] bg-[color:var(--ft-surface)] p-1', className)}>
             {options.map((opt) => {
                 const active = opt.value === value
                 return (
@@ -28,8 +28,8 @@ export function SegmentedControl<T extends string>({ value, onChange, options, a
                         aria-selected={active}
                         onClick={() => onChange(opt.value)}
                         className={cn(
-                            'h-12 flex-1 rounded-2xl px-3 text-sm font-semibold transition-all duration-200',
-                            active ? 'ft-raised text-ft-ink' : 'text-[color:var(--ft-muted)] hover:text-ft-ink'
+                            'h-10 flex-1 rounded-lg border border-transparent px-3 text-sm font-semibold transition-colors duration-150',
+                            active ? 'border-[color:var(--ft-edge)] bg-[color:var(--ft-raised-bg)] text-ft-ink shadow-[var(--ft-shadow-raised)]' : 'text-[color:var(--ft-muted)] hover:text-ft-ink'
                         )}
                     >
                         {opt.label}

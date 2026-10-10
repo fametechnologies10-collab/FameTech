@@ -54,7 +54,7 @@ export function LandingNav({ whatsappHref, adminPhone }: LandingNavProps) {
 
     return (
         <header className="sticky top-3 z-50 px-3 sm:px-6">
-            <nav aria-label="Main" className="ft-raised mx-auto max-w-7xl rounded-[2rem] px-3 py-2 sm:px-4">
+            <nav aria-label="Main" className="ft-raised mx-auto max-w-7xl !rounded-2xl px-3 py-2 sm:px-4">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                     <Link href="/" className="flex min-h-12 min-w-0 items-center gap-2 rounded-full pr-2" onClick={close}>
                         <BrandLogo width={36} height={36} className="h-9 w-9" />
@@ -82,7 +82,7 @@ export function LandingNav({ whatsappHref, adminPhone }: LandingNavProps) {
                 </div>
 
                 {open && (
-                    <div id="landing-mobile-menu" className="ft-inset mt-2 flex flex-col gap-1 p-3 xl:hidden">
+                    <div id="landing-mobile-menu" className="ft-raised mt-2 flex flex-col gap-1 p-3 xl:hidden">
                         <div className="grid grid-cols-2 gap-1">{links}</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <PWAInstallButton />
