@@ -32,6 +32,8 @@ export function useDashboardSummary(): {
     const mountedRef = useRef(true)
     const inFlightRef = useRef(false)
     const summaryRef = useRef<DashboardSummary | null>(null)
+    // Bumped whenever the signed-in user changes; stale fetches are discarded.
+    const genRef = useRef(0)
 
     useEffect(() => {
         mountedRef.current = true
@@ -43,27 +45,37 @@ export function useDashboardSummary(): {
     const refresh = useCallback(async (): Promise<void> => {
         if (inFlightRef.current) return
         inFlightRef.current = true
+        const gen = genRef.current
         try {
             const next = await fetchDashboardSummary(rpcClient)
-            if (!mountedRef.current) return
+            if (!mountedRef.current || gen !== genRef.current) return
             summaryRef.current = next
             setSummary(next)
             setError(null)
         } catch (e) {
-            if (!mountedRef.current) return
+            if (!mountedRef.current || gen !== genRef.current) return
             // Keep the previous summary on a failed poll; only surface the
             // error when there is nothing to show yet.
             if (!summaryRef.current) {
                 setError(e instanceof Error ? e : new Error('Failed to load dashboard summary'))
             }
         } finally {
-            inFlightRef.current = false
-            if (mountedRef.current) setIsLoading(false)
+            if (gen === genRef.current) {
+                inFlightRef.current = false
+                if (mountedRef.current) setIsLoading(false)
+            }
         }
     }, [])
 
-    // Initial load once the user is known.
+    // On user change: drop the previous user's data, invalidate any in-flight
+    // fetch, then load for the new user (if any).
     useEffect(() => {
+        genRef.current += 1
+        inFlightRef.current = false
+        summaryRef.current = null
+        setSummary(null)
+        setError(null)
+        setIsLoading(true)
         if (!userId) return
         void refresh()
     }, [userId, refresh])
