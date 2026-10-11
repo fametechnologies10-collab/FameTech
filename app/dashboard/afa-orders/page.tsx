@@ -354,13 +354,13 @@ export default function AFAOrdersPage() {
         <div className="max-w-3xl mx-auto space-y-6 pb-10">
 
             {/* ── Hero Header ── */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 p-6 sm:p-8 text-white shadow-xl">
+            <div className="relative overflow-hidden rounded-2xl bg-yellow-500 p-6 sm:p-8 text-white shadow-xl">
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-1">
                         <ShieldCheck className="w-5 h-5 opacity-80" />
-                        <span className="text-xs font-semibold uppercase tracking-widest opacity-80">Official Registration</span>
+                        <span className="text-xs font-semibold uppercase tracking-widest opacity-80">Official registration</span>
                     </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">MTN AFA REGISTRATION</h1>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">MTN AFA registration</h1>
                     <p className="mt-2 text-yellow-100 text-sm max-w-lg leading-relaxed">
                         Register yourself or anyone else for the MTN Authorized Field Agent (AFA) programme.{' '}
                         <strong className="text-white">One registration per person</strong> — membership is permanent.
@@ -392,18 +392,18 @@ export default function AFAOrdersPage() {
             {activeTab === 'stats' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {[
-                        { label: 'Total Registered', value: applications.length, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                        { label: 'Total registered', value: applications.length, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
                         { label: 'Pending',          value: applications.filter(a => a.status === 'pending').length,    color: 'text-yellow-600', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
                         { label: 'Processing',       value: applications.filter(a => a.status === 'processing').length, color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
                         { label: 'Completed',        value: applications.filter(a => a.status === 'completed').length,  color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
                         { label: 'Cancelled',        value: applications.filter(a => a.status === 'cancelled').length,  color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
                         {
-                            label: 'Total GHS Spent',
+                            label: 'Total GHS spent',
                             value: `GHS ${applications.reduce((s, a) => s + (a.payment_amount ?? 0), 0).toFixed(2)}`,
                             color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20',
                         },
                     ].map(stat => (
-                        <Card key={stat.label} className="border shadow-sm">
+                        <Card key={stat.label}>
                             <CardContent className="p-4">
                                 <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center mb-2', stat.bg)}>
                                     <ShieldCheck className={cn('w-4 h-4', stat.color)} />
@@ -427,7 +427,7 @@ export default function AFAOrdersPage() {
                                     <Wallet className="w-5 h-5 text-yellow-600" />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground">Wallet Balance</p>
+                                    <p className="text-xs text-muted-foreground">Wallet balance</p>
                                     <p className="text-xl font-bold text-yellow-700 dark:text-yellow-400">GHS {walletBalance.toFixed(2)}</p>
                                 </div>
                             </CardContent>
@@ -438,7 +438,7 @@ export default function AFAOrdersPage() {
                                     <ShieldCheck className="w-5 h-5 text-blue-600" />
                                 </div>
                                 <div>
-                                    <p className="text-xs text-muted-foreground">Registration Fee</p>
+                                    <p className="text-xs text-muted-foreground">Registration fee</p>
                                     <p className="text-xl font-bold">
                                         {loadingPrice ? 'Loading…' : hasPricingError ? 'Unavailable' : `GHS ${applicationPrice.toFixed(2)}`}
                                     </p>
@@ -498,7 +498,7 @@ export default function AFAOrdersPage() {
                             const StatusIcon = cfg.icon
                             const idNum = app.id_number ?? app.ghana_card
                             return (
-                                <Card key={app.id} className="shadow-sm hover:shadow-md transition-shadow">
+                                <Card key={app.id}>
                                     <CardContent className="p-4">
                                         <div className="flex items-start gap-3">
                                             <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
@@ -532,7 +532,7 @@ export default function AFAOrdersPage() {
                                         </div>
                                         <div className="flex gap-2 mt-3 pt-3 border-t flex-wrap">
                                             <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setSelectedApp(app)}>
-                                                <Eye className="w-3.5 h-3.5" />View Details
+                                                <Eye className="w-3.5 h-3.5" />View details
                                             </Button>
                                             <Button size="sm" variant="outline"
                                                 className="gap-1.5 h-8 text-xs text-yellow-700 border-yellow-300 hover:bg-yellow-50 dark:text-yellow-400 dark:border-yellow-800 dark:hover:bg-yellow-900/20"
@@ -562,7 +562,7 @@ export default function AFAOrdersPage() {
                             </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => setActiveTab('registrations')}>
-                            Back to Registrations
+                            Back to registrations
                         </Button>
                     </CardContent>
                 </Card>
@@ -580,13 +580,13 @@ export default function AFAOrdersPage() {
                         <form onSubmit={handlePreSubmit} className="space-y-5">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label>Full Name <span className="text-red-500">*</span></Label>
+                                    <Label>Full name <span className="text-red-500">*</span></Label>
                                     <Input required disabled={isSubmitting} value={formData.full_name}
                                         onChange={e => setFormData(p => ({ ...p, full_name: e.target.value }))}
                                         placeholder="John Kwame Mensah" className="h-11" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label>Phone Number <span className="text-red-500">*</span></Label>
+                                    <Label>Phone number <span className="text-red-500">*</span></Label>
                                     <Input required type="tel" disabled={isSubmitting} value={formData.phone}
                                         onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
                                         placeholder="024xxxxxxx" className="h-11" />
@@ -595,7 +595,7 @@ export default function AFAOrdersPage() {
 
                             {/* Ghana Card — no type picker */}
                             <div className="space-y-1.5">
-                                <Label>Ghana Card Number <span className="text-red-500">*</span></Label>
+                                <Label>Ghana Card number <span className="text-red-500">*</span></Label>
                                 <div className="flex items-center gap-2">
                                     <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-xs font-bold text-yellow-700 dark:text-yellow-400 shrink-0">
                                         Ghana Card
@@ -619,7 +619,7 @@ export default function AFAOrdersPage() {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label>Date of Birth <span className="text-red-500">*</span></Label>
+                                    <Label>Date of birth <span className="text-red-500">*</span></Label>
                                     <Input required type="date" disabled={isSubmitting} value={formData.date_of_birth}
                                         onChange={e => setFormData(p => ({ ...p, date_of_birth: e.target.value }))}
                                         className="h-11 cursor-pointer"
@@ -636,7 +636,7 @@ export default function AFAOrdersPage() {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label>City / Town <span className="text-red-500">*</span></Label>
+                                    <Label>City / town <span className="text-red-500">*</span></Label>
                                     <Input required disabled={isSubmitting} value={formData.location}
                                         onChange={e => setFormData(p => ({ ...p, location: e.target.value }))}
                                         placeholder="e.g. Kumasi" className="h-11" />
@@ -648,7 +648,7 @@ export default function AFAOrdersPage() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label>Additional Notes <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                                <Label>Additional notes <span className="text-xs text-muted-foreground">(optional)</span></Label>
                                 <Input disabled={isSubmitting} value={formData.notes}
                                     onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
                                     placeholder="Any extra information..." className="h-11" />
@@ -685,7 +685,7 @@ export default function AFAOrdersPage() {
                                         disabled={isSubmitting || loadingPrice || !!gcError}>
                                         {isSubmitting
                                             ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                                            : <><ShieldCheck className="w-4 h-4" /> Submit &amp; Pay GHS {applicationPrice.toFixed(2)}</>}
+                                            : <><ShieldCheck className="w-4 h-4" /> Submit &amp; pay GHS {applicationPrice.toFixed(2)}</>}
                                     </Button>
                                 )}
                             </div>
@@ -700,7 +700,7 @@ export default function AFAOrdersPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-amber-500" />
-                            Confirm Submission
+                            Confirm submission
                         </DialogTitle>
                         <DialogDescription>
                             Please review the details below before proceeding. This action cannot be undone.
@@ -723,7 +723,7 @@ export default function AFAOrdersPage() {
                             ))}
                         </div>
                         <div className="flex justify-between items-center px-1">
-                            <span className="text-sm font-medium">Registration Fee</span>
+                            <span className="text-sm font-medium">Registration fee</span>
                             <span className="font-black text-lg text-yellow-600">GHS {applicationPrice.toFixed(2)}</span>
                         </div>
                         <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
@@ -733,14 +733,14 @@ export default function AFAOrdersPage() {
                     </div>
                     <DialogFooter className="gap-2">
                         <Button variant="ghost" onClick={() => setShowConfirmDialog(false)} className="flex-1">
-                            Go Back &amp; Edit
+                            Go back &amp; edit
                         </Button>
                         <Button onClick={handleConfirmedSubmit}
                             className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold gap-2"
                             disabled={isSubmitting}>
                             {isSubmitting
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                                : <><ShieldCheck className="w-4 h-4" /> Confirm &amp; Pay</>}
+                                : <><ShieldCheck className="w-4 h-4" /> Confirm &amp; pay</>}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -757,7 +757,7 @@ export default function AFAOrdersPage() {
                                 <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
                                         <FileText className="w-5 h-5 text-yellow-500" />
-                                        Application Details
+                                        Application details
                                     </DialogTitle>
                                     <DialogDescription>
                                         Submitted {format(new Date(selectedApp.created_at), 'dd MMM yyyy, hh:mm a')}
@@ -805,7 +805,7 @@ export default function AFAOrdersPage() {
                                     className="w-full gap-2 bg-yellow-500 hover:bg-yellow-600 text-white font-bold"
                                     onClick={() => downloadReceipt(selectedApp)}>
                                     <Download className="w-4 h-4" />
-                                    Download Receipt (.txt)
+                                    Download receipt (.txt)
                                 </Button>
                                 <DialogFooter>
                                     <Button variant="outline" onClick={() => setSelectedApp(null)} className="w-full">Close</Button>
