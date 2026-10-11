@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createAdminClient } from '@/lib/supabase-admin'
+import { consumeRateLimit } from '@/lib/simple-rate-limit'
 import { isValidGhanaPhone, normalizePhone } from '@/lib/ussd/utils'
 import { validateAfaRegistration } from '@/lib/afa-validation'
 import { AFA_PRICE_KEYS, resolveAfaPrice } from '@/lib/afa-pricing'
@@ -29,6 +30,19 @@ export async function POST(request: NextRequest) {
         }
 
         const userId = authUser.id
+
+        // middleware.ts already enforces a stricter 2/hour-per-IP Redis limiter on this path
+        // (rateLimiters.afaRegistration), but this route itself had no per-account throttle —
+        // a single IP cycling many authenticated accounts could still hammer it for DB writes,
+        // an RPC call and an admin-alert email per request. This is defense-in-depth, looser
+        // than the middleware gate, so it cannot newly block traffic that wasn't already allowed.
+        const rl = consumeRateLimit(`user-afa-registration:${userId}`, 10, 60_000)
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { error: `Rate limit exceeded (10/min). Retry in ${Math.ceil(rl.retryAfterMs / 1000)}s` },
+                { status: 429 }
+            )
+        }
 
         // ── Parse request body ────────────────────────────────────
         let body: any

@@ -121,6 +121,19 @@ export async function fulfillAFAOrder(
             .single()
 
         if (afaError) {
+            // 23505 = unique violation on reference_code: a concurrent call (e.g. a
+            // retried Hubtel callback) won the race and already inserted this order.
+            // The SELECT-then-INSERT guard above isn't atomic, so this is the actual
+            // idempotency backstop — mirrors lib/shop-afa-order-processor.ts's handling
+            // of the same constraint. The customer has paid and the order exists; report
+            // success instead of a false failure.
+            if ((afaError as any).code === '23505') {
+                const { data: existing } = await (supabase.from('afa_orders') as any)
+                    .select('id')
+                    .eq('reference_code', referenceCode)
+                    .maybeSingle()
+                if (existing) return { success: true, orderId: (existing as any).id }
+            }
             console.error('[USSD AFA Fulfillment] AFA order insert failed:', afaError)
             return { success: false, error: afaError.message }
         }

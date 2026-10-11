@@ -1,12 +1,13 @@
 // app/api/shop/afa/charge/route.ts
 //
-// Native in-app MoMo charge for storefront AFA registration — the ServiceChargeSheet
-// counterpart to app/api/shop/afa/initialize/route.ts's redirect flow. Structurally
-// mirrors app/api/shop/charge/route.ts (data/airtime/mashup's native charge), with the
-// KYC-staging ordering rule carried over verbatim from afa/initialize: the payment must
-// never exist without its staged payload, so shop_afa_pending_orders is written BEFORE
-// the Paystack /charge call. Paystack metadata carries only the same non-sensitive
-// fields afa/initialize sends today — no name, no Ghana Card number, no DOB.
+// Native in-app MoMo charge for storefront AFA registration — this is the only active
+// AFA checkout route in the shop storefront flow. A parallel Paystack-redirect flow
+// (afa/initialize + afa/verify) once existed alongside it but was never wired into any
+// UI and was removed as dead code. Structurally mirrors app/api/shop/charge/route.ts
+// (data/airtime/mashup's native charge): the payment must never exist without its
+// staged payload, so shop_afa_pending_orders is written BEFORE the Paystack /charge
+// call. Paystack metadata carries only non-sensitive fields — no name, no Ghana Card
+// number, no DOB.
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { computeShopAfaCheckout } from '@/lib/shop-afa-checkout'
