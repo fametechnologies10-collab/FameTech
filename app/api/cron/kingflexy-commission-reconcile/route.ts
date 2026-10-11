@@ -6,6 +6,8 @@ import { dispatchUtilityFulfillment } from '@/lib/utility-fulfillment'
 import { checkAirtimeOrderStatus, checkUtilityOrderStatus, type KfStatusResult } from '@/lib/kingflexy-commission-service'
 import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
 
+export const maxDuration = 60
+
 const KF = 'kingflexy-commission'
 const LOG = '[KingFlexyReconcile]'
 
@@ -114,6 +116,11 @@ export async function GET(request: NextRequest) {
                     ...(r.state === 'completed' ? { commissionEarned: r.commissionEarned } : {}),
                 })
                 if (res.transitioned) utilities.finalized++
+            } else if (!r.found) {
+                const { data: rev } = await supabase.from('utility_orders')
+                    .update({ status: 'pending', fulfillment_request_id: null, updated_at: new Date().toISOString() })
+                    .eq('id', o.id).eq('status', 'processing').select('id')
+                if (rev?.length) utilities.reverted++
             } else {
                 await supabase.from('utility_orders')
                     .update({ fulfillment_metadata: { ...(o.fulfillment_metadata || {}), status_check: statusCheckNote(r) }, updated_at: new Date().toISOString() })

@@ -7,6 +7,7 @@ import {
     toLocalPhone,
     kfIdempotencyKey,
     baseReferenceFromKey,
+    isStaleAirtimeReference,
     kfKeyForOrder,
     decideKfWebhookAction,
     parseKfLookup,
@@ -70,6 +71,15 @@ assert.notEqual(k0, k3)
 
 assert.equal(baseReferenceFromKey('X-m3'), 'X')
 assert.equal(baseReferenceFromKey('X'), 'X')
+
+// isStaleAirtimeReference
+assert.equal(isStaleAirtimeReference({ reference_code: 'REF', fulfillment_metadata: { client_reference: 'REF' } }, 'REF'), false)
+assert.equal(isStaleAirtimeReference({ reference_code: 'REF', fulfillment_metadata: { client_reference: 'REF-m1', kf_generation: 1 } }, 'REF'), true)
+assert.equal(isStaleAirtimeReference({ reference_code: 'REF', fulfillment_metadata: { client_reference: 'REF-m1', kf_generation: 1 } }, 'REF-m1'), false)
+assert.equal(isStaleAirtimeReference({ reference_code: 'REF', fulfillment_metadata: null }, 'REF'), false)
+assert.equal(isStaleAirtimeReference({ reference_code: 'REF', fulfillment_metadata: {} }, 'REF-m1'), true)
+assert.equal(isStaleAirtimeReference({ reference_code: 'A B/C', fulfillment_metadata: null }, 'A-B-C'), false)
+assert.equal(isStaleAirtimeReference({ reference_code: 'A B/C', fulfillment_metadata: null }, 'A B/C'), true)
 
 // kfKeyForOrder
 assert.deepEqual(
@@ -157,6 +167,12 @@ async function networkTests() {
     r = await kf.fulfillAirtimeKingFlexy('MTN', '0551617309', 10, 'REF-2')
     assert.equal(r.success, true)
     assert.equal(r.pending, false)
+
+    reset()
+    stub(200, { success: true, data: { order_id: 'o2f', status: 'failed' } })
+    r = await kf.fulfillAirtimeKingFlexy('MTN', '0551617309', 10, 'REF-2F')
+    assert.equal(r.success, false)
+    assert.equal(r.isPermanentFailure, true)
 
     reset()
     stub(400, { success: false, error: 'Insufficient wallet balance' })

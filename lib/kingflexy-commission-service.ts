@@ -84,6 +84,15 @@ export function kfKeyForOrder(
     return { key: kfIdempotencyKey(order.reference_code, generation), generation }
 }
 
+// A webhook for an earlier attempt (e.g. a provider retry of an old order.failed) must not finalize the live one.
+export function isStaleAirtimeReference(
+    order: { reference_code: string; fulfillment_metadata: Record<string, any> | null },
+    reference: string,
+): boolean {
+    const current = order.fulfillment_metadata?.client_reference || kfIdempotencyKey(order.reference_code, 0)
+    return reference !== current
+}
+
 export function decideKfWebhookAction(payload: unknown): {
     action: 'completed' | 'failed' | 'ignore'
     product?: 'airtime' | 'utilities'
@@ -235,7 +244,7 @@ export async function fulfillAirtimeKingFlexy(
             case 'accepted': {
                 const state = classifyKfOrderStatus(data?.status)
                 if (state === 'failed') {
-                    return { success: false, pending: false, error: kfErrorMessage(data, 'KingFlexyGH airtime order failed'), apiResponse: res.body }
+                    return { success: false, pending: false, isPermanentFailure: true, error: kfErrorMessage(data, 'KingFlexyGH airtime order failed'), apiResponse: res.body }
                 }
                 return {
                     success: true,

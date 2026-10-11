@@ -236,6 +236,8 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
         .update({
             status: 'processing',
             fulfillment_service: KF_SERVICE,
+            // A same-key replay returns the reference again; a stale one would be status-checked by cron.
+            fulfillment_request_id: null,
             fulfillment_attempts: attempt,
             updated_at: new Date().toISOString(),
         })
@@ -353,6 +355,7 @@ async function applyDispatchResult(
                 api_response: result.apiResponse,
             }
             await (supabase as any).from('utility_orders').update({
+                ...providerRef,
                 fulfillment_metadata: meta,
                 updated_at: nowIso,
             }).eq('id', orderId).eq('status', 'processing')
@@ -519,11 +522,17 @@ export async function manualRefulfillUtility(orderId: string, adminId: string): 
 
     if (order.status === 'failed') {
         // New idempotency key for the retry; otherwise KingFlexyGH would replay the failed order.
-        if (order.fulfillment_service === KF_SERVICE) {
+        const isKf = order.fulfillment_service === KF_SERVICE
+        if (isKf) {
             manualMeta.kf_generation = (Number(order.fulfillment_metadata?.kf_generation ?? 0) || 0) + 1
         }
         const { data: reset } = await (supabase as any).from('utility_orders')
-            .update({ status: 'pending', fulfillment_metadata: manualMeta, updated_at: new Date().toISOString() })
+            .update({
+                status: 'pending',
+                fulfillment_metadata: manualMeta,
+                ...(isKf ? { fulfillment_request_id: null } : {}),
+                updated_at: new Date().toISOString(),
+            })
             .eq('id', orderId).eq('status', 'failed').select('id')
         if (!reset || reset.length === 0) return { success: false, error: 'Order state changed — retry' }
     } else {

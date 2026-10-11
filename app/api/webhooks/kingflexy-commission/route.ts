@@ -4,6 +4,7 @@ import {
     verifyKingFlexySignature,
     decideKfWebhookAction,
     baseReferenceFromKey,
+    isStaleAirtimeReference,
     checkUtilityOrderStatus,
 } from '@/lib/kingflexy-commission-service'
 import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
@@ -50,6 +51,10 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
             }
             if (!order) return NextResponse.json({ success: true }, { status: 200 })
+            if (isStaleAirtimeReference(order, reference)) {
+                console.warn(LOG, 'Ignoring event for superseded attempt, product:', product, 'reference:', reference)
+                return NextResponse.json({ success: true }, { status: 200 })
+            }
 
             await finalizeKfAirtime(supabase, order, { state, reason, raw: payload })
             return NextResponse.json({ success: true }, { status: 200 })
