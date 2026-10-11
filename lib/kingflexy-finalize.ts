@@ -19,15 +19,53 @@ async function adminAlert(title: string, body: string, url: string) {
     } catch (e) { console.error(LOG, 'admin push failed:', e) }
 }
 
+type Refund = { refunded?: boolean; amount?: unknown; newBalance?: unknown }
+
+export function buildLateSuccessAlert(kind: 'airtime' | 'utility', freshStatus: string | null | undefined, ref: string) {
+    if (freshStatus !== 'refunded' && freshStatus !== 'failed') return null
+    const url = kind === 'airtime' ? '/admin/airtime' : '/admin/utilities'
+    if (freshStatus === 'refunded') {
+        return {
+            title: `KingFlexyGH reported success on an already-refunded ${kind} order`,
+            body: `Order ${ref} was auto-refunded on an earlier failure signal, but KingFlexyGH now reports delivery — reconcile manually.`,
+            url,
+        }
+    }
+    return {
+        title: `KingFlexyGH reported success on an already-failed ${kind} order — do NOT refund, reconcile`,
+        body: `Order ${ref} is marked failed but KingFlexyGH now reports delivery. Do not refund it manually; reconcile first.`,
+        url,
+    }
+}
+
+export function buildAirtimeCompletedDetail(order: { network: string; airtime_amount: number | string }) {
+    return { network: order.network, airtime_amount: Number(order.airtime_amount) }
+}
+
+export function buildAirtimeFailedDetail(order: { network: string; airtime_amount: number | string }, reasonCode: string, reasonMessage: string, refund: Refund) {
+    return {
+        network: order.network, airtime_amount: Number(order.airtime_amount),
+        reason_code: reasonCode, reason: reasonMessage,
+        ...(refund.refunded ? { refunded: true, refund_amount: refund.amount, new_balance: refund.newBalance } : {}),
+    }
+}
+
+export function buildUtilityCompletedDetail(order: { biller: string; amount: number | string }) {
+    return { biller: order.biller, amount: Number(order.amount) }
+}
+
+export function buildUtilityFailedDetail(order: { biller: string; amount: number | string }, reasonCode: string, reasonMessage: string, refund: Refund) {
+    return {
+        biller: order.biller, amount: Number(order.amount),
+        reason_code: reasonCode, reason: reasonMessage,
+        ...(refund.refunded ? { refunded: true, refund_amount: refund.amount, new_balance: refund.newBalance } : {}),
+    }
+}
+
 async function lateSuccessAlert(supabase: any, table: 'airtime_orders' | 'utility_orders', orderId: string, ref: string) {
     const { data: freshRow } = await (supabase.from(table) as any).select('status').eq('id', orderId).maybeSingle()
-    if (freshRow?.status !== 'refunded') return
-    const kind = table === 'airtime_orders' ? 'airtime' : 'utility'
-    await adminAlert(
-        `KingFlexyGH reported success on an already-refunded ${kind} order`,
-        `Order ${ref} was auto-refunded on an earlier failure signal, but KingFlexyGH now reports delivery — reconcile manually.`,
-        kind === 'airtime' ? '/admin/airtime' : '/admin/utilities',
-    )
+    const alert = buildLateSuccessAlert(table === 'airtime_orders' ? 'airtime' : 'utility', freshRow?.status, ref)
+    if (alert) await adminAlert(alert.title, alert.body, alert.url)
 }
 
 export async function finalizeKfAirtime(
@@ -83,7 +121,7 @@ export async function finalizeKfAirtime(
             waitUntil(dispatchApiWebhook(supabase, {
                 apiKeyId: order.api_key_id, event: 'order.completed', product: 'airtime',
                 reference: ref.replace(/^API-/, ''), status: 'completed',
-                detail: { network: order.network, airtime_amount: Number(order.airtime_amount) },
+                detail: buildAirtimeCompletedDetail(order),
             }))
         }
         return { transitioned: true }
@@ -107,10 +145,7 @@ export async function finalizeKfAirtime(
         waitUntil(dispatchApiWebhook(supabase, {
             apiKeyId: order.api_key_id, event: 'order.failed', product: 'airtime',
             reference: ref.replace(/^API-/, ''), status: refund.refunded ? 'refunded' : 'failed',
-            detail: {
-                reason_code: reasonCode, reason: reasonMessage,
-                ...(refund.refunded ? { refunded: true, refund_amount: refund.amount, new_balance: refund.newBalance } : {}),
-            },
+            detail: buildAirtimeFailedDetail(order, reasonCode, reasonMessage, refund),
         }))
     }
     await adminAlert('Airtime auto-fulfillment failed', `Order ${ref} did not deliver: ${outcome.reason || 'KingFlexyGH reported failure'}.`, '/admin/airtime')
@@ -181,7 +216,7 @@ export async function finalizeKfUtility(
             waitUntil(dispatchApiWebhook(supabase, {
                 apiKeyId: order.api_key_id, event: 'order.completed', product: 'utilities',
                 reference: ref.replace(/^API-/, ''), status: 'completed',
-                detail: { biller: order.biller, amount: Number(order.amount) },
+                detail: buildUtilityCompletedDetail(order),
             }))
         }
         return { transitioned: true }
@@ -202,11 +237,7 @@ export async function finalizeKfUtility(
         waitUntil(dispatchApiWebhook(supabase, {
             apiKeyId: order.api_key_id, event: 'order.failed', product: 'utilities',
             reference: ref.replace(/^API-/, ''), status: refund.refunded ? 'refunded' : 'failed',
-            detail: {
-                biller: order.biller, amount: Number(order.amount),
-                reason_code: reasonCode, reason: reasonMessage,
-                ...(refund.refunded ? { refunded: true, refund_amount: refund.amount, new_balance: refund.newBalance } : {}),
-            },
+            detail: buildUtilityFailedDetail(order, reasonCode, reasonMessage, refund),
         }))
     }
     await adminAlert('Utility payment failed', `Utility ${ref} did not deliver: ${outcome.reason || 'KingFlexyGH reported failure'}.`, '/admin/utilities')

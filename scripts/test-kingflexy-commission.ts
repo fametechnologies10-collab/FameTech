@@ -11,7 +11,10 @@ import {
     decideKfWebhookAction,
     parseKfLookup,
 } from '../lib/kingflexy-commission-service'
-import { finalizeKfAirtime, finalizeKfUtility } from '../lib/kingflexy-finalize'
+import {
+    finalizeKfAirtime, finalizeKfUtility, buildLateSuccessAlert, buildAirtimeCompletedDetail,
+    buildAirtimeFailedDetail, buildUtilityCompletedDetail, buildUtilityFailedDetail,
+} from '../lib/kingflexy-finalize'
 
 // classifyKfOrderStatus
 assert.equal(classifyKfOrderStatus('completed'), 'completed')
@@ -410,6 +413,35 @@ async function finalizeTests() {
     r = await finalizeKfUtility(client, utilOrder, { state: 'completed' })
     assert.equal(r.transitioned, false)
     assert.ok(log.some((l) => l.table === 'utility_orders' && l.op === 'select'))
+    // late success on a failed order: alert path attempted, no side effects
+    ;({ client, log } = makeStub({ updateRows: [], freshRow: { status: 'failed' } }))
+    r = await finalizeKfAirtime(client, airOrder, { state: 'completed' })
+    assert.equal(r.transitioned, false)
+    assert.ok(log.some((l) => l.table === 'airtime_orders' && l.op === 'select'))
+    assert.ok(!log.some((l) => l.op === 'rpc' || l.op === 'insert'))
+    ;({ client, log } = makeStub({ updateRows: [], freshRow: { status: 'failed' } }))
+    r = await finalizeKfUtility(client, utilOrder, { state: 'completed' })
+    assert.equal(r.transitioned, false)
+    assert.ok(log.some((l) => l.table === 'utility_orders' && l.op === 'select'))
+    assert.ok(!log.some((l) => l.op === 'rpc' || l.op === 'insert'))
+
+    assert.equal(buildLateSuccessAlert('airtime', 'completed', 'R'), null)
+    assert.equal(buildLateSuccessAlert('utility', 'pending', 'R'), null)
+    assert.match(buildLateSuccessAlert('airtime', 'refunded', 'R')!.title, /already-refunded airtime/)
+    assert.match(buildLateSuccessAlert('utility', 'failed', 'R')!.title, /already-failed utility order — do NOT refund/)
+    assert.equal(buildLateSuccessAlert('utility', 'failed', 'R')!.url, '/admin/utilities')
+
+    const refunded = { refunded: true, amount: 10, newBalance: 50 }
+    assert.deepEqual(buildAirtimeCompletedDetail({ network: 'MTN', airtime_amount: '10' }), { network: 'MTN', airtime_amount: 10 })
+    assert.deepEqual(buildUtilityCompletedDetail({ biller: 'ecg', amount: '20' }), { biller: 'ecg', amount: 20 })
+    assert.deepEqual(buildAirtimeFailedDetail({ network: 'MTN', airtime_amount: '10' }, 'c', 'm', { refunded: false }),
+        { network: 'MTN', airtime_amount: 10, reason_code: 'c', reason: 'm' })
+    assert.deepEqual(buildAirtimeFailedDetail({ network: 'MTN', airtime_amount: 10 }, 'c', 'm', refunded),
+        { network: 'MTN', airtime_amount: 10, reason_code: 'c', reason: 'm', refunded: true, refund_amount: 10, new_balance: 50 })
+    assert.deepEqual(buildUtilityFailedDetail({ biller: 'ecg', amount: '20' }, 'c', 'm', { refunded: false }),
+        { biller: 'ecg', amount: 20, reason_code: 'c', reason: 'm' })
+    assert.deepEqual(buildUtilityFailedDetail({ biller: 'ecg', amount: 20 }, 'c', 'm', refunded),
+        { biller: 'ecg', amount: 20, reason_code: 'c', reason: 'm', refunded: true, refund_amount: 10, new_balance: 50 })
 }
 
 networkTests()
