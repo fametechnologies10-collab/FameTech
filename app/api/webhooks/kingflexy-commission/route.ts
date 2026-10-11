@@ -42,18 +42,26 @@ export async function POST(request: NextRequest) {
         const supabase = createServerClient()
 
         if (product === 'airtime') {
-            const { data: order } = await (supabase.from('airtime_orders') as any)
+            const { data: order, error: lookupError } = await (supabase.from('airtime_orders') as any)
                 .select('id, reference_code, network, airtime_amount, user_id, source, api_key_id, fulfillment_metadata')
                 .eq('reference_code', baseReferenceFromKey(reference)).maybeSingle()
+            if (lookupError) {
+                console.error(LOG, 'Order lookup failed:', lookupError.message, 'product:', product, 'reference:', reference)
+                return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+            }
             if (!order) return NextResponse.json({ success: true }, { status: 200 })
 
             await finalizeKfAirtime(supabase, order, { state, reason, raw: payload })
             return NextResponse.json({ success: true }, { status: 200 })
         }
 
-        const { data: order } = await (supabase.from('utility_orders') as any)
+        const { data: order, error: lookupError } = await (supabase.from('utility_orders') as any)
             .select('id, reference_code, biller, account_number, amount, user_id, shop_id, source, api_key_id, destination_phone, fulfillment_metadata')
             .eq('fulfillment_request_id', reference).maybeSingle()
+        if (lookupError) {
+            console.error(LOG, 'Order lookup failed:', lookupError.message, 'product:', product, 'reference:', reference)
+            return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+        }
         if (!order) {
             // The provider may call before we have persisted its reference; it retries once and the reconcile cron is the fallback.
             return NextResponse.json({ success: false, error: 'order not found yet' }, { status: 503 })
