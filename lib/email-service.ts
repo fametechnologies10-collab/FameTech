@@ -1,13 +1,15 @@
 ﻿/**
  * Email Service
  *
- * Transactional emails for FameTech, sent through Resend.
+ * Transactional emails for FameTech, sent through Resend with Brevo as
+ * automatic fallback when Resend fails.
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { sendAdminPushNotification } from './push-service'
 import { Resend } from 'resend'
 import { Redis } from '@upstash/redis'
+import { sendViaBrevo } from './brevo-client'
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -60,33 +62,60 @@ interface EmailResult {
 }
 
 /**
- * Core function to send transactional email via Resend (the only provider).
- * The sender address must be on the domain verified in Resend (fametechgh.com).
+ * Core function to send transactional email. Tries Resend first; on failure
+ * (and if BREVO_API_KEY is configured), automatically retries via Brevo from
+ * the same sender address. The sender address must be verified with both
+ * providers on the fametechgh.com domain.
  */
 export async function sendEmail(options: SendEmailOptions, senderEmail: string = DEFAULT_SENDER_EMAIL): Promise<EmailResult> {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY not set. Email not sent.')
+    if (!process.env.RESEND_API_KEY && !process.env.BREVO_API_KEY) {
+        console.warn('No email provider configured (RESEND_API_KEY / BREVO_API_KEY). Email not sent.')
         return { success: false, error: 'Email service not configured' }
     }
 
+    let resendError: string | undefined
+
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const data = await getResend().emails.send({
+                from: `${SENDER_NAME} <${senderEmail}>`,
+                to: options.toName ? `${options.toName} <${options.to}>` : options.to,
+                subject: options.subject,
+                html: options.htmlContent,
+            })
+
+            if (data.error) {
+                resendError = data.error.message || 'Failed to send email'
+                console.error('Resend API Error:', data.error)
+            } else {
+                console.log('Email sent successfully via Resend:', data.data?.id)
+                return { success: true, messageId: data.data?.id }
+            }
+        } catch (error: any) {
+            resendError = error.message || 'Failed to send email'
+            console.error('Failed to send email via Resend:', resendError)
+        }
+    }
+
+    if (!process.env.BREVO_API_KEY) {
+        return { success: false, error: resendError || 'Email service not configured' }
+    }
+
     try {
-        const data = await getResend().emails.send({
-            from: `${SENDER_NAME} <${senderEmail}>`,
-            to: options.toName ? `${options.toName} <${options.to}>` : options.to,
+        const data = await sendViaBrevo({
+            to: options.to,
+            toName: options.toName,
+            from: senderEmail,
+            fromName: SENDER_NAME,
             subject: options.subject,
-            html: options.htmlContent,
+            htmlContent: options.htmlContent,
         })
 
-        if (data.error) {
-            console.error('Resend API Error:', data.error)
-            return { success: false, error: data.error.message || 'Failed to send email' }
-        }
-
-        console.log('Email sent successfully via Resend:', data.data?.id)
-        return { success: true, messageId: data.data?.id }
+        console.log('Email sent successfully via Brevo (Resend fallback):', data.messageId)
+        return { success: true, messageId: data.messageId }
     } catch (error: any) {
-        console.error('Failed to send email via Resend:', error.message)
-        return { success: false, error: error.message || 'Failed to send email' }
+        console.error('Failed to send email via Brevo:', error.message)
+        return { success: false, error: error.message || resendError || 'Failed to send email' }
     }
 }
 
