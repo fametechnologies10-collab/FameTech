@@ -335,8 +335,8 @@ export default function AdminAfaManagementPage() {
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>Admin Console</span>
                     </div>
-                    <h1 className="text-2xl font-bold">MTN AFA Applications</h1>
-                    <p className="text-sm text-muted-foreground">Manage and process incoming permanent registration applications.</p>
+                    <h1 className="text-2xl font-bold">MTN AFA applications</h1>
+                    <p className="text-sm text-muted-foreground">Review and process AFA registration submissions.</p>
                 </div>
                 <button
                     onClick={handleManualRefresh}
@@ -362,7 +362,7 @@ export default function AdminAfaManagementPage() {
                     { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
                     { label: 'Cancelled', value: stats.cancelled, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
                 ].map(s => (
-                    <Card key={s.label} className="border shadow-sm">
+                    <Card key={s.label}>
                         <CardContent className="p-4">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${s.bg}`}>
                                 <s.icon className={`w-4 h-4 ${s.color}`} />
@@ -375,7 +375,7 @@ export default function AdminAfaManagementPage() {
             </div>
 
             {/* ─── Filters ─── */}
-            <Card className="border shadow-sm">
+            <Card>
                 <CardContent className="p-4 flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -454,7 +454,7 @@ export default function AdminAfaManagementPage() {
                 <CardHeader className="p-4 border-b">
                     <CardTitle className="text-base flex items-center gap-2">
                         <Users className="w-4 h-4" />
-                        Registration Submissions
+                        Registration submissions
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -523,7 +523,7 @@ export default function AdminAfaManagementPage() {
                                                         <div className="flex items-center gap-1.5 mt-0.5">
                                                             <span className="text-xs text-muted-foreground">{resolveApplicantName(app)}</span>
                                                             {app.shop_profiles?.shop_name && (
-                                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
                                                                     {app.shop_profiles.shop_name}
                                                                 </span>
                                                             )}
@@ -591,7 +591,7 @@ export default function AdminAfaManagementPage() {
                                                 <div className="flex items-center gap-1.5 mt-0.5">
                                                     <span className="text-xs text-muted-foreground">{resolveApplicantName(app)}</span>
                                                     {app.shop_profiles?.shop_name && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
                                                             {app.shop_profiles.shop_name}
                                                         </span>
                                                     )}
@@ -641,7 +641,7 @@ export default function AdminAfaManagementPage() {
                                 <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
                                         <ShieldCheck className="w-5 h-5 text-yellow-500" />
-                                        Application Details
+                                        Application details
                                     </DialogTitle>
                                     <DialogDescription>
                                         MTN AFA Permanent Registration — Submitted {format(new Date(selectedApp.created_at), 'dd MMM yyyy, hh:mm a')}
@@ -701,7 +701,7 @@ export default function AdminAfaManagementPage() {
 
                                 {/* ─── Status Controls ─── */}
                                 <div className="space-y-2">
-                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Update Status</p>
+                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Update status</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         <Button
                                             variant="outline"
@@ -816,7 +816,7 @@ export default function AdminAfaManagementPage() {
                             <DialogHeader>
                                 <DialogTitle className="flex items-center gap-2">
                                     <Ban className="w-5 h-5 text-purple-500" />
-                                    Confirm Refund
+                                    Confirm refund
                                 </DialogTitle>
                                 <DialogDescription>
                                     This order (<span className="font-medium">{refundConfirmApp.full_name}</span>) is currently <span className="font-medium">processing</span>. Refunding now may reverse a payment for work already underway.
