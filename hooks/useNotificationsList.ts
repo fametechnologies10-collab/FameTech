@@ -51,9 +51,14 @@ export function useNotificationsList(userId?: string) {
     }, [userId])
 
     const markAsRead = useCallback(async (id: string) => {
-        await (supabase.from('notifications') as any).update({ is_read: true }).eq('id', id)
+        if (!userId) return
+        // Scoped by user_id in addition to id as defense-in-depth: correctness
+        // must not depend solely on the notifications RLS policy staying exactly
+        // as-is (the INSERT policy on this table was mistakenly reopened to all
+        // roles once before — see 20260529_fix_notifications_rls.sql).
+        await (supabase.from('notifications') as any).update({ is_read: true }).eq('id', id).eq('user_id', userId)
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
-    }, [])
+    }, [userId])
 
     const markAllAsRead = useCallback(async () => {
         if (!userId) return
@@ -62,9 +67,11 @@ export function useNotificationsList(userId?: string) {
     }, [userId])
 
     const deleteNotif = useCallback(async (id: string) => {
-        await (supabase.from('notifications') as any).delete().eq('id', id)
+        if (!userId) return
+        // Same defense-in-depth scoping as markAsRead above.
+        await (supabase.from('notifications') as any).delete().eq('id', id).eq('user_id', userId)
         setNotifications(prev => prev.filter(n => n.id !== id))
-    }, [])
+    }, [userId])
 
     const deleteAll = useCallback(async () => {
         if (!userId) return

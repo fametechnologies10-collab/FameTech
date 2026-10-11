@@ -83,22 +83,6 @@ export async function deleteNotification(notificationId: string, userId: string)
     return { success: !error, error }
 }
 
-export async function cleanupOldNotifications() {
-    const supabase = createServerClient()
-
-    // Delete read notifications older than 72 hours
-    const cutoffDate = new Date()
-    cutoffDate.setHours(cutoffDate.getHours() - 72)
-
-    const { error } = await (supabase
-        .from('notifications') as any)
-        .delete()
-        .eq('is_read', true)
-        .lt('created_at', cutoffDate.toISOString())
-
-    return { success: !error, error }
-}
-
 // ── Notification Templates ────────────────────────────────────────────────────
 
 export function orderUpdateNotification(orderRef: string, status: string): Omit<NotificationData, 'userId'> {
