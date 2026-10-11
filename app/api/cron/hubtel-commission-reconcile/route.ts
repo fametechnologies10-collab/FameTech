@@ -3,7 +3,6 @@ import { waitUntil } from '@vercel/functions'
 import { validateCronAuth } from '@/lib/cron-utils'
 import { createServerClient } from '@/lib/supabase'
 import { dispatchAirtimeFulfillment } from '@/lib/airtime-fulfillment'
-import { dispatchUtilityFulfillment } from '@/lib/utility-fulfillment'
 import { checkCommissionStatus } from '@/lib/hubtel-commission-status'
 import { settleReceivePaid } from '@/lib/hubtel-receive/settle'
 import { categorizeFailure, autoRefundApiOrderOnFailure } from '@/lib/api-order-failure'
@@ -97,14 +96,16 @@ export async function GET(request: NextRequest) {
         try { await dispatchAirtimeFulfillment(o.id); dispatched++ } catch { /* continue */ }
     }
 
-    // ── Utility bills (Pass U-a + U-b) — same reconcile idioms, separate table/pipeline ────────
+    // ── Utility bills (Pass U-a) — same reconcile idioms, separate table/pipeline ────────
+    // Pending-paid utility re-dispatch now lives in the kingflexy-commission-reconcile cron.
 
     // (U-a) processing but callback never arrived (>5min) → reconcile via the Hubtel Status Check
     // API. Same record-always / move-only-on-AUTO gating as the airtime pass above. We NEVER
-    // blind re-dispatch a processing order here either — dispatchUtilityFulfillment is only
-    // called from Pass U-b below, and only for 'pending' rows.
+    // blind re-dispatch a processing order here either. KingFlexyGH-tagged rows are excluded:
+    // they are reconciled by the kingflexy-commission-reconcile cron.
     const { data: stuckUtil } = await (supabase as any).from('utility_orders')
         .select('id, reference_code, fulfillment_attempts, fulfillment_request_id, fulfillment_metadata, user_id, biller, amount, source, api_key_id')
+        .or('fulfillment_service.is.null,fulfillment_service.neq.kingflexy-commission')
         .eq('status', 'processing')
         .lt('updated_at', fiveMinAgo)
         .order('updated_at', { ascending: true })
@@ -216,24 +217,6 @@ export async function GET(request: NextRequest) {
         console.warn(`[HubtelCommissionReconcile] ${utilStuckRemaining} utility order(s) stuck >5min (auto=${autoStatusCheck}) — review /admin/utilities`)
     }
 
-    // (U-b) pending PAID utility orders with attempts remaining → re-dispatch. Unpaid storefront
-    // checkout rows must never be selected here (payment_status='paid' is load-bearing).
-    // dispatchUtilityFulfillment runs the prior-attempt double-send guard (incl. blocking on an
-    // unverifiable/in-flight prior status check) before ever sending, so calling it unconditionally
-    // for every eligible row is safe — the pipeline's internal guards do all the safety work.
-    const { data: pendingUtil } = await (supabase as any).from('utility_orders')
-        .select('id')
-        .eq('status', 'pending')
-        .eq('payment_status', 'paid')
-        .lt('fulfillment_attempts', 5)
-        .order('created_at', { ascending: true })
-        .limit(50)
-
-    let utilDispatched = 0
-    for (const o of (pendingUtil || [])) {
-        try { await dispatchUtilityFulfillment(o.id); utilDispatched++ } catch { /* continue */ }
-    }
-
     // ── Hubtel Receive Money (Pass R-a) — payment-settle + confirmed-Unpaid expire ──────────
 
     // Pending Receive Money charges (>5min) whose callback never arrived → settle via
@@ -282,7 +265,6 @@ export async function GET(request: NextRequest) {
             completed: utilCompleted,
             failed: utilFailed,
             recorded: utilRecorded,
-            redispatched: utilDispatched,
         },
         receiveMoney: {
             checked: receiveChecked,

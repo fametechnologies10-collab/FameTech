@@ -6,7 +6,7 @@ import { findUserByMobile } from '../price-resolver'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { processWalletPayment, recordWalletAwaitingFulfillment, clearWalletRefund, markWalletRefundFailed } from '../wallet-payment'
 import { fulfillUtilityUSSDOrder, type UtilityOrderPayload } from '../fulfillment/utility'
-import { queryUtilityAccount } from '@/lib/hubtel-utility/service'
+import { lookupUtilityAccountKingFlexy } from '@/lib/kingflexy-commission-service'
 import { toMsisdn233 } from '@/lib/hubtel-commission-service'
 import { UTILITY_BILLERS, UTILITY_BILLER_KEYS, isUtilityBiller, type UtilityBiller } from '@/lib/hubtel-utility/billers'
 import { parseSettingNumber } from '@/lib/paystack-fees'
@@ -191,7 +191,7 @@ async function handleEcgPhoneEntry(req: HubtelRequest, state: USSDState, supabas
 // ── Step 2b: ECG meter list (paginated, data.ts menuMap idiom) ─────────────────
 
 async function showEcgMeterPage(req: HubtelRequest, state: USSDState, supabase: SupabaseClient): Promise<HubtelResponse> {
-    const result = await queryUtilityAccount('ecg', state.utilityPhone!)
+    const result = await lookupUtilityAccountKingFlexy('ecg', state.utilityPhone!)
 
     if (!result.success || !result.info || result.info.meters.length === 0) {
         return handleLookupFailure(req, state)
@@ -307,7 +307,7 @@ async function handleAccountInput(req: HubtelRequest, state: USSDState, supabase
     // separate phone-entry step. Other billers query by account/smartcard alone.
     const phone = toMsisdn233(req.Mobile)
     const mobileArg = biller === 'ghana_water' ? phone : undefined
-    const result = await queryUtilityAccount(biller, input, mobileArg)
+    const result = await lookupUtilityAccountKingFlexy(biller, input, mobileArg)
 
     if (!result.success || !result.info) {
         return handleLookupFailure(req, state)

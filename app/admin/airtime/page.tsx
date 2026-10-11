@@ -219,7 +219,7 @@ function canRefulfill(o: Order) {
     return o.type !== 'mashup' && (o.status === 'failed' || o.status === 'pending') && o.airtime_amount <= 100
 }
 function canSync(o: Order) {
-    return o.fulfillment_service === 'hubtel-commission' && (o.status === 'processing' || o.status === 'pending')
+    return (o.fulfillment_service === 'hubtel-commission' || o.fulfillment_service === 'kingflexy-commission') && (o.status === 'processing' || o.status === 'pending')
 }
 // Admin refund is allowed for any non-terminal-good airtime (never completed / already refunded).
 // Shop airtime is skipped server-side (refund via the shop order) — the button still shows.
@@ -280,7 +280,8 @@ function OrderCard({ order, onAction, onRefulfill, onSyncStatus, onRefund, busy,
     const { adminMarkup, shop, commission } = earningsOf(order)
     const attempts    = order.airtime_fulfillment_attempts ?? 0
     const canAct      = (STATUS_TRANSITIONS[order.status]?.length ?? 0) > 0
-    const provider    = order.fulfillment_service === 'hubtel-commission' ? 'Hubtel' : order.fulfillment_service
+    const provider    = order.fulfillment_service === 'hubtel-commission' ? 'Hubtel'
+        : order.fulfillment_service === 'kingflexy-commission' ? 'KingFlexyGH' : order.fulfillment_service
 
     return (
         <div
@@ -411,7 +412,7 @@ function OrderCard({ order, onAction, onRefulfill, onSyncStatus, onRefund, busy,
                             : r.tone === 'fail' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900'
                                 : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700')}
                         title={r.text}>
-                        Hubtel: {r.text}
+                        {provider || 'Provider'}: {r.text}
                     </div>
                 )
             })()}

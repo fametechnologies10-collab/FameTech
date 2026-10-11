@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getClientIp } from '@/lib/api-auth'
 import { consumeRateLimit } from '@/lib/simple-rate-limit'
 import { isUtilityBiller, UTILITY_BILLERS, sanitizeAccountInfoForClient } from '@/lib/hubtel-utility/billers'
-import { queryUtilityAccount } from '@/lib/hubtel-utility/service'
+import { lookupUtilityAccountKingFlexy } from '@/lib/kingflexy-commission-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
             destination = trimmedAccount
         }
 
-        const result = await queryUtilityAccount(biller, destination, mobile)
+        const result = await lookupUtilityAccountKingFlexy(biller, destination, mobile)
 
         if (!result.success) {
             if (result.isRateLimited || result.isNetworkError) {

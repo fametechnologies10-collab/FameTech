@@ -1,11 +1,14 @@
 import { createServerClient } from '@/lib/supabase'
 import { waitUntil } from '@vercel/functions'
 import { UtilityBiller, isUtilityBiller } from '@/lib/hubtel-utility/billers'
-import { fulfillUtilityCommission, UtilityFulfillResult } from '@/lib/hubtel-utility/service'
+import { UtilityFulfillResult } from '@/lib/hubtel-utility/service'
+import { payUtilityKingFlexy, checkUtilityOrderStatus, kfKeyForOrder } from '@/lib/kingflexy-commission-service'
+import { finalizeKfUtility } from '@/lib/kingflexy-finalize'
 import { checkCommissionStatus } from '@/lib/hubtel-commission-status'
 import { categorizeFailure, autoRefundApiOrderOnFailure } from '@/lib/api-order-failure'
 
 const MAX_ATTEMPTS = 5
+const KF_SERVICE = 'kingflexy-commission'
 
 // ── Settings gate ────────────────────────────────────────────────────────────
 
@@ -145,7 +148,7 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
     const supabase = createServerClient()
 
     const { data: order } = await (supabase as any).from('utility_orders')
-        .select('id, biller, account_number, destination_phone, customer_email, amount, reference_code, status, payment_status, fulfillment_attempts, fulfillment_metadata, user_id, api_key_id, source')
+        .select('id, biller, account_number, destination_phone, customer_email, amount, reference_code, status, payment_status, fulfillment_attempts, fulfillment_metadata, user_id, api_key_id, source, fulfillment_service')
         .eq('id', orderId).single()
     if (!order) return { success: false, error: 'Order not found' }
     if (order.status !== 'pending') return { success: false, error: `Order is not pending (status: ${order.status})` }
@@ -162,8 +165,9 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
         return { success: false, error: `Max fulfillment attempts (${MAX_ATTEMPTS}) reached — order left pending for admin attention` }
     }
 
-    // Prior-attempt double-send guard: only relevant once we've actually sent at least once.
-    if (order.fulfillment_attempts > 0) {
+    // Legacy Hubtel prior-attempt double-send guard. KingFlexyGH replays (never re-charges) a repeated
+    // reference, so kingflexy-tagged orders skip it.
+    if (order.fulfillment_service !== KF_SERVICE && order.fulfillment_attempts > 0) {
         const priorRef = `${order.reference_code}-r${order.fulfillment_attempts}`
         const prior = await priorAttemptVerdict(priorRef)
         if (prior.delivered) {
@@ -231,6 +235,9 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
     const { data: claimed } = await (supabase as any).from('utility_orders')
         .update({
             status: 'processing',
+            fulfillment_service: KF_SERVICE,
+            // A same-key replay returns the reference again; a stale one would be status-checked by cron.
+            fulfillment_request_id: null,
             fulfillment_attempts: attempt,
             updated_at: new Date().toISOString(),
         })
@@ -239,17 +246,17 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
         return { success: false, error: 'Order was claimed by another worker (state changed) — not resending' }
     }
 
-    const clientRef = `${order.reference_code}-r${attempt}`
-    const result = await fulfillUtilityCommission({
+    // Stable key per order: KingFlexyGH replays a repeated reference instead of charging twice.
+    const { key: clientRef, generation } = kfKeyForOrder(order, { bumpAfterFailure: false })
+    const result = await payUtilityKingFlexy({
         biller: order.biller,
         account: order.account_number,
         phone: order.destination_phone ?? undefined,
-        email: order.customer_email ?? undefined,
         amountGhs: Number(order.amount),
-        clientReference: clientRef,
+        key: clientRef,
     })
 
-    return applyDispatchResult(supabase, orderId, order, clientRef, attempt, result, opts.manual)
+    return applyDispatchResult(supabase, orderId, order, clientRef, attempt, result, opts.manual, KF_SERVICE, generation)
 }
 
 /**
@@ -261,29 +268,38 @@ async function dispatchUtilityCore(orderId: string, opts: DispatchOptions): Prom
  */
 async function applyDispatchResult(
     supabase: any, orderId: string, order: any, clientRef: string, attempt: number, result: UtilityFulfillResult, manual: boolean,
+    supplier: string = 'hubtel-commission', kfGeneration?: number,
 ): Promise<{ success: boolean; error?: string }> {
     const baseMeta = { ...(order.fulfillment_metadata || {}) }
     const action = actionForOutcome(result.outcome)
     const nowIso = new Date().toISOString()
+    const tag = {
+        supplier,
+        client_reference: clientRef,
+        ...(kfGeneration !== undefined ? { kf_generation: kfGeneration } : {}),
+    }
+    const providerRef = result.transactionId ? { fulfillment_request_id: result.transactionId } : {}
 
     switch (action) {
         case 'complete': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 response_code: '0000',
                 ...(result.commission !== undefined ? { commission: result.commission } : {}),
                 api_response: result.apiResponse,
             }
-            await (supabase as any).from('utility_orders').update({
+            // Guarded on status='processing': a webhook may have finalized the order while the POST was in
+            // flight, in which case it already ran the side effects.
+            const { data: completedRows } = await (supabase as any).from('utility_orders').update({
                 status: 'completed',
-                fulfillment_request_id: result.transactionId || null,
+                ...providerRef,
                 ...(result.commission !== undefined ? { commission_amount: result.commission } : {}),
                 fulfillment_metadata: meta,
                 updated_at: nowIso,
-            }).eq('id', orderId).eq('status', 'processing')
+            }).eq('id', orderId).eq('status', 'processing').select('id')
+            if (!completedRows || completedRows.length === 0) return { success: true }
             if (order.api_key_id) {
                 const { dispatchApiWebhook } = await import('@/lib/api-webhook')
                 waitUntil(dispatchApiWebhook(supabase, {
@@ -317,13 +333,13 @@ async function applyDispatchResult(
         case 'stay_processing': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 response_code: '0001',
                 api_response: result.apiResponse,
             }
             await (supabase as any).from('utility_orders').update({
+                ...providerRef,
                 fulfillment_metadata: meta,
                 updated_at: nowIso,
             }).eq('id', orderId).eq('status', 'processing')
@@ -332,14 +348,14 @@ async function applyDispatchResult(
         case 'stay_processing_unknown': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 response_code: '0005',
                 unknown_state: true,
                 api_response: result.apiResponse,
             }
             await (supabase as any).from('utility_orders').update({
+                ...providerRef,
                 fulfillment_metadata: meta,
                 updated_at: nowIso,
             }).eq('id', orderId).eq('status', 'processing')
@@ -347,7 +363,9 @@ async function applyDispatchResult(
                 const { sendAdminPushNotification } = await import('@/lib/push-service')
                 await sendAdminPushNotification({
                     title: 'Utility order unknown state',
-                    body: `Utility order ${order.reference_code}: Hubtel 0005 unknown state — will status-check; contact RSE if unresolved.`,
+                    body: supplier === KF_SERVICE
+                        ? `Utility order ${order.reference_code}: provider returned an unknown state — will status-check.`
+                        : `Utility order ${order.reference_code}: Hubtel 0005 unknown state — will status-check; contact RSE if unresolved.`,
                     url: '/admin/utilities',
                 })
             } catch (e) { console.error('[utility] admin unknown-state push failed:', e) }
@@ -356,8 +374,7 @@ async function applyDispatchResult(
         case 'pause_float': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 error: result.error,
                 api_response: result.apiResponse,
@@ -370,15 +387,16 @@ async function applyDispatchResult(
             // Never auto-pause on a manual action (airtime precedent) — the admin driving it
             // sees the truthful error below and decides; auto-dispatch pauses + alerts.
             if (!manual) {
-                await pauseFloat(supabase, 'Hubtel Disbursement float exhausted — utilities+airtime paused. Top up float.')
+                await pauseFloat(supabase, supplier === KF_SERVICE
+                    ? 'Commission-services float exhausted — utilities+airtime paused. Top up float.'
+                    : 'Hubtel Disbursement float exhausted — utilities+airtime paused. Top up float.')
             }
-            return { success: false, error: result.error || 'Hubtel Disbursement float insufficient' }
+            return { success: false, error: result.error || (supplier === KF_SERVICE ? 'Commission-services float insufficient' : 'Hubtel Disbursement float insufficient') }
         }
         case 'pause_config': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 error: result.error,
                 api_response: result.apiResponse,
@@ -389,15 +407,16 @@ async function applyDispatchResult(
                 updated_at: nowIso,
             }).eq('id', orderId).eq('status', 'processing')
             if (!manual) {
-                await pauseFloat(supabase, 'Hubtel Commission credentials/permission error (4101/4103) — check API keys. Paused.')
+                await pauseFloat(supabase, supplier === KF_SERVICE
+                    ? 'Commission-services credentials/permission error — check API keys. Paused.'
+                    : 'Hubtel Commission credentials/permission error (4101/4103) — check API keys. Paused.')
             }
-            return { success: false, error: result.error || 'Hubtel credentials/permission error (4101/4103)' }
+            return { success: false, error: result.error || (supplier === KF_SERVICE ? 'Provider credentials/permission error' : 'Hubtel credentials/permission error (4101/4103)') }
         }
         case 'revert_pending': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 note: 'transient: rate limit / network / not configured',
                 error: result.error,
@@ -413,17 +432,19 @@ async function applyDispatchResult(
         case 'fail': {
             const meta = {
                 ...baseMeta,
-                supplier: 'hubtel-commission',
-                client_reference: clientRef,
+                ...tag,
                 attempt,
                 error: result.error,
                 api_response: result.apiResponse,
             }
-            await (supabase as any).from('utility_orders').update({
+            const { data: failedRows } = await (supabase as any).from('utility_orders').update({
                 status: 'failed',
+                ...providerRef,
                 fulfillment_metadata: meta,
                 updated_at: nowIso,
-            }).eq('id', orderId).eq('status', 'processing')
+            }).eq('id', orderId).eq('status', 'processing').select('id')
+            const failError = result.error || (supplier === KF_SERVICE ? 'KingFlexyGH rejected the request (permanent failure)' : 'Hubtel rejected the request (permanent failure)')
+            if (!failedRows || failedRows.length === 0) return { success: false, error: failError }
             const { code: reasonCode, message: reasonMessage } = categorizeFailure(
                 result.outcome === 'permanent_failure' ? 'permanent_failure' : 'failed'
             )
@@ -456,7 +477,7 @@ async function applyDispatchResult(
                     })
                 } catch (e) { console.error('[utility] admin failure push failed:', e) }
             }
-            return { success: false, error: result.error || 'Hubtel rejected the request (permanent failure)' }
+            return { success: false, error: failError }
         }
     }
 }
@@ -480,7 +501,7 @@ export async function manualRefulfillUtility(orderId: string, adminId: string): 
     const supabase = createServerClient()
 
     const { data: order } = await (supabase as any).from('utility_orders')
-        .select('id, status, payment_status, fulfillment_metadata')
+        .select('id, status, payment_status, fulfillment_metadata, fulfillment_service')
         .eq('id', orderId).single()
     if (!order) return { success: false, error: 'Order not found' }
     if (order.status === 'completed') return { success: false, error: 'Order already completed — not resending' }
@@ -497,11 +518,21 @@ export async function manualRefulfillUtility(orderId: string, adminId: string): 
         return { success: false, error: `Order is not paid (payment_status: ${order.payment_status}) — not resending` }
     }
 
-    const manualMeta = { ...(order.fulfillment_metadata || {}), manual: { action: 'refulfill', by: adminId, at: new Date().toISOString() } }
+    const manualMeta: Record<string, any> = { ...(order.fulfillment_metadata || {}), manual: { action: 'refulfill', by: adminId, at: new Date().toISOString() } }
 
     if (order.status === 'failed') {
+        // New idempotency key for the retry; otherwise KingFlexyGH would replay the failed order.
+        const isKf = order.fulfillment_service === KF_SERVICE
+        if (isKf) {
+            manualMeta.kf_generation = (Number(order.fulfillment_metadata?.kf_generation ?? 0) || 0) + 1
+        }
         const { data: reset } = await (supabase as any).from('utility_orders')
-            .update({ status: 'pending', fulfillment_metadata: manualMeta, updated_at: new Date().toISOString() })
+            .update({
+                status: 'pending',
+                fulfillment_metadata: manualMeta,
+                ...(isKf ? { fulfillment_request_id: null } : {}),
+                updated_at: new Date().toISOString(),
+            })
             .eq('id', orderId).eq('status', 'failed').select('id')
         if (!reset || reset.length === 0) return { success: false, error: 'Order state changed — retry' }
     } else {
@@ -524,9 +555,36 @@ export async function manualRefulfillUtility(orderId: string, adminId: string): 
 export async function manualStatusSyncUtility(orderId: string, adminId: string): Promise<{ success: boolean; error?: string; state?: string }> {
     const supabase = createServerClient()
     const { data: order } = await (supabase as any).from('utility_orders')
-        .select('id, status, reference_code, fulfillment_attempts, fulfillment_metadata, api_key_id, biller, amount, source')
+        .select('id, status, reference_code, fulfillment_attempts, fulfillment_metadata, api_key_id, biller, amount, source, fulfillment_service, fulfillment_request_id, user_id, shop_id, account_number, destination_phone')
         .eq('id', orderId).single()
     if (!order) return { success: false, error: 'Order not found' }
+
+    if (order.fulfillment_service === KF_SERVICE) {
+        if (!order.fulfillment_request_id) {
+            return { success: false, error: 'No provider reference yet — wait for dispatch or use Refulfill' }
+        }
+        const kf = await checkUtilityOrderStatus(order.fulfillment_request_id)
+        if (!kf.configured) return { success: false, error: kf.error || 'KingFlexyGH commission not configured' }
+        if (kf.state === 'completed' || kf.state === 'failed') {
+            await finalizeKfUtility(supabase, order, {
+                state: kf.state, reason: kf.reason, raw: kf.raw,
+                ...(kf.state === 'completed' ? { commissionEarned: kf.commissionEarned } : {}),
+            })
+            return { success: true, state: kf.state }
+        }
+        // pending / unknown — record only, and never clobber a row that raced to 'completed'.
+        await (supabase as any).from('utility_orders')
+            .update({
+                fulfillment_metadata: {
+                    ...(order.fulfillment_metadata || {}),
+                    status_check: { verdict: kf.state, http_ok: kf.httpOk, found: kf.found, at: new Date().toISOString(), raw: kf.raw },
+                    manual: { action: 'status_sync', by: adminId, at: new Date().toISOString() },
+                },
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId).neq('status', 'completed')
+        return { success: true, state: kf.state }
+    }
     if (!order.fulfillment_attempts || order.fulfillment_attempts <= 0) {
         return { success: false, error: 'Never dispatched' }
     }

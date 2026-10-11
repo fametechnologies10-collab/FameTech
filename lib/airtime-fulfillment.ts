@@ -1,7 +1,9 @@
 import { createServerClient } from '@/lib/supabase'
 import { waitUntil } from '@vercel/functions'
-import { fulfillAirtimeCommission, parseCommission } from '@/lib/hubtel-commission-service'
+import { parseCommission } from '@/lib/hubtel-commission-service'
 import { checkCommissionStatus } from '@/lib/hubtel-commission-status'
+import { fulfillAirtimeKingFlexy, checkAirtimeOrderStatus, kfKeyForOrder } from '@/lib/kingflexy-commission-service'
+import { finalizeKfAirtime } from '@/lib/kingflexy-finalize'
 import { categorizeFailure, autoRefundApiOrderOnFailure } from '@/lib/api-order-failure'
 
 const MAX_ATTEMPTS = 5
@@ -69,7 +71,7 @@ export async function isAirtimeAutoFulfillmentEnabled(supabase: any, network: st
 }
 
 /**
- * Auto-dispatch a single PENDING airtime order to Hubtel Commission Services.
+ * Auto-dispatch a single PENDING airtime order to KingFlexyGH commission services.
  * Idempotent + concurrency-safe via an atomic claim. NEVER refunds — transient
  * failures revert to 'pending' for the reconcile cron to retry.
  */
@@ -77,22 +79,22 @@ export async function dispatchAirtimeFulfillment(orderId: string): Promise<void>
     const supabase = createServerClient()
 
     const { data: order } = await (supabase.from('airtime_orders') as any)
-        .select('id, type, network, beneficiary_phone, airtime_amount, reference_code, status, airtime_fulfillment_attempts, fulfillment_metadata, api_key_id, source')
+        .select('id, type, network, beneficiary_phone, airtime_amount, reference_code, status, airtime_fulfillment_attempts, fulfillment_metadata, api_key_id, source, fulfillment_service, user_id')
         .eq('id', orderId).single()
     if (!order || order.status !== 'pending') return
-    if (order.type === 'mashup') return // Mashup is fulfilled manually — never sent to Hubtel as plain airtime
+    if (order.type === 'mashup') return // Mashup is fulfilled manually — never sent as plain airtime
 
     if (!(await isAirtimeAutoFulfillmentEnabled(supabase, order.network))) return // off → manual
 
-    // Hubtel caps airtime at 100 GHS/request — leave larger orders PENDING for manual fulfillment (never auto-fail).
+    // Provider caps airtime at 100 GHS/request — leave larger orders PENDING for manual fulfillment (never auto-fail).
     if (Number(order.airtime_amount) > 100) return
 
     const attempt = (order.airtime_fulfillment_attempts || 0) + 1
     if (attempt > MAX_ATTEMPTS) return
 
-    // Double-send guard: if a prior attempt already delivered (e.g. a retry after a missed callback),
-    // complete the order instead of re-sending a second top-up.
-    if (order.fulfillment_metadata?.client_reference) {
+    // Legacy Hubtel double-send guard. KingFlexyGH replays (never re-charges) a repeated reference,
+    // so kingflexy-tagged orders skip it.
+    if (order.fulfillment_service !== 'kingflexy-commission' && order.fulfillment_metadata?.client_reference) {
         const prior = await priorAttemptVerdict(order.fulfillment_metadata)
         if (prior.delivered) {
             // .select('id') so only the caller that actually performs the pending→completed
@@ -116,50 +118,49 @@ export async function dispatchAirtimeFulfillment(orderId: string): Promise<void>
             }
             return
         }
+        // Unverifiable legacy attempt (no Hubtel credentials => verdict 'unknown'): never re-send via
+        // KingFlexyGH, the earlier Hubtel attempt may have delivered. Leave pending for admin handling.
+        if (prior.verdict !== 'failed') return
     }
 
     // Atomic claim: only the worker that flips pending→processing proceeds.
     const { data: claimed } = await (supabase.from('airtime_orders') as any)
         .update({
             status: 'processing',
-            fulfillment_service: 'hubtel-commission',
+            fulfillment_service: 'kingflexy-commission',
             airtime_fulfillment_attempts: attempt,
             updated_at: new Date().toISOString(),
         })
         .eq('id', orderId).eq('status', 'pending').select('id')
     if (!claimed || claimed.length === 0) return
 
-    // Unique ClientReference per attempt — Hubtel rejects a re-used reference as "duplicate" and would
-    // block legitimate retries. The priorAttemptVerdict() guard above prevents a double top-up by never
-    // re-sending an attempt that already delivered. See docs/reference/hubtel-commission-services.md
-    const clientRef = `${order.reference_code}-r${attempt}`
-    const result = await fulfillAirtimeCommission(
+    // Stable key per order: KingFlexyGH replays a repeated reference instead of charging twice.
+    const { key: clientRef, generation } = kfKeyForOrder(order, { bumpAfterFailure: false })
+    const result = await fulfillAirtimeKingFlexy(
         order.network, order.beneficiary_phone, Number(order.airtime_amount), clientRef,
     )
 
     if (result.success) {
-        await (supabase.from('airtime_orders') as any).update({
+        // Guarded on status='processing': a webhook may have finalized the order while the POST was in flight.
+        const { data: written } = await (supabase.from('airtime_orders') as any).update({
             fulfillment_request_id: result.transactionId || null,
             fulfillment_metadata: {
-                supplier: 'hubtel-commission',
+                supplier: 'kingflexy-commission',
                 client_reference: clientRef,
+                kf_generation: generation,
                 attempt,
-                response_code: result.pending ? '0001' : '0000',
-                ...(result.commission !== undefined ? { commission: result.commission } : {}),
                 api_response: result.apiResponse,
             },
             ...(result.pending ? {} : {
                 status: 'completed',
                 fulfilled_at: new Date().toISOString(),
-                ...(result.commission !== undefined ? { commission_amount: result.commission } : {}),
             }),
             updated_at: new Date().toISOString(),
-        }).eq('id', orderId)
-        if (!result.pending) {
+        }).eq('id', orderId).eq('status', 'processing').select('id')
+        if (!result.pending && written && written.length > 0) {
             await syncAirtimeShopMirror(supabase, order.reference_code, 'completed')
             // Fire-safe: credit_airtime_commission is idempotent (atomic claim keyed on
-            // commission_credited_at IS NULL) and no-ops instantly for non-'api' sources,
-            // so calling it unconditionally here is always safe for shop/web-sourced rows.
+            // commission_credited_at IS NULL) and no-ops while commission_amount is NULL / for non-'api' sources.
             try {
                 const { error: creditError } = await (supabase as any).rpc('credit_airtime_commission', { p_airtime_order_id: orderId })
                 if (creditError) console.error('[AirtimeFulfillment] credit_airtime_commission failed:', creditError.message, 'order:', orderId)
@@ -182,18 +183,20 @@ export async function dispatchAirtimeFulfillment(orderId: string): Promise<void>
             { key: 'hubtel_commission_paused', value: 'true' }, { onConflict: 'key' },
         )
     }
-    if (result.isPermanentFailure) await syncAirtimeShopMirror(supabase, order.reference_code, 'failed')
-    await (supabase.from('airtime_orders') as any).update({
+    const { data: failWritten } = await (supabase.from('airtime_orders') as any).update({
         status: result.isPermanentFailure ? 'failed' : 'pending', // transient → retry
         fulfillment_metadata: {
-            supplier: 'hubtel-commission',
+            supplier: 'kingflexy-commission',
             client_reference: clientRef,
+            kf_generation: generation,
             attempt,
             error: result.error,
             api_response: result.apiResponse,
         },
         updated_at: new Date().toISOString(),
-    }).eq('id', orderId)
+    }).eq('id', orderId).eq('status', 'processing').select('id')
+    if (!failWritten || failWritten.length === 0) return
+    if (result.isPermanentFailure) await syncAirtimeShopMirror(supabase, order.reference_code, 'failed')
     if (result.isPermanentFailure) {
         const { code: reasonCode, message: reasonMessage } = categorizeFailure('permanent_failure')
         const refund = await autoRefundApiOrderOnFailure(supabase, {
@@ -225,10 +228,10 @@ export async function dispatchAirtimeFulfillment(orderId: string): Promise<void>
 }
 
 /**
- * MANUAL admin refulfillment to Hubtel Commission Services (force; bypasses the auto kill-switch).
- * Airtime only — never mashup (Hubtel commission sends plain airtime, not a bundle). Refuses to
- * resend a completed order. Stable ClientReference (= reference_code) so Hubtel dedupes any prior
- * attempt (no double top-up). Returns a result object for the admin UI.
+ * MANUAL admin refulfillment via KingFlexyGH (force; bypasses the auto kill-switch).
+ * Airtime only — never mashup. Refuses to resend a completed order. A stable key per order means
+ * the provider replays any prior attempt (no double top-up); a FAILED order gets generation+1.
+ * Returns a result object for the admin UI.
  */
 export async function manualRefulfillAirtime(
     orderId: string,
@@ -236,16 +239,32 @@ export async function manualRefulfillAirtime(
     const supabase = createServerClient()
 
     const { data: order } = await (supabase.from('airtime_orders') as any)
-        .select('id, type, network, beneficiary_phone, airtime_amount, reference_code, status, airtime_fulfillment_attempts, fulfillment_metadata, api_key_id, source')
+        .select('id, type, network, beneficiary_phone, airtime_amount, reference_code, status, airtime_fulfillment_attempts, fulfillment_metadata, api_key_id, source, fulfillment_service, user_id')
         .eq('id', orderId).single()
     if (!order) return { ok: false, status: 'not_found', message: 'Order not found' }
-    if (order.type === 'mashup') return { ok: false, status: order.status, message: 'Hubtel commission refulfillment is for airtime only, not mashup' }
+    if (order.type === 'mashup') return { ok: false, status: order.status, message: 'Commission refulfillment is for airtime only, not mashup' }
     if (order.status === 'completed') return { ok: false, status: 'completed', message: 'Order already completed — not resending' }
-    if (Number(order.airtime_amount) > 100) return { ok: false, status: order.status, message: 'Exceeds Hubtel 100 GHS per-request cap — cannot send via commission' }
+    if (Number(order.airtime_amount) > 100) return { ok: false, status: order.status, message: 'Exceeds 100 GHS per-request cap — cannot send via commission' }
 
-    // Double-send guard. With unique-per-attempt references we must never re-send a top-up that already
+    let keyStatus: string = order.status
+    if (order.fulfillment_service === 'kingflexy-commission' && order.status === 'processing') {
+        const existingKey = String(order.fulfillment_metadata?.client_reference ?? order.reference_code)
+        const st = await checkAirtimeOrderStatus(existingKey)
+        if (st.state === 'completed') {
+            await finalizeKfAirtime(supabase, order, { state: 'completed', raw: st.raw })
+            return { ok: true, status: 'completed', message: 'A previous attempt already delivered — marked completed (not resending).' }
+        }
+        if (st.state === 'pending') {
+            return { ok: false, status: 'processing', message: 'Previous attempt still in flight at KingFlexyGH — use Sync' }
+        }
+        // failed: treat as failed so the key generation is bumped (the old key would just replay the failure).
+        // unknown: proceed with the same key; replay is safe because the provider never re-charges a repeated reference.
+        if (st.state === 'failed') keyStatus = 'failed'
+    }
+
+    // Legacy Hubtel double-send guard. With unique-per-attempt references we must never re-send a top-up that already
     // delivered, and never resend while a previous attempt is still in-flight (unconfirmed) at Hubtel.
-    if (order.fulfillment_metadata?.client_reference) {
+    if (order.fulfillment_service !== 'kingflexy-commission' && order.fulfillment_metadata?.client_reference) {
         const prior = await priorAttemptVerdict(order.fulfillment_metadata)
         if (prior.delivered) {
             // .select('id') for the same reason as dispatchAirtimeFulfillment's prior-delivered
@@ -271,45 +290,52 @@ export async function manualRefulfillAirtime(
         if (order.status === 'processing' && prior.verdict !== 'failed') {
             return { ok: false, status: 'processing', message: 'Previous attempt is still in-flight/unconfirmed at Hubtel. Use "Sync" to confirm — only resend once it shows failed.' }
         }
+        if (order.status === 'pending' && prior.verdict !== 'failed') {
+            return { ok: false, status: order.status, message: 'Legacy Hubtel attempt cannot be verified (no Hubtel credentials) — confirm the top-up was not delivered, then mark it failed and refulfill' }
+        }
     }
 
     const attempt = (order.airtime_fulfillment_attempts || 0) + 1
+    const { key: clientRef, generation } = kfKeyForOrder({ ...order, status: keyStatus }, { bumpAfterFailure: true })
     // Force-claim from pending/failed/processing (manual override of the auto kill-switch + status).
+    // The in-flight key is persisted in the claim itself so the reconcile cron never status-checks a
+    // stale key if this process dies mid-POST.
     const { data: claimed } = await (supabase.from('airtime_orders') as any)
         .update({
             status: 'processing',
-            fulfillment_service: 'hubtel-commission',
+            fulfillment_service: 'kingflexy-commission',
             airtime_fulfillment_attempts: attempt,
+            fulfillment_metadata: { ...(order.fulfillment_metadata || {}), client_reference: clientRef, kf_generation: generation },
             updated_at: new Date().toISOString(),
         })
         .eq('id', orderId).in('status', ['pending', 'failed', 'processing']).select('id')
     if (!claimed || claimed.length === 0) return { ok: false, status: order.status, message: 'Order is not in a refulfillable state' }
 
-    // Unique ClientReference per attempt (see dispatchAirtimeFulfillment) — guarded against double-send above.
-    const clientRef = `${order.reference_code}-r${attempt}`
-    const result = await fulfillAirtimeCommission(
+    const result = await fulfillAirtimeKingFlexy(
         order.network, order.beneficiary_phone, Number(order.airtime_amount), clientRef,
     )
 
     if (result.success) {
-        await (supabase.from('airtime_orders') as any).update({
+        // Guarded on status='processing': a webhook may have finalized the order while the POST was in flight.
+        const { data: written } = await (supabase.from('airtime_orders') as any).update({
             fulfillment_request_id: result.transactionId || null,
             fulfillment_metadata: {
-                supplier: 'hubtel-commission',
+                supplier: 'kingflexy-commission',
                 client_reference: clientRef,
+                kf_generation: generation,
                 attempt,
                 manual: true,
-                response_code: result.pending ? '0001' : '0000',
-                ...(result.commission !== undefined ? { commission: result.commission } : {}),
                 api_response: result.apiResponse,
             },
             ...(result.pending ? {} : {
                 status: 'completed',
                 fulfilled_at: new Date().toISOString(),
-                ...(result.commission !== undefined ? { commission_amount: result.commission } : {}),
             }),
             updated_at: new Date().toISOString(),
-        }).eq('id', orderId)
+        }).eq('id', orderId).eq('status', 'processing').select('id')
+        if (!written || written.length === 0) {
+            return { ok: false, status: 'processing', message: 'Order was finalized by the provider while sending — refresh to see its status' }
+        }
         if (!result.pending) await syncAirtimeShopMirror(supabase, order.reference_code, 'completed')
         // Fire-safe: credit_airtime_commission is idempotent (atomic claim keyed on
         // commission_credited_at IS NULL) and no-ops instantly for non-'api' sources,
@@ -336,25 +362,28 @@ export async function manualRefulfillAirtime(
         return {
             ok: true,
             status: result.pending ? 'processing' : 'completed',
-            message: result.pending ? 'Dispatched to Hubtel — awaiting final confirmation' : 'Completed',
-            commission: result.commission,
+            message: result.pending ? 'Dispatched to KingFlexyGH — awaiting final confirmation' : 'Completed',
         }
     }
 
     // Failure — NO refund. Revert to a retryable state (do not auto-pause on a manual action).
-    if (result.isPermanentFailure) await syncAirtimeShopMirror(supabase, order.reference_code, 'failed')
-    await (supabase.from('airtime_orders') as any).update({
+    const { data: failWritten } = await (supabase.from('airtime_orders') as any).update({
         status: result.isPermanentFailure ? 'failed' : 'pending',
         fulfillment_metadata: {
-            supplier: 'hubtel-commission',
+            supplier: 'kingflexy-commission',
             client_reference: clientRef,
+            kf_generation: generation,
             attempt,
             manual: true,
             error: result.error,
             api_response: result.apiResponse,
         },
         updated_at: new Date().toISOString(),
-    }).eq('id', orderId)
+    }).eq('id', orderId).eq('status', 'processing').select('id')
+    if (!failWritten || failWritten.length === 0) {
+        return { ok: false, status: 'processing', message: 'Order was finalized by the provider while sending — refresh to see its status' }
+    }
+    if (result.isPermanentFailure) await syncAirtimeShopMirror(supabase, order.reference_code, 'failed')
     // Only a PERMANENT failure is terminal — a transient one reverts to 'pending'
     // for retry, and firing order.failed there would be a false alarm.
     if (result.isPermanentFailure) {
@@ -378,12 +407,13 @@ export async function manualRefulfillAirtime(
     return {
         ok: false,
         status: result.isPermanentFailure ? 'failed' : 'pending',
-        message: result.error || 'Hubtel rejected the request',
+        message: result.error || 'KingFlexyGH rejected the request',
     }
 }
 
 /**
- * MANUAL admin status sync — query Hubtel's Transaction Status Check for an order and apply the
+ * MANUAL admin status sync — query the provider (KingFlexyGH, or Hubtel's Transaction Status Check for
+ * legacy rows) for an order and apply the
  * verdict. Records the raw result to fulfillment_metadata.status_check every time. Completes the
  * order on a confirmed delivery (isFulfilled), marks failed on a confirmed failure, else leaves it.
  */
@@ -392,11 +422,35 @@ export async function manualStatusSyncAirtime(
 ): Promise<{ ok: boolean; status: string; verdict: string; message: string }> {
     const supabase = createServerClient()
     const { data: order } = await (supabase.from('airtime_orders') as any)
-        .select('id, status, reference_code, fulfillment_metadata, api_key_id, source')
+        .select('id, status, reference_code, fulfillment_metadata, api_key_id, source, fulfillment_service, network, airtime_amount, user_id')
         .eq('id', orderId).single()
     if (!order) return { ok: false, status: 'not_found', verdict: 'unknown', message: 'Order not found' }
     if (order.status === 'completed') return { ok: true, status: 'completed', verdict: 'success', message: 'Already completed' }
     if (!order.reference_code) return { ok: false, status: order.status, verdict: 'unknown', message: 'Order has no reference to check' }
+
+    if (order.fulfillment_service === 'kingflexy-commission') {
+        const st = await checkAirtimeOrderStatus(String(order.fulfillment_metadata?.client_reference ?? order.reference_code))
+        if (!st.configured) return { ok: false, status: order.status, verdict: 'unknown', message: 'Status check not configured (set KINGFLEXY_COMMISSION_API_KEY)' }
+        if (st.state === 'completed') {
+            await finalizeKfAirtime(supabase, order, { state: 'completed', raw: st.raw })
+            return { ok: true, status: 'completed', verdict: 'success', message: 'Confirmed delivered — marked completed' }
+        }
+        if (st.state === 'failed') {
+            await finalizeKfAirtime(supabase, order, { state: 'failed', reason: st.reason, raw: st.raw })
+            return { ok: false, status: 'failed', verdict: 'failed', message: 'KingFlexyGH reports this transaction failed' }
+        }
+        const verdict = st.state === 'pending' ? 'pending' : 'unknown'
+        await (supabase.from('airtime_orders') as any)
+            .update({
+                fulfillment_metadata: {
+                    ...(order.fulfillment_metadata || {}),
+                    status_check: { verdict, http_ok: st.httpOk, found: st.found, at: new Date().toISOString(), raw: st.raw },
+                },
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId).neq('status', 'completed')
+        return { ok: false, status: order.status, verdict, message: st.found ? 'Still pending at KingFlexyGH' : 'No record found at KingFlexyGH yet' }
+    }
 
     const result = await checkCommissionStatus(order.fulfillment_metadata?.client_reference || order.reference_code)
     if (!result.configured) return { ok: false, status: order.status, verdict: 'unknown', message: 'Status check not configured (set HUBTEL_COLLECTION_ACCOUNT)' }
