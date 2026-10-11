@@ -12,7 +12,7 @@ async function requireAdmin() {
     return { user }
 }
 
-const VALID_PROVIDERS: SmsProvider[] = ['hubtel', 'moolre', 'mnotify']
+const VALID_PROVIDERS: SmsProvider[] = ['kingflexy', 'hubtel', 'moolre', 'mnotify']
 
 // ─── GET /api/admin/sms-settings — read current routing config ────────────────
 export async function GET() {
@@ -31,7 +31,7 @@ export async function GET() {
         const s: Record<string, string> = {}
         for (const row of (data || [])) s[row.key] = row.value
 
-        const primary: SmsProvider = (s.sms_primary_provider as SmsProvider) || 'hubtel'
+        const primary: SmsProvider = (s.sms_primary_provider as SmsProvider) || 'kingflexy'
         let fallbacks: SmsProvider[] = []
         try { fallbacks = JSON.parse(s.sms_fallback_providers || '[]') } catch { fallbacks = [] }
 

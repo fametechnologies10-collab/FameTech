@@ -4,6 +4,7 @@
  */
 export function normalizeGhanaPhone(raw: string): string | null {
     let n = raw.replace(/[\s\-+]/g, '')
+    if (!/^\d+$/.test(n)) return null
     if (n.startsWith('0') && n.length === 10)  n = '233' + n.slice(1)
     if (n.startsWith('233') && n.length === 12) return n
     return null

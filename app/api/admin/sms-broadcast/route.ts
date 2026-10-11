@@ -96,13 +96,13 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Resolve primary provider from admin settings ──────────────────────
-        const routing = await getRoutingConfig().catch(() => ({ primary: 'hubtel' as const, fallbacks: [] }))
+        const routing = await getRoutingConfig().catch(() => ({ primary: 'kingflexy' as const, fallbacks: [] }))
         const primaryIsHubtel = routing.primary === 'hubtel'
 
         // ── Send via Hubtel batch (if primary) or per-message sendSMS ─────────
         // Batch path only uses Hubtel's dedicated batch endpoints — if the admin
-        // has switched primary to Moolre/mNotify we fall through to per-message
-        // sendSMS() which respects the full configured fallback chain.
+        // has switched primary to KingFlexyGH/Moolre/mNotify we fall through to
+        // per-message sendSMS() which respects the full configured fallback chain.
         let result: { batchId?: string; batchIds?: string[]; sent: number; failed: number; errors: string[] }
 
         if (useBatch && primaryIsHubtel) {

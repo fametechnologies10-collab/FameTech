@@ -1,7 +1,7 @@
 /**
  * Multi-Provider SMS Service
  *
- * Supports Hubtel (primary), Moolre, and mNotify.
+ * Supports KingFlexyGH (primary), Hubtel, Moolre, and mNotify.
  * The active primary provider and fallback order are read from
  * admin_settings (keys: sms_primary_provider, sms_fallback_providers)
  * and cached for 5 minutes so the admin panel can switch live.
@@ -21,13 +21,14 @@ export interface SMSResult {
     provider?: string
 }
 
-export type SmsProvider = 'hubtel' | 'moolre' | 'mnotify'
+export type SmsProvider = 'kingflexy' | 'hubtel' | 'moolre' | 'mnotify'
 
 // ─── Provider Endpoints ──────────────────────────────────────────────────────
 const MOOLRE_BASE_URL     = 'https://api.moolre.com'
 const MOOLRE_SMS_ENDPOINT = '/open/sms/send'
 const MNOTIFY_BASE_URL    = 'https://api.mnotify.com/api/sms/quick'
 const HUBTEL_SMS_BASE_URL = 'https://sms.hubtel.com/v1/messages'
+const KINGFLEXY_BASE_URL  = 'https://api.kingflexygh.com/api/v2'
 
 // ─── In-memory provider routing cache (5 min TTL) ────────────────────────────
 let _routingCache: { primary: SmsProvider; fallbacks: SmsProvider[]; ts: number } | null = null
@@ -51,9 +52,9 @@ export async function getRoutingConfig(): Promise<{ primary: SmsProvider; fallba
         const s: Record<string, string> = {}
         for (const row of (data || [])) s[row.key] = row.value
 
-        const primary   = (s.sms_primary_provider as SmsProvider)   || 'hubtel'
+        const primary   = (s.sms_primary_provider as SmsProvider)   || 'kingflexy'
         let fallbacks: SmsProvider[] = []
-        try { fallbacks = JSON.parse(s.sms_fallback_providers || '[]') } catch { fallbacks = ['moolre', 'mnotify'] }
+        try { fallbacks = JSON.parse(s.sms_fallback_providers || '[]') } catch { fallbacks = ['hubtel', 'moolre', 'mnotify'] }
         // Remove primary from fallbacks in case admin misconfigured
         fallbacks = fallbacks.filter(p => p !== primary)
 
@@ -61,7 +62,7 @@ export async function getRoutingConfig(): Promise<{ primary: SmsProvider; fallba
         return { primary, fallbacks }
     } catch {
         // Fallback to env-based defaults if DB unreachable
-        return { primary: 'hubtel', fallbacks: ['moolre', 'mnotify'] }
+        return { primary: 'kingflexy', fallbacks: ['hubtel', 'moolre', 'mnotify'] }
     }
 }
 
@@ -74,6 +75,7 @@ export function invalidateSmsRoutingCache() {
  * Validate SMS configuration on module load
  */
 function validateSMSConfig() {
+    if (!process.env.KINGFLEXY_API_KEY)   console.warn('[SMS Config] WARNING: KINGFLEXY_API_KEY not set.')
     if (!process.env.HUBTEL_CLIENT_ID)    console.warn('[SMS Config] WARNING: HUBTEL_CLIENT_ID not set.')
     if (!process.env.HUBTEL_CLIENT_SECRET) console.warn('[SMS Config] WARNING: HUBTEL_CLIENT_SECRET not set.')
     if (!process.env.MOOLRE_API_KEY)       console.warn('[SMS Config] WARNING: MOOLRE_API_KEY not set.')
@@ -95,6 +97,57 @@ validateSMSConfig()
 // normalizeGhanaPhone from '@/lib/sms-service' keeps working unchanged.
 import { normalizeGhanaPhone } from './phone-normalize'
 export { normalizeGhanaPhone }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// KINGFLEXYGH PROVIDER
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Send a single SMS via KingFlexyGH's Business API.
+ * POST /sms/send — key sent raw (no "Bearer") in the Authorization header.
+ * https://api.kingflexygh.com/api/v2/sms/send
+ */
+export async function sendKingFlexySMS(options: SMSOptions): Promise<SMSResult> {
+    const apiKey = process.env.KINGFLEXY_API_KEY
+    const defaultSender = process.env.KINGFLEXY_SENDER_ID || 'FameTechGH'
+
+    if (!apiKey) {
+        return { success: false, error: 'KINGFLEXY_API_KEY not configured.', provider: 'kingflexy' }
+    }
+
+    const normalizedPhone = normalizeGhanaPhone(options.recipient)
+    if (!normalizedPhone) {
+        return { success: false, error: `Invalid phone number: ${options.recipient}`, provider: 'kingflexy' }
+    }
+
+    try {
+        const response = await fetch(`${KINGFLEXY_BASE_URL}/sms/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'Authorization': apiKey,
+            },
+            body: JSON.stringify({
+                message:    options.message,
+                recipients: [normalizedPhone],
+                sender:     (options.sender || defaultSender).trim().substring(0, 11),
+            }),
+        })
+
+        const data: any = await response.json().catch(() => ({}))
+
+        if (response.status === 200 && data.success === true) {
+            return { success: true, messageId: data.data?.campaignId, provider: 'kingflexy' }
+        }
+
+        const err = data.error?.message || `KingFlexyGH error ${response.status}`
+        console.error('[KingFlexyGH SMS] ❌', err)
+        return { success: false, error: err, provider: 'kingflexy' }
+    } catch (e: any) {
+        console.error('[KingFlexyGH SMS] ❌ Exception:', e.message)
+        return { success: false, error: `KingFlexyGH exception: ${e.message}`, provider: 'kingflexy' }
+    }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // HUBTEL PROVIDER
@@ -576,14 +629,15 @@ export async function sendSMS(options: SMSOptions): Promise<SMSResult> {
     try {
         routing = await getRoutingConfig()
     } catch {
-        routing = { primary: 'hubtel', fallbacks: ['moolre', 'mnotify'] }
+        routing = { primary: 'kingflexy', fallbacks: ['hubtel', 'moolre', 'mnotify'] }
     }
 
     const order: SmsProvider[] = [routing.primary, ...routing.fallbacks]
 
     for (const provider of order) {
         let result: SMSResult
-        if (provider === 'hubtel')  result = await sendHubtelSMS(options)
+        if (provider === 'kingflexy') result = await sendKingFlexySMS(options)
+        else if (provider === 'hubtel')  result = await sendHubtelSMS(options)
         else if (provider === 'moolre')  result = await sendMoolreSMS(options)
         else result = await sendMnotifySMS(options)
 

@@ -49,15 +49,16 @@ interface SmsTemplate {
     created_at: string; updated_at: string
 }
 
-type SmsProvider = 'hubtel' | 'moolre' | 'mnotify'
+type SmsProvider = 'kingflexy' | 'hubtel' | 'moolre' | 'mnotify'
 
 const PROVIDER_META: Record<SmsProvider, { label: string; color: string; description: string }> = {
-    hubtel:  { label: 'Hubtel',  color: 'bg-emerald-500', description: 'Direct Telco connections — highest delivery rate' },
-    moolre:  { label: 'Moolre',  color: 'bg-blue-500',    description: 'Reliable Ghanaian SMS gateway' },
-    mnotify: { label: 'mNotify', color: 'bg-violet-500',  description: 'Fast delivery across all networks' },
+    kingflexy: { label: 'KingFlexyGH', color: 'bg-amber-500',   description: 'Primary SMS provider — business sender ID' },
+    hubtel:    { label: 'Hubtel',      color: 'bg-emerald-500', description: 'Direct Telco connections — highest delivery rate' },
+    moolre:    { label: 'Moolre',      color: 'bg-blue-500',    description: 'Reliable Ghanaian SMS gateway' },
+    mnotify:   { label: 'mNotify',     color: 'bg-violet-500',  description: 'Fast delivery across all networks' },
 }
 
-const ALL_PROVIDERS: SmsProvider[] = ['hubtel', 'moolre', 'mnotify']
+const ALL_PROVIDERS: SmsProvider[] = ['kingflexy', 'hubtel', 'moolre', 'mnotify']
 
 const VARIABLES = [
     { label: '[FirstName]', desc: "Recipient's first name" },
@@ -295,8 +296,8 @@ export default function AdminSMSBroadcastPage() {
     const [savingTpl, setSavingTpl]       = useState(false)
 
     // ── Tab 4: Provider Settings ──────────────────────────────────────────────
-    const [primary, setPrimary]         = useState<SmsProvider>('hubtel')
-    const [fallbacks, setFallbacks]     = useState<SmsProvider[]>(['moolre', 'mnotify'])
+    const [primary, setPrimary]         = useState<SmsProvider>('kingflexy')
+    const [fallbacks, setFallbacks]     = useState<SmsProvider[]>(['hubtel', 'moolre', 'mnotify'])
     const [savingSettings, setSavingSettings] = useState(false)
     const [settingsLoading, setSettingsLoading] = useState(true)
 
@@ -402,7 +403,7 @@ export default function AdminSMSBroadcastPage() {
             const res  = await fetch('/api/admin/sms-settings')
             const data = await res.json()
             if (!res.ok) throw new Error(data.error)
-            setPrimary(data.primary || 'hubtel')
+            setPrimary(data.primary || 'kingflexy')
             setFallbacks(data.fallbacks || [])
         } catch { /* use defaults */ }
         finally { setSettingsLoading(false) }
