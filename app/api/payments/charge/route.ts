@@ -3,6 +3,7 @@ import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { calculatePaystackFee, generateReferenceCode } from '@/lib/utils'
 import { resolvePaystackFeePercent, resolveTopupLimits } from '@/lib/paystack-fees'
+import { checkChargePhoneLimit } from '@/lib/charge-phone-ratelimit'
 
 const GHANA_NETWORK_MAP: Record<string, string> = {
     '024': 'MTN', '025': 'MTN', '053': 'MTN', '054': 'MTN', '055': 'MTN', '059': 'MTN',
@@ -52,6 +53,18 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { error: 'Could not detect network. Please select your network manually.', needsManualSelection: true },
                 { status: 400 }
+            )
+        }
+
+        // ── Anti-abuse: cap charges per TARGET PHONE, across all accounts ──
+        // The middleware limiter is keyed per-user+IP, so one account could
+        // still fire its full per-minute budget at someone else's number
+        // indefinitely over time. This caps prompts to any single phone
+        // regardless of who is initiating them.
+        if (!(await checkChargePhoneLimit(phone))) {
+            return NextResponse.json(
+                { error: 'Too many payment requests to this number. Please try again later.' },
+                { status: 429 }
             )
         }
 

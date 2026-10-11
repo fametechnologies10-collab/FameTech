@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 
+// ── DB-backed rate limiter (per charge reference, 5 attempts per 10 minutes) ──
+// The middleware limiter on this route is per-user+IP and resets every minute, so
+// it narrows but doesn't close a brute-force window against one charge's OTP for
+// its own duration. This caps total attempts per reference regardless of rate.
+// Delegates to the record_and_check_otp_attempt() RPC, which takes a Postgres
+// advisory lock on the reference before inserting+counting — a plain insert-then-
+// count from the client would let two truly concurrent requests each pass their own
+// count before seeing the other's insert, letting 1-2 extra guesses through.
+async function recordAndCheckOtpAttempt(reference: string, userId: string, supabaseAdmin: any): Promise<boolean> {
+    const { data, error } = await supabaseAdmin.rpc('record_and_check_otp_attempt', {
+        p_reference: reference,
+        p_user_id: userId,
+    })
+
+    if (error) {
+        console.error('[ChargeOTP] Rate limit RPC failed:', error.message)
+        // Fail-closed — block requests when we can't verify the limit.
+        return false
+    }
+
+    return data === true
+}
+
 export async function POST(request: NextRequest) {
     try {
         const { reference, otp } = await request.json()
@@ -48,6 +71,13 @@ export async function POST(request: NextRequest) {
 
         if (paymentRow.status !== 'pending') {
             return NextResponse.json({ error: 'Payment is not awaiting OTP' }, { status: 400 })
+        }
+
+        if (!(await recordAndCheckOtpAttempt(reference, authUser.id, supabaseAdmin))) {
+            return NextResponse.json(
+                { error: 'Too many attempts for this payment. Please start a new top-up.' },
+                { status: 429 }
+            )
         }
 
         const res = await fetch('https://api.paystack.co/charge/submit_otp', {
