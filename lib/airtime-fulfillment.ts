@@ -296,18 +296,21 @@ export async function manualRefulfillAirtime(
     }
 
     const attempt = (order.airtime_fulfillment_attempts || 0) + 1
+    const { key: clientRef, generation } = kfKeyForOrder({ ...order, status: keyStatus }, { bumpAfterFailure: true })
     // Force-claim from pending/failed/processing (manual override of the auto kill-switch + status).
+    // The in-flight key is persisted in the claim itself so the reconcile cron never status-checks a
+    // stale key if this process dies mid-POST.
     const { data: claimed } = await (supabase.from('airtime_orders') as any)
         .update({
             status: 'processing',
             fulfillment_service: 'kingflexy-commission',
             airtime_fulfillment_attempts: attempt,
+            fulfillment_metadata: { ...(order.fulfillment_metadata || {}), client_reference: clientRef, kf_generation: generation },
             updated_at: new Date().toISOString(),
         })
         .eq('id', orderId).in('status', ['pending', 'failed', 'processing']).select('id')
     if (!claimed || claimed.length === 0) return { ok: false, status: order.status, message: 'Order is not in a refulfillable state' }
 
-    const { key: clientRef, generation } = kfKeyForOrder({ ...order, status: keyStatus }, { bumpAfterFailure: true })
     const result = await fulfillAirtimeKingFlexy(
         order.network, order.beneficiary_phone, Number(order.airtime_amount), clientRef,
     )

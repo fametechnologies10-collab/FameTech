@@ -9,6 +9,18 @@ import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
 const KF = 'kingflexy-commission'
 const LOG = '[KingFlexyReconcile]'
 
+// Dispatch returns early without bumping attempts when a row is gated (kill-switch, >100 GHS, mashup,
+// unverifiable legacy attempt). Touch such a row so it rotates to the back of the updated_at-ordered
+// queue instead of starving newer eligible rows.
+async function rotateIfBlocked(supabase: any, table: 'airtime_orders' | 'utility_orders', attemptsCol: string, id: string, attemptsBefore: number | null) {
+    try {
+        const { data: fresh } = await supabase.from(table).select(`status, ${attemptsCol}`).eq('id', id).maybeSingle()
+        if (fresh?.status === 'pending' && (fresh[attemptsCol] ?? 0) === (attemptsBefore ?? 0)) {
+            await supabase.from(table).update({ updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending')
+        }
+    } catch (e) { console.error(LOG, 'rotate failed for', id, e) }
+}
+
 function statusCheckNote(r: KfStatusResult) {
     return { state: r.state, http_ok: r.httpOk, found: r.found, error: r.error ?? null, at: new Date().toISOString() }
 }
@@ -31,7 +43,7 @@ export async function GET(request: NextRequest) {
         .eq('status', 'processing')
         .lt('updated_at', fiveMinAgo)
         .order('updated_at', { ascending: true })
-        .limit(50)
+        .limit(10)
 
     for (const o of (stuckAirtime || [])) {
         try {
@@ -61,14 +73,15 @@ export async function GET(request: NextRequest) {
 
     // Pass B: pending airtime with attempts left.
     const { data: pendingAirtime } = await supabase.from('airtime_orders')
-        .select('id')
+        .select('id, airtime_fulfillment_attempts')
         .eq('fulfillment_service', KF)
         .eq('status', 'pending')
         .lt('airtime_fulfillment_attempts', 5)
-        .order('created_at', { ascending: true })
+        .order('updated_at', { ascending: true })
         .limit(8)
     for (const o of (pendingAirtime || [])) {
         try { await dispatchAirtimeFulfillment(o.id); airtime.dispatched++ } catch (e) { console.error(LOG, 'airtime dispatch failed for', o.id, e) }
+        await rotateIfBlocked(supabase, 'airtime_orders', 'airtime_fulfillment_attempts', o.id, o.airtime_fulfillment_attempts)
     }
 
     // Pass C: processing utilities whose webhook never arrived.
@@ -78,7 +91,7 @@ export async function GET(request: NextRequest) {
         .eq('status', 'processing')
         .lt('updated_at', fiveMinAgo)
         .order('updated_at', { ascending: true })
-        .limit(50)
+        .limit(10)
 
     for (const o of (stuckUtil || [])) {
         try {
@@ -112,17 +125,36 @@ export async function GET(request: NextRequest) {
     // Pass D: pending PAID utilities (any provider). payment_status='paid' is load-bearing: unpaid
     // storefront checkout rows must never be dispatched.
     const { data: pendingUtil } = await supabase.from('utility_orders')
-        .select('id')
+        .select('id, fulfillment_attempts')
         .eq('status', 'pending')
         .eq('payment_status', 'paid')
         .lt('fulfillment_attempts', 5)
-        .order('created_at', { ascending: true })
+        .order('updated_at', { ascending: true })
         .limit(5)
     for (const o of (pendingUtil || [])) {
         try { await dispatchUtilityFulfillment(o.id); utilities.dispatched++ } catch (e) { console.error(LOG, 'utility dispatch failed for', o.id, e) }
+        await rotateIfBlocked(supabase, 'utility_orders', 'fulfillment_attempts', o.id, o.fulfillment_attempts)
     }
 
-    // Pass E: backfill commission on recently completed KingFlexyGH utilities that finished without it.
+    // Pass E1: commission was written but the credit RPC errored (commission_credited_at still NULL).
+    // The RPC is idempotent, so just call it again. No status call, so it does not use the check budget.
+    const { data: uncredited } = await supabase.from('utility_orders')
+        .select('id')
+        .eq('fulfillment_service', KF)
+        .eq('status', 'completed')
+        .not('commission_amount', 'is', null)
+        .is('commission_credited_at', null)
+        .gte('updated_at', dayAgo)
+        .order('updated_at', { ascending: true })
+        .limit(20)
+    for (const o of (uncredited || [])) {
+        try {
+            const { error } = await supabase.rpc('credit_utility_commission', { p_utility_order_id: o.id })
+            if (error) console.error(LOG, 'credit_utility_commission retry failed:', error.message, 'order:', o.id)
+        } catch (e) { console.error(LOG, 'utility pass E retry failed for', o.id, e) }
+    }
+
+    // Pass E2: backfill commission on recently completed KingFlexyGH utilities that finished without it.
     const { data: noCommission } = await supabase.from('utility_orders')
         .select('id, fulfillment_request_id')
         .eq('fulfillment_service', KF)
@@ -131,7 +163,7 @@ export async function GET(request: NextRequest) {
         .not('fulfillment_request_id', 'is', null)
         .gte('updated_at', dayAgo)
         .order('updated_at', { ascending: true })
-        .limit(20)
+        .limit(5)
 
     for (const o of (noCommission || [])) {
         try {

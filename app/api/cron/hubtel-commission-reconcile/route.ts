@@ -96,12 +96,13 @@ export async function GET(request: NextRequest) {
         try { await dispatchAirtimeFulfillment(o.id); dispatched++ } catch { /* continue */ }
     }
 
-    // ── Utility bills (Pass U-a + U-b) — same reconcile idioms, separate table/pipeline ────────
+    // ── Utility bills (Pass U-a) — same reconcile idioms, separate table/pipeline ────────
+    // Pending-paid utility re-dispatch now lives in the kingflexy-commission-reconcile cron.
 
     // (U-a) processing but callback never arrived (>5min) → reconcile via the Hubtel Status Check
     // API. Same record-always / move-only-on-AUTO gating as the airtime pass above. We NEVER
-    // blind re-dispatch a processing order here either — dispatchUtilityFulfillment is only
-    // called from Pass U-b below, and only for 'pending' rows.
+    // blind re-dispatch a processing order here either. KingFlexyGH-tagged rows are excluded:
+    // they are reconciled by the kingflexy-commission-reconcile cron.
     const { data: stuckUtil } = await (supabase as any).from('utility_orders')
         .select('id, reference_code, fulfillment_attempts, fulfillment_request_id, fulfillment_metadata, user_id, biller, amount, source, api_key_id')
         .or('fulfillment_service.is.null,fulfillment_service.neq.kingflexy-commission')
