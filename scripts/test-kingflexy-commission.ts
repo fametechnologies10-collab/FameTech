@@ -11,6 +11,7 @@ import {
     decideKfWebhookAction,
     parseKfLookup,
 } from '../lib/kingflexy-commission-service'
+import { finalizeKfAirtime, finalizeKfUtility } from '../lib/kingflexy-finalize'
 
 // classifyKfOrderStatus
 assert.equal(classifyKfOrderStatus('completed'), 'completed')
@@ -361,7 +362,58 @@ async function networkTests() {
     assert.equal(calls.length, 0)
 }
 
+type StubLog = { table: string; op: string }[]
+function makeStub(opts: { updateRows: { id: string }[]; freshRow?: { status: string } | null }) {
+    const log: StubLog = []
+    const mkBuilder = (table: string) => {
+        let mode = 'select'
+        const b: any = {
+            update: () => { mode = 'update'; log.push({ table, op: 'update' }); return b },
+            insert: () => { log.push({ table, op: 'insert' }); return Promise.resolve({ data: null, error: null }) },
+            select: () => { if (mode === 'select') log.push({ table, op: 'select' }); return b },
+            eq: () => b, in: () => b, neq: () => b, is: () => b,
+            maybeSingle: () => { log.push({ table, op: 'select' }); return Promise.resolve({ data: opts.freshRow ?? null }) },
+            single: () => Promise.resolve({ data: opts.freshRow ?? null }),
+            then: (res: any, rej: any) => Promise.resolve({ data: mode === 'update' ? opts.updateRows : opts.freshRow ?? null, error: null }).then(res, rej),
+        }
+        return b
+    }
+    const client = {
+        from: (table: string) => mkBuilder(table),
+        rpc: (fn: string) => { log.push({ table: fn, op: 'rpc' }); return Promise.resolve({ data: null, error: null }) },
+    }
+    return { client, log }
+}
+
+async function finalizeTests() {
+    const airOrder = { id: 'a1', reference_code: 'API-R1', network: 'MTN', airtime_amount: 10, user_id: 'u1', source: 'api', api_key_id: 'k1', fulfillment_metadata: null }
+    const utilOrder = { id: 'u1', reference_code: 'API-R2', biller: 'ecg', account_number: '123', amount: 20, user_id: 'u1', shop_id: null, source: 'api', api_key_id: 'k1', destination_phone: null, fulfillment_metadata: null }
+    for (const state of ['completed', 'failed'] as const) {
+        let { client, log } = makeStub({ updateRows: [], freshRow: { status: 'completed' } })
+        let r = await finalizeKfAirtime(client, airOrder, { state })
+        assert.deepEqual(r, { transitioned: false })
+        assert.ok(!log.some((l) => l.op === 'rpc' || l.op === 'insert'))
+        assert.equal(log.filter((l) => l.op === 'update').length, 1)
+        ;({ client, log } = makeStub({ updateRows: [], freshRow: { status: 'completed' } }))
+        r = await finalizeKfUtility(client, utilOrder, { state, commissionEarned: 1.5 })
+        assert.deepEqual(r, { transitioned: false })
+        assert.ok(!log.some((l) => l.op === 'rpc' || l.op === 'insert'))
+        assert.equal(log.filter((l) => l.op === 'update').length, 1)
+    }
+    // late success on a refunded order re-reads the fresh status for the admin alert
+    let { client, log } = makeStub({ updateRows: [], freshRow: { status: 'refunded' } })
+    let r = await finalizeKfAirtime(client, airOrder, { state: 'completed' })
+    assert.equal(r.transitioned, false)
+    assert.ok(log.some((l) => l.table === 'airtime_orders' && l.op === 'select'))
+    assert.ok(!log.some((l) => l.op === 'rpc' || l.op === 'insert'))
+    ;({ client, log } = makeStub({ updateRows: [], freshRow: { status: 'refunded' } }))
+    r = await finalizeKfUtility(client, utilOrder, { state: 'completed' })
+    assert.equal(r.transitioned, false)
+    assert.ok(log.some((l) => l.table === 'utility_orders' && l.op === 'select'))
+}
+
 networkTests()
+    .then(finalizeTests)
     .then(() => {
         globalThis.fetch = realFetch
         console.log('OK')
