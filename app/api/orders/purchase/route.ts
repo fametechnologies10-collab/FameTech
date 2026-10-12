@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { generateReferenceCode } from '@/lib/utils'
-import { cookies } from 'next/headers'
 // Email confirmation is currently disabled (commented out below). When
 // re-enabled, re-import sendOrderSuccessEmail from '@/lib/email-service'.
 import { sendOrderSuccessSMS, sendAdminAgentOrderAlert } from '@/lib/sms-service'
@@ -19,10 +18,15 @@ import { hasSubAgentPricingConfigured } from '@/lib/sub-agent-pricing'
 import { recordPendingSubAgentEarning } from '@/lib/sub-agent-earnings'
 import { resolveOrderQueueing } from '@/lib/number-registration'
 import { checkMtnWhitelistGate } from '@/lib/mtn-whitelist-gate'
+import {
+    normalizeRecipient,
+    recipientMatchesPackage,
+    findBlacklistedRecipients,
+    isValidReferenceCode,
+} from '@/lib/order-recipient'
 
 export async function POST(request: NextRequest) {
     try {
-        const cookieStore = await cookies()
         const supabaseUserClient = await createRouteClient()
         const { data: { user: authUser }, error: authError } = await supabaseUserClient.auth.getUser()
 
@@ -48,27 +52,22 @@ export async function POST(request: NextRequest) {
         if (!packageId || typeof packageId !== 'string') {
             return NextResponse.json({ error: 'Package ID is required' }, { status: 400 })
         }
-        // Bound the client-supplied idempotency key so it can't be used to store
-        // an oversized payload in the orders table / idempotency lookup. 97 is just
-        // a sane upper bound on a client-generated reference string — no downstream
-        // RPC suffixes or otherwise transforms this value in the current sub-agent
-        // earnings path, so there's no tighter cap to derive it from.
-        if (clientReferenceCode !== undefined && (typeof clientReferenceCode !== 'string' || clientReferenceCode.length > 97)) {
+        // Client-chosen idempotency key: bounded charset + length (97 is a sane upper
+        // bound for a client-generated reference) so it can't be used to store an
+        // arbitrary payload in orders / the idempotency lookup, and can't collide
+        // with the `${batchRef}-${i}` codes the bulk route derives.
+        if (clientReferenceCode !== undefined && !isValidReferenceCode(clientReferenceCode)) {
             return NextResponse.json({ error: 'Invalid referenceCode' }, { status: 400 })
         }
 
-        if (!phoneNumber || typeof phoneNumber !== 'string') {
-            return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
+        // Canonical recipient (0XXXXXXXXX). Everything below — blacklist, whitelist
+        // gate, queueing, the stored order row, the supplier call — uses THIS value,
+        // never the raw client string, so padding or a 233… spelling can't dodge a check.
+        const recipient = normalizeRecipient(phoneNumber)
+        if (!recipient.ok) {
+            return NextResponse.json({ error: recipient.error }, { status: 400 })
         }
-
-        const cleanPhone = phoneNumber.replace(/\s+/g, '')
-        const ghanaPhoneRegex = /^(0\d{9}|233\d{9})$/
-
-        if (!ghanaPhoneRegex.test(cleanPhone)) {
-            return NextResponse.json({
-                error: 'Invalid phone number format. Use Ghana format: 0XXXXXXXXX or 233XXXXXXXXX'
-            }, { status: 400 })
-        }
+        const cleanPhone = recipient.phone
 
         // Service role client for privileged operations
         const supabase = createServerClient()
@@ -77,24 +76,11 @@ export async function POST(request: NextRequest) {
         if (clientReferenceCode) {
             // Scope the lookup to the authenticated user so a reference_code can
             // never surface another user's order details (cross-tenant disclosure).
-            const { data: existingOrder } = await (supabase.from('orders') as any)
-                .select('id, reference_code, status')
-                .eq('reference_code', clientReferenceCode)
-                .eq('user_id', userId)
-                .maybeSingle()
-
+            const existingOrder = await findOwnOrderByReference(supabase, clientReferenceCode, userId)
             if (existingOrder) {
                 // Order already exists — this is a duplicate request. Return success with existing data.
                 console.log(`[Purchase] Duplicate request blocked for reference: ${clientReferenceCode}`)
-                return NextResponse.json({
-                    success: true,
-                    isDuplicate: true,
-                    order: {
-                        id: existingOrder.id,
-                        reference_code: existingOrder.reference_code,
-                        status: existingOrder.status,
-                    },
-                })
+                return duplicateOrderResponse(existingOrder)
             }
         }
 
@@ -119,17 +105,22 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Check if phone is blacklisted.
-        // Use the normalized `cleanPhone` (whitespace stripped) — otherwise an
-        // attacker could bypass the blacklist by inserting a space into the
-        // number they submit.
-        const { data: blacklisted } = await supabase
-            .from('phone_blacklist')
-            .select('id')
-            .eq('phone_number', cleanPhone)
-            .single()
+        // The recipient's carrier must match the package's network — the dashboard
+        // checks this in the browser, but a direct API call skips the browser.
+        if (!recipientMatchesPackage(recipient.carrier, (pkg as any).network)) {
+            return NextResponse.json(
+                { error: `This number is for ${recipient.carrier}, not ${(pkg as any).network}` },
+                { status: 400 },
+            )
+        }
 
-        if (blacklisted) {
+        // Blacklist: looked up under every stored spelling (0…, 233…, +233…) and
+        // FAIL CLOSED — an unreadable blacklist must never read as an empty one.
+        const blacklist = await findBlacklistedRecipients(supabase, [cleanPhone])
+        if (!blacklist.ok) {
+            return NextResponse.json({ error: 'Could not process your order right now. Please try again.' }, { status: 503 })
+        }
+        if (blacklist.blocked.has(cleanPhone)) {
             return NextResponse.json({ error: 'This phone number is not allowed' }, { status: 400 })
         }
 
@@ -143,11 +134,18 @@ export async function POST(request: NextRequest) {
         }
 
         // Get user role — fetch expiry fields to validate active subscription before granting agent pricing
-        const { data: userRoleData } = await supabase
+        const { data: userRoleData, error: userRoleError } = await supabase
             .from('users')
             .select('role, status, dealer_expires_at, agent_expires_at')
             .eq('id', userId)
             .single()
+
+        // Fail closed: if the profile can't be read we can't tell whether the account is
+        // suspended or which price tier applies — never fall through as a plain customer.
+        if (userRoleError || !userRoleData) {
+            console.error('[Purchase] user profile lookup failed:', userRoleError)
+            return NextResponse.json({ error: 'Could not process your order right now. Please try again.' }, { status: 503 })
+        }
 
         // Server-side suspension enforcement — the dashboard gate alone is bypassable.
         if ((userRoleData as any)?.status === 'suspended') {
@@ -252,7 +250,7 @@ export async function POST(request: NextRequest) {
         // 'queued' (no dispatch) until the supplier confirms registration. Only
         // evaluated for auto-fulfillable categories (mashup is manual regardless).
         const queueDecision = shouldAutoFulfill((pkg as any).category)
-            ? await resolveOrderQueueing(phoneNumber, (pkg as any).network)
+            ? await resolveOrderQueueing(cleanPhone, (pkg as any).network)
             : { queue: false, canonicalPhone: null }
 
         // Create order AFTER successful deduction
@@ -260,7 +258,7 @@ export async function POST(request: NextRequest) {
             .from('orders') as any)
             .insert({
                 user_id: userId,
-                phone_number: phoneNumber,
+                phone_number: cleanPhone,
                 network: (pkg as any).network,
                 size: (pkg as any).size,
                 price: priceToCharge,
@@ -288,6 +286,16 @@ export async function POST(request: NextRequest) {
             if (refundError) {
                 console.error(`[Purchase] CRITICAL: refund failed for ${referenceCode}, manual reconciliation required:`, refundError)
             }
+            // 23505 = orders.reference_code UNIQUE violation. Two concurrent submits of the
+            // same key both pass the pre-check above; the loser lands here (and has just
+            // been refunded). If the winner is THIS user's order, ack it as a duplicate
+            // instead of surfacing a 500 for a purchase that actually went through.
+            if (orderError.code === '23505' && clientReferenceCode) {
+                const winner = await findOwnOrderByReference(supabase, clientReferenceCode, userId)
+                if (winner) return duplicateOrderResponse(winner)
+                // Key belongs to someone else's order — generic, so it can't be used to probe codes.
+                return NextResponse.json({ error: 'Please retry your order' }, { status: 409 })
+            }
             return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
         }
 
@@ -304,26 +312,38 @@ export async function POST(request: NextRequest) {
             }).catch((e) => console.error('[Purchase] recordPendingSubAgentEarning threw:', e))
         }
 
-        // === PERFORMANCE: Create wallet transaction (non-blocking, fire-and-forget) ===
-        ;(supabase.from('wallet_transactions') as any).insert({
-            wallet_id: walletId,
-            user_id: userId,
-            type: 'debit',
-            amount: priceToCharge,
-            description: `Data purchase: ${(pkg as any).size} for ${phoneNumber}`,
-            reference: referenceCode,
-            source: 'purchase',
-            status: 'completed',
-        }).then(() => {}).catch((e: any) => console.error('[Purchase] Tx insert error:', e))
+        // === Ledger row for the debit ===
+        // supabase-js reports failures as a RESOLVED `{ error }`, not a rejection — a bare
+        // `.then().catch()` never fires, so a failed insert used to vanish: wallet debited,
+        // no ledger row, nothing in the logs. Awaited and checked; the sale itself still
+        // stands (the buyer already paid, the data must ship) but the gap is logged loudly.
+        try {
+            const { error: txError } = await (supabase.from('wallet_transactions') as any).insert({
+                wallet_id: walletId,
+                user_id: userId,
+                type: 'debit',
+                amount: priceToCharge,
+                description: `Data purchase: ${(pkg as any).size} for ${cleanPhone}`,
+                reference: referenceCode,
+                source: 'purchase',
+                status: 'completed',
+            })
+            if (txError) {
+                console.error(`[Purchase] CRITICAL: wallet debit of ${priceToCharge} for ${referenceCode} has NO ledger row, reconcile manually:`, txError)
+            }
+        } catch (e) {
+            console.error(`[Purchase] CRITICAL: ledger insert threw for ${referenceCode}, reconcile manually:`, e)
+        }
 
         // === PERFORMANCE: Create notification (fire-and-forget) ===
         ;(supabase.from('notifications') as any).insert({
             user_id: userId,
             title: 'Order Placed',
-            message: `Your order for ${(pkg as any).size} to ${phoneNumber} has been placed and is being processed.`,
+            message: `Your order for ${(pkg as any).size} to ${cleanPhone} has been placed and is being processed.`,
             type: 'order_update',
             action_url: `/dashboard/my-orders`,
-        }).then(() => {}).catch((e: any) => console.error('[Purchase] Notification error:', e))
+        }).then(({ error }: { error: any }) => { if (error) console.error('[Purchase] Notification error:', error) })
+          .catch((e: any) => console.error('[Purchase] Notification error:', e))
 
         // === NOTIFICATIONS & AUTO-FULFILLMENT: Wrapped in waitUntil to prevent Vercel freeze ===
         waitUntil((async () => {
@@ -358,7 +378,7 @@ export async function POST(request: NextRequest) {
                             network: (pkg as any).network,
                             size: (pkg as any).size,
                             price: priceToCharge,
-                            recipientNumber: phoneNumber,
+                            recipientNumber: cleanPhone,
                             currentBalance: newBalance,
                             sender: ownSender ?? undefined
                         }).then(() => console.log('[Purchase] Confirmation SMS sent successfully'))
@@ -388,7 +408,7 @@ export async function POST(request: NextRequest) {
                         if (isMashupCategory((pkg as any).category)) {
                             await sendAdminPushNotification({
                                 title: 'New Special MTN Mashup Order',
-                                body: `${(pkg as any).size} (GHS ${Number(priceToCharge).toFixed(2)}) for ${phoneNumber} — needs manual fulfillment.`,
+                                body: `${(pkg as any).size} (GHS ${Number(priceToCharge).toFixed(2)}) for ${cleanPhone} — needs manual fulfillment.`,
                                 url: '/admin/mtn-mashup',
                             }).catch((err: Error) => console.error('[Purchase] Mashup admin push failed:', err))
                         }
@@ -408,7 +428,7 @@ export async function POST(request: NextRequest) {
                 status: queueDecision.queue ? 'queued' : 'pending',
                 network: (pkg as any).network,
                 size: (pkg as any).size,
-                phone_number: phoneNumber,
+                phone_number: cleanPhone,
                 price: priceToCharge,
                 new_balance: newBalance,
             },
@@ -419,36 +439,37 @@ export async function POST(request: NextRequest) {
     }
 }
 
-async function updateCustomerPurchases(
-    supabase: any,
-    userId: string,
-    phoneNumber: string,
-    amount: number
-) {
-    const { data: existing } = await supabase
-        .from('customer_purchases')
-        .select('*')
+/** The caller's OWN order for an idempotency key — scoped so a code never surfaces another user's order. */
+async function findOwnOrderByReference(supabase: any, referenceCode: string, userId: string) {
+    const { data } = await supabase
+        .from('orders')
+        .select('id, reference_code, status, network, size, phone_number, price')
+        .eq('reference_code', referenceCode)
         .eq('user_id', userId)
-        .eq('customer_phone', phoneNumber)
-        .single()
+        .maybeSingle()
+    return data as {
+        id: string; reference_code: string; status: string
+        network: string; size: string; phone_number: string; price: number
+    } | null
+}
 
-    if (existing) {
-        await supabase
-            .from('customer_purchases')
-            .update({
-                total_purchases: existing.total_purchases + 1,
-                total_spent: existing.total_spent + amount,
-                last_purchase_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id)
-    } else {
-        await supabase.from('customer_purchases').insert({
-            user_id: userId,
-            customer_phone: phoneNumber,
-            total_purchases: 1,
-            total_spent: amount,
-            first_purchase_at: new Date().toISOString(),
-            last_purchase_at: new Date().toISOString(),
-        })
-    }
+/**
+ * Duplicate ack. Carries the same display fields as a fresh purchase (minus
+ * `new_balance`, which only the original debit knows) so the dashboard can render
+ * its success card from it instead of showing blanks.
+ */
+function duplicateOrderResponse(order: NonNullable<Awaited<ReturnType<typeof findOwnOrderByReference>>>) {
+    return NextResponse.json({
+        success: true,
+        isDuplicate: true,
+        order: {
+            id: order.id,
+            reference_code: order.reference_code,
+            status: order.status,
+            network: order.network,
+            size: order.size,
+            phone_number: order.phone_number,
+            price: order.price,
+        },
+    })
 }

@@ -46,6 +46,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
 import { DataPackage } from '@/types/supabase'
 import { filterPackagesForSubAgent, SubAgentPricingMap } from '@/lib/sub-agent-package-filter'
+import { resolveOwnerCost } from '@/lib/pricing/cost-basis'
 
 interface ValidationResult {
     lineNumber: number
@@ -135,8 +136,22 @@ function useCountUp(target: number, duration = 900) {
     return value
 }
 
-const PKG_CACHE_KEY = 'kf-packages-cache'
+// v2: the v1 cache was written from a `select('*')` and so also holds the wholesale
+// `cost_price` — it is purged on load (see fetchPackages) and never read again.
+const PKG_CACHE_KEY = 'kf-packages-cache-v2'
+const PKG_CACHE_LEGACY_KEY = 'kf-packages-cache'
 const PKG_CACHE_TTL = 5 * 60 * 1000
+
+// Explicit column list — never `*`. `cost_price` (wholesale cost) must not reach the
+// browser, and the column is revoked from anon/authenticated at the database
+// (supabase/migrations/20261012_data_packages_cost_price_revoke.sql), so `*` would 401.
+const PACKAGE_COLUMNS =
+    'id, network, size, price, agent_price, dealer_price, description, is_available, sort_order, category, ussd_enabled, ussd_price, created_at, updated_at'
+
+// Server hard limit on /api/orders/bulk-purchase; checked here first so the user
+// gets a clear message instead of a rejected request.
+const BULK_MAX_ORDERS = 500
+const BULK_MAX_FILE_BYTES = 2 * 1024 * 1024
 
 export default function DataPackagesPage() {
     const { dbUser, session, refreshUser } = useAuth()
@@ -319,6 +334,7 @@ export default function DataPackagesPage() {
     const fetchPackages = async () => {
         // SWR: hydrate from cache immediately so grid shows on repeat visits
         try {
+            localStorage.removeItem(PKG_CACHE_LEGACY_KEY)
             const raw = localStorage.getItem(PKG_CACHE_KEY)
             if (raw) {
                 const { data: cached, ts } = JSON.parse(raw)
@@ -332,11 +348,11 @@ export default function DataPackagesPage() {
         try {
             const { data, error } = await supabase
                 .from('data_packages')
-                .select('*')
+                .select(PACKAGE_COLUMNS)
                 .eq('is_available', true)
                 .order('sort_order', { ascending: true })
             if (error) throw error
-            setPackages(data || [])
+            setPackages((data || []) as unknown as DataPackage[])
             localStorage.setItem(PKG_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
         } catch {
             toast.error('Failed to load packages')
@@ -379,9 +395,14 @@ export default function DataPackagesPage() {
             const sub = subAgentPricing[pkg.id]
             if (sub) return sub.subPrice
         }
-        if (dbUser?.role === 'dealer' && (pkg as any).dealer_price > 0) return (pkg as any).dealer_price
-        if (dbUser?.role === 'agent' && (pkg as any).agent_price > 0) return (pkg as any).agent_price
-        return pkg.price
+        // Expiry-aware, via the same shared resolver the server charges with — an expired
+        // agent/dealer is billed the customer price, so the card must show that too
+        // (their `role` can still read 'agent' until the downgrade cron runs).
+        return resolveOwnerCost(pkg as any, {
+            role: dbUser?.role,
+            agent_expires_at: (dbUser as any)?.agent_expires_at,
+            dealer_expires_at: (dbUser as any)?.dealer_expires_at,
+        })
     }
 
     const handleNetworkChange = (network: string) => {
@@ -422,7 +443,8 @@ export default function DataPackagesPage() {
             } else if (selectedPackage) {
                 const detectedNet = detectNetwork(value)
                 const packageNetwork = selectedPackage.network.includes('AT') ? 'AirtelTigo' : selectedPackage.network
-                if (detectedNet !== packageNetwork && selectedPackage.network !== 'AT-BigTime') {
+                // Enforced server-side for every network (AT-BigTime is an AirtelTigo product too).
+                if (detectedNet !== packageNetwork) {
                     setPhoneError(`This number is for ${detectedNet}, not ${selectedPackage.network}`)
                 }
             }
@@ -457,6 +479,26 @@ export default function DataPackagesPage() {
             })
             const data = await response.json()
             if (!response.ok) throw new Error(data.error || 'Purchase failed')
+            if (data.isDuplicate) {
+                // A retry of an order the server already placed (e.g. the first response
+                // timed out). Nothing was charged this time, so render the EXISTING order and
+                // re-sync from the server instead of subtracting the price locally.
+                const o = data.order ?? {}
+                setPurchaseSuccess(true)
+                setPurchaseDetails({
+                    referenceCode: o.reference_code ?? currentReferenceCode,
+                    network: o.network ?? selectedPackage.network,
+                    size: o.size ?? selectedPackage.size,
+                    phoneNumber: o.phone_number ?? validation.normalizedNumber,
+                    price: typeof o.price === 'number' ? o.price : effectivePrice,
+                    newBalance: walletBalance,
+                })
+                fetchWalletBalance()
+                fetchOrdersToday()
+                router.refresh()
+                toast.success('This order was already placed')
+                return
+            }
             setPurchaseSuccess(true)
             setPurchaseDetails({
                 referenceCode: data.order.reference_code,
@@ -541,7 +583,9 @@ export default function DataPackagesPage() {
             const reader = new FileReader()
             reader.onload = (e) => {
                 try {
-                    const workbook = XLSX.read(e.target?.result, { type: 'binary' })
+                    // sheetRows caps how much of the sheet is parsed at all (the batch limit is
+                    // 500, so anything past ~1000 rows is only ever rejected, never used).
+                    const workbook = XLSX.read(e.target?.result, { type: 'binary', sheetRows: BULK_MAX_ORDERS * 2 + 1 })
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]]
                     const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
                     const parsed = rows
@@ -585,7 +629,26 @@ export default function DataPackagesPage() {
                 parsedLines = await parseExcelFile(bulkFile)
             }
 
+            if (parsedLines.length > BULK_MAX_ORDERS) {
+                toast.error(`Maximum ${BULK_MAX_ORDERS} orders per batch — you have ${parsedLines.length}. Split it into smaller batches.`)
+                return
+            }
+
             const results = validateLines(parsedLines)
+
+            // Same number + same bundle listed twice is charged and delivered twice. That can
+            // be intentional, so it is only flagged, never blocked.
+            const seen = new Set<string>()
+            let repeated = 0
+            for (const r of results) {
+                if (!r.isValid) continue
+                const key = `${validateGhanaianPhone(r.phoneNumber).normalizedNumber}|${r.packageId}`
+                if (seen.has(key)) repeated++
+                else seen.add(key)
+            }
+            if (repeated > 0) {
+                toast.info(`${repeated} repeated ${repeated === 1 ? 'entry' : 'entries'} — the same number and bundle appears more than once and will be charged each time`)
+            }
 
             let finalResults = results
             if (selectedNetwork === 'MTN') {
@@ -690,7 +753,30 @@ export default function DataPackagesPage() {
                 }),
             })
             const data = await response.json()
-            if (!response.ok) throw new Error(data.error || 'Bulk order failed')
+            if (!response.ok) {
+                // A server-side blacklist refusal lists the offending numbers — show them so
+                // the user knows which rows to remove.
+                const blocked: string[] = Array.isArray(data.blocked) ? data.blocked : []
+                const suffix = blocked.length > 0
+                    ? ` (${blocked.slice(0, 5).join(', ')}${blocked.length > 5 ? ', …' : ''})`
+                    : ''
+                throw new Error(`${data.error || 'Bulk order failed'}${suffix}`)
+            }
+            if (data.isDuplicate) {
+                // This exact batch was already placed (retry / double-click) and was not
+                // charged again — there are no totals in the ack, so don't render the success
+                // card with blanks; reset the form and re-sync the balance instead.
+                toast.success('This batch was already placed — check My Orders')
+                setValidationResults([])
+                setBulkText('')
+                setBulkFile(null)
+                setPreviewDone(false)
+                setBulkBatchRef('')
+                fetchWalletBalance()
+                fetchOrdersToday()
+                router.refresh()
+                return
+            }
 
             // The server may skip numbers at submit time that our client-side preview
             // didn't catch (a race between preview and submit, the gate toggling mid-session,
@@ -1239,7 +1325,10 @@ export default function DataPackagesPage() {
                                             className="hidden"
                                             onChange={e => {
                                                 const file = e.target.files?.[0]
-                                                if (file) {
+                                                if (file && file.size > BULK_MAX_FILE_BYTES) {
+                                                    toast.error('That file is too large — keep it under 2 MB')
+                                                    e.target.value = ''
+                                                } else if (file) {
                                                     setBulkFile(file)
                                                     setPreviewDone(false)
                                                     setValidationResults([])

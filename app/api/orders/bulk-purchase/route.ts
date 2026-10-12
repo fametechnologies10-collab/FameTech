@@ -2,13 +2,19 @@
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { generateReferenceCode } from '@/lib/utils'
-import { cookies } from 'next/headers'
 import { waitUntil } from '@vercel/functions'
 // import { isRateLimited, checkFraudSignals, logSuspiciousActivity } from '@/lib/security'
 import { getAdminOOSNetworks, isNetworkOOS } from '@/lib/network-stock'
 import { resolveOrderQueueing } from '@/lib/number-registration'
 import { checkMtnWhitelistGateBatch } from '@/lib/mtn-whitelist-gate'
 import { resolveOwnConfirmationSender } from '@/lib/sms-confirmation-sender'
+import { resolveOwnerCost } from '@/lib/pricing/cost-basis'
+import {
+    normalizeRecipient,
+    recipientMatchesPackage,
+    findBlacklistedRecipients,
+    isValidBatchReference,
+} from '@/lib/order-recipient'
 
 interface BulkOrderItem {
     packageId: string
@@ -26,7 +32,6 @@ interface FulfillmentOutcome {
 
 export async function POST(request: NextRequest) {
     try {
-        const cookieStore = await cookies()
         const supabaseUserClient = await createRouteClient()
         const { data: { user: authUser }, error: authError } = await supabaseUserClient.auth.getUser()
 
@@ -62,15 +67,49 @@ export async function POST(request: NextRequest) {
         // When present, every order's reference_code is derived deterministically
         // from it (`${batchReference}-${i}`). The orders.reference_code UNIQUE
         // constraint then makes a replayed batch fail atomically (all-or-nothing),
-        // and the pre-check below short-circuits before any wallet deduction â€”
+        // and the pre-check below short-circuits before any wallet deduction -
         // preventing accidental double-charge from a double-click or retry.
-        const normalizedBatchRef =
-            typeof batchReference === 'string' && batchReference.trim().length >= 6 && batchReference.length <= 80
-                ? batchReference.trim()
-                : null
+        // A key that is present but malformed is REJECTED, never silently downgraded
+        // to the non-idempotent path.
+        let normalizedBatchRef: string | null = null
+        if (batchReference !== undefined && batchReference !== null) {
+            if (!isValidBatchReference(batchReference)) {
+                return NextResponse.json({ error: 'Invalid batchReference' }, { status: 400 })
+            }
+            normalizedBatchRef = batchReference
+        }
+
+        // === Shape-check + canonicalize every row BEFORE touching the DB ===
+        // The dashboard validates numbers in the browser; a direct API call skips that,
+        // so the server owns phone format here (and uses the canonical 0XXXXXXXXX form
+        // for the blacklist, whitelist gate, stored order row and the beneficiary SMS).
+        const rowErrors: string[] = []
+        const rows: { packageId: string; phone: string; carrier: string }[] = []
+        orders.forEach((o: any, i: number) => {
+            if (!o || typeof o !== 'object' || typeof o.packageId !== 'string' || !o.packageId) {
+                rowErrors.push(`Row ${i + 1}: package is required`)
+                return
+            }
+            const r = normalizeRecipient(o.phoneNumber)
+            if (!r.ok) {
+                rowErrors.push(`Row ${i + 1}: ${r.error}`)
+                return
+            }
+            rows.push({ packageId: o.packageId, phone: r.phone, carrier: r.carrier })
+        })
+        if (rowErrors.length > 0) {
+            const shown = rowErrors.slice(0, 5).join('; ')
+            const more = rowErrors.length > 5 ? ` (+${rowErrors.length - 5} more)` : ''
+            return NextResponse.json({ error: `Invalid orders - ${shown}${more}` }, { status: 400 })
+        }
 
         const supabase = createServerClient()
 
+        // Sentinel = the batch's first row. Row refs are indexed into the CHARGEABLE list
+        // (after the whitelist filter), so if a retry's filtering differs and row 0 was
+        // skipped this check can miss - the reference_code UNIQUE constraint is the real
+        // backstop (loser is refunded, see the 23505 handling below), so a replay can
+        // never be double-charged; at worst it is refused rather than acked.
         if (normalizedBatchRef) {
             const { data: existingBatch } = await (supabase.from('orders') as any)
                 .select('id')
@@ -84,11 +123,18 @@ export async function POST(request: NextRequest) {
         }
 
         // === 1. Get user role â€” fetch expiry fields to validate active subscription before granting agent pricing ===
-        const { data: userRoleData } = await supabase
+        const { data: userRoleData, error: userRoleError } = await supabase
             .from('users')
             .select('role, status, email, first_name, last_name, dealer_expires_at, agent_expires_at, order_success_sms_enabled')
             .eq('id', userId)
             .single()
+
+        // Fail closed: if the profile can't be read we can't tell whether the account is
+        // suspended or which price tier applies.
+        if (userRoleError || !userRoleData) {
+            console.error('[BulkPurchase] user profile lookup failed:', userRoleError)
+            return NextResponse.json({ error: 'Could not process your order right now. Please try again.' }, { status: 503 })
+        }
 
         // Server-side suspension enforcement â€” the dashboard gate alone is bypassable.
         if ((userRoleData as any)?.status === 'suspended') {
@@ -118,7 +164,7 @@ export async function POST(request: NextRequest) {
         }
 
         // === 2. Validate all orders server-side ===
-        const packageIds = [...new Set(orders.map(o => o.packageId))]
+        const packageIds = [...new Set(rows.map(r => r.packageId))]
         const { data: packages, error: pkgsError } = await supabase
             .from('data_packages')
             .select('*')
@@ -133,22 +179,37 @@ export async function POST(request: NextRequest) {
         const pkgMap = new Map(packages.map((p: any) => [p.id, p]))
         const adminOOS = await getAdminOOSNetworks(supabase)
 
+        // Same expiry-aware cost resolver the single-purchase route uses
+        // (lib/pricing/cost-basis) - no local copy of the role -> tier logic to drift.
+        const pricingCtx = {
+            role: userRoleName,
+            agent_expires_at: (userRoleData as any)?.agent_expires_at,
+            dealer_expires_at: (userRoleData as any)?.dealer_expires_at,
+        }
+
         // Validate each order and compute authoritative prices
-        const validatedOrders = orders.map((order) => {
-            const pkg = pkgMap.get(order.packageId)
-            if (!pkg) return { ...order, error: 'Package not found' }
+        const validatedOrders = rows.map((row) => {
+            const pkg = pkgMap.get(row.packageId)
+            if (!pkg) return { ...row, error: 'Package not found' }
             if (isNetworkOOS(adminOOS, (pkg as any).network)) {
-                return { ...order, error: `${(pkg as any).network} is out of stock at the moment` }
+                return { ...row, error: `${(pkg as any).network} is out of stock at the moment` }
+            }
+            if (!recipientMatchesPackage(row.carrier, (pkg as any).network)) {
+                return { ...row, error: `${row.phone} is a ${row.carrier} number, not ${(pkg as any).network}` }
             }
 
-            const authoritativePrice = isActiveDealer && (pkg as any).dealer_price > 0
-                ? (pkg as any).dealer_price
-                : isActiveAgent && (pkg as any).agent_price > 0
-                    ? (pkg as any).agent_price
-                    : (pkg as any).price
+            const authoritativePrice = resolveOwnerCost(pkg as any, pricingCtx)
+            // Price floor (mirrors the single route): never charge a zero/invalid amount -
+            // a broken package row would otherwise ship free data.
+            if (!Number.isFinite(authoritativePrice) || authoritativePrice <= 0) {
+                console.error(`[BulkPurchase] Invalid price ${authoritativePrice} for pkg ${row.packageId} (user ${userId}) - blocked`)
+                return { ...row, error: `${(pkg as any).network} ${(pkg as any).size} is temporarily unavailable` }
+            }
 
             return {
-                ...order,
+                packageId: row.packageId,
+                // Canonical 0XXXXXXXXX - what gets stored, gated, SMSed and dispatched.
+                phoneNumber: row.phone,
                 packagePrice: authoritativePrice,
                 network: (pkg as any).network,
                 size: (pkg as any).size,
@@ -159,8 +220,24 @@ export async function POST(request: NextRequest) {
 
         const invalidOrders = validatedOrders.filter((o: any) => o.error)
         if (invalidOrders.length > 0) {
-            return NextResponse.json({ error: `Some packages are invalid: ${invalidOrders.map((o: any) => o.error).join(', ')}` }, { status: 400 })
+            const reasons = [...new Set(invalidOrders.map((o: any) => o.error))].slice(0, 5)
+            return NextResponse.json({ error: `Some orders are invalid: ${reasons.join(', ')}` }, { status: 400 })
         }
+
+        // === 2.4. Blacklist - whole batch refused (nothing charged) if any recipient is listed ===
+        // Looked up under every stored spelling, and FAIL CLOSED: an unreadable blacklist
+        // must never read as an empty one.
+        const blacklist = await findBlacklistedRecipients(supabase, validatedOrders.map((o: any) => o.phoneNumber))
+        if (!blacklist.ok) {
+            return NextResponse.json({ error: 'Could not process your order right now. Please try again.' }, { status: 503 })
+        }
+        if (blacklist.blocked.size > 0) {
+            return NextResponse.json(
+                { error: 'Some numbers in this batch are not allowed. Remove them and try again.', blocked: [...blacklist.blocked] },
+                { status: 400 },
+            )
+        }
+
 
         // === 2.5. MTN AgentPortal whitelist gate â€” filter out blocked MTN items ===
         // Independent of the number-registration gate below. Blocked items are
@@ -264,6 +341,20 @@ export async function POST(request: NextRequest) {
             if (refundError) {
                 console.error('[BulkPurchase] CRITICAL: refund failed, manual reconciliation required:', refundError)
             }
+            // 23505 = reference_code UNIQUE violation. Two concurrent submits of one batch
+            // both pass the pre-check; the loser lands here (and has just been refunded).
+            // If the winner is THIS user's batch, ack it as a duplicate rather than a 500
+            // for a purchase that actually went through.
+            if ((ordersError as any).code === '23505' && normalizedBatchRef) {
+                const { data: winner } = await (supabase.from('orders') as any)
+                    .select('id')
+                    .eq('reference_code', `${normalizedBatchRef}-0`)
+                    .eq('user_id', userId)
+                    .maybeSingle()
+                if (winner) return NextResponse.json({ success: true, isDuplicate: true })
+                // Key belongs to someone else's order - generic, so it can't be used to probe codes.
+                return NextResponse.json({ error: 'Please retry your order' }, { status: 409 })
+            }
             return NextResponse.json({ error: 'Failed to create orders' }, { status: 500 })
         }
 
@@ -279,16 +370,23 @@ export async function POST(request: NextRequest) {
             status: 'completed',
         }))
 
-        await (supabase.from('wallet_transactions') as any).insert(txInserts)
+        // Ledger rows for the debit. supabase-js reports failures as a RESOLVED `{ error }`,
+        // so an unchecked insert used to vanish: wallet debited, no ledger rows, nothing in
+        // the logs. The sale stands (buyer paid, data must ship) but the gap is logged loudly.
+        const { error: txError } = await (supabase.from('wallet_transactions') as any).insert(txInserts)
+        if (txError) {
+            console.error(`[BulkPurchase] CRITICAL: wallet debit of ${totalCost} (${referenceCodes[0]}...) has NO ledger rows, reconcile manually:`, txError)
+        }
 
         // === 6. Insert a single summary notification ===
-        await (supabase.from('notifications') as any).insert({
+        const { error: notifError } = await (supabase.from('notifications') as any).insert({
             user_id: userId,
             title: 'Bulk Order Placed',
             message: `${chargeableOrders.length} orders have been placed successfully. Total: GHS ${totalCost.toFixed(2)}`,
             type: 'order_update',
             action_url: `/dashboard/my-orders`,
         })
+        if (notifError) console.error('[BulkPurchase] Notification insert error:', notifError)
 
         // === 7. Background: SMS + Fulfillment + Aggregated Admin Alert ===
         if (createdOrders && createdOrders.length > 0) {

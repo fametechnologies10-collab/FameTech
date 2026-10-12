@@ -34,7 +34,6 @@ interface Package {
     price: number
     agent_price: number
     dealer_price: number
-    cost_price: number
     is_available: boolean
     sort_order: number
 }
@@ -204,7 +203,9 @@ export default function ShopPricingPage() {
             setAfaSellingPrice(shopData.afa_selling_price?.toString() ?? '')
 
             const [pkgRes, priceRes, adminRes, examRes, markupRes] = await Promise.all([
-                (supabase.from('data_packages').select('*').eq('is_available', true).order('sort_order') as any),
+                // Explicit column list (not '*'): cost_price (wholesale) is revoked from the
+                // authenticated role (migration 20261012), so '*' would be rejected here.
+                (supabase.from('data_packages').select('id, network, size, price, agent_price, dealer_price, description, is_available, sort_order, category, ussd_enabled, ussd_price, created_at, updated_at').eq('is_available', true).order('sort_order') as any),
                 // Explicit column list (not '*'): sub_price SELECT is revoked from the
                 // authenticated role (migration 20260706g), so '*' would 500 here.
                 ((supabase as any).from('shop_pricing').select('id, shop_id, package_id, selling_price, profit_margin, last_auto_updated_at').eq('shop_id', shopData.id)),
