@@ -30,6 +30,7 @@ import {
     AlertCircle,
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { createPollGuard } from '@/lib/poll-guard'
 import { WalletTransaction } from '@/types/supabase'
 
 
@@ -55,6 +56,14 @@ async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs
     } finally {
         clearTimeout(timer)
     }
+}
+
+// True when a thrown error means we could not learn the server's verdict
+// (timeout, dropped connection, unreadable response). The charge may or may not
+// exist server-side, so the idempotency key is KEPT and a retry replays it.
+function isTransportError(err: unknown): boolean {
+    if (err instanceof TypeError || err instanceof SyntaxError) return true
+    return err instanceof Error && err.message.startsWith('Request timed out')
 }
 
 const GHANA_NETWORK_MAP: Record<string, string> = {
@@ -85,12 +94,13 @@ interface ClaimSuccessData {
 }
 
 function WalletContent() {
-    const { dbUser, isAdmin } = useAuth()
+    const { dbUser, isAdmin, isLoading: authLoading } = useAuth()
     const [walletBalance, setWalletBalance] = useState(0)
     const [totalCredited, setTotalCredited] = useState(0)
     const [totalDebited, setTotalDebited] = useState(0)
     const [transactions, setTransactions] = useState<WalletTransaction[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [settingsLoaded, setSettingsLoaded] = useState(false)
     const [paystackFeePercent, setPaystackFeePercent] = useState(1.95)
     const [minTopup, setMinTopup] = useState(5)
     const [maxTopup, setMaxTopup] = useState(5000)
@@ -98,7 +108,7 @@ function WalletContent() {
     // ── MoMo Claim state ──────────────────────────────────────
     const [momoEnabled, setMomoEnabled] = useState(true)
     const [momoAccounts, setMomoAccounts] = useState<MomoPaymentAccount[]>([])
-    const [momoAccountName, setMomoAccountName] = useState('Felix Boahen')
+    const [momoAccountName, setMomoAccountName] = useState('')
     const [momoMinClaimable, setMomoMinClaimable] = useState(1)
     const [momoMaxClaimable, setMomoMaxClaimable] = useState(50000)
     const [txnIdInput, setTxnIdInput] = useState('')
@@ -132,6 +142,17 @@ function WalletContent() {
     const [checkingPaid, setCheckingPaid] = useState(false)
     const checkingPaidRef = useRef(false)
     const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
+    // Cancel-safety: every async check captures a token; Cancel / success / unmount
+    // invalidate them so a late result can never toast, reopen the failed modal, or
+    // spawn a second loop. `pollGuard` covers the background loop + confirmOnce;
+    // `manualGuard` covers the "I've paid" check (which must NOT kill the loop).
+    const pollGuard = useRef(createPollGuard()).current
+    const manualGuard = useRef(createPollGuard()).current
+    const mountedRef = useRef(false)
+    // Idempotency key for POST /api/payments/charge. Kept across a transport-level
+    // retry (server replays the same payment); cleared on every terminal outcome.
+    const clientRequestIdRef = useRef<string | null>(null)
+    const clientRequestFpRef = useRef('')
 
     const fee = topUpAmount ? calculatePaystackFee(parseFloat(topUpAmount) || 0, paystackFeePercent) : 0
     const totalAmount = topUpAmount ? (parseFloat(topUpAmount) || 0) + fee : 0
@@ -151,11 +172,6 @@ function WalletContent() {
             setAutoDetected(false)
         }
     }, [momoPhone])
-
-    // ── Poll timer cleanup ────────────────────────────────────
-    useEffect(() => {
-        return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current) }
-    }, [])
 
     // ── Cooldown timer ────────────────────────────────────────
     useEffect(() => {
@@ -180,6 +196,11 @@ function WalletContent() {
             fetchUserReference()
         }
     }, [dbUser])
+
+    // Auth finished with no user: never leave the spinner hanging
+    useEffect(() => {
+        if (!authLoading && !dbUser) setIsLoading(false)
+    }, [authLoading, dbUser])
 
     const fetchWalletData = useCallback(async () => {
         try {
@@ -237,6 +258,7 @@ function WalletContent() {
         } catch (error) {
             console.error('Error fetching wallet data:', error)
         } finally {
+            setSettingsLoaded(true)
             setIsLoading(false)
         }
     }, [dbUser])
@@ -369,13 +391,28 @@ function WalletContent() {
     }
 
     // ── Stop the background poll loop (idempotent) ────────────────────────
+    // Also invalidates every in-flight check so late results are discarded.
     const stopPolling = useCallback(() => {
         if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
-    }, [])
+        pollGuard.cancel()
+        manualGuard.cancel()
+        checkingPaidRef.current = false
+        setCheckingPaid(false)
+    }, [pollGuard, manualGuard])
+
+    // ── Unmount: stop the loop and discard any in-flight result ───────────
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            stopPolling()
+        }
+    }, [stopPolling])
 
     // ── Reset to a clean success state ────────────────────────────────────
     const handlePaidSuccess = useCallback(() => {
         stopPolling()
+        clientRequestIdRef.current = null
         toast.success('Wallet topped up successfully!')
         fetchWalletData()
         setTopUpAmount('')
@@ -408,12 +445,19 @@ function WalletContent() {
 
     // ── Background poll — de-fanged: never fails on pending/timeout ────────
     const startPolling = useCallback((ref: string) => {
+        if (!mountedRef.current) return
+        // One live loop only: drop any pending timer and invalidate older tokens
+        if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
+        const token = pollGuard.begin()
         setPollCount(0)
         const poll = async (count: number) => {
+            if (!pollGuard.isCurrent(token)) return
             const outcome = await checkChargeStatus(ref)
+            if (!pollGuard.isCurrent(token)) return
             if (outcome === 'paid') { handlePaidSuccess(); return }
             if (outcome === 'terminal') {
                 stopPolling()
+                clientRequestIdRef.current = null
                 toast.error('Payment was declined. Please try again.')
                 setChargeStep('failed')
                 return
@@ -424,33 +468,44 @@ function WalletContent() {
             pollTimerRef.current = setTimeout(() => poll(count + 1), delay)
         }
         pollTimerRef.current = setTimeout(() => poll(0), 10_000)
-    }, [checkChargeStatus, handlePaidSuccess, stopPolling])
+    }, [pollGuard, checkChargeStatus, handlePaidSuccess, stopPolling])
 
     // ── Confirm once, then route (used by initial success + OTP success) ──
+    // Takes its own token before the await. The hand-off to startPolling is safe:
+    // startPolling's begin() only runs after this function is done using its token.
     const confirmOnce = useCallback(async (ref: string) => {
+        if (!mountedRef.current) return
+        if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null }
+        const token = pollGuard.begin()
         setChargeStep('verifying')
         const outcome = await checkChargeStatus(ref)
+        if (!pollGuard.isCurrent(token)) return
         if (outcome === 'paid') { handlePaidSuccess(); return }
         if (outcome === 'terminal') {
             stopPolling()
+            clientRequestIdRef.current = null
             toast.error('Payment was declined. Please try again.')
             setChargeStep('failed')
             return
         }
         setChargeStep('pending')
         startPolling(ref)
-    }, [checkChargeStatus, handlePaidSuccess, startPolling, stopPolling])
+    }, [pollGuard, checkChargeStatus, handlePaidSuccess, startPolling, stopPolling])
 
     // ── "I've paid" manual check — friendly, stays pending if not yet in ──
     const handleIHavePaid = useCallback(async () => {
         if (!chargeReference || checkingPaidRef.current) return
         checkingPaidRef.current = true
         setCheckingPaid(true)
+        const token = manualGuard.begin()
         const outcome = await checkChargeStatus(chargeReference)
+        // Cancel / success / unmount happened mid-check: stopPolling already reset the button
+        if (!manualGuard.isCurrent(token)) return
         if (outcome === 'paid') {
             handlePaidSuccess()
         } else if (outcome === 'terminal') {
             stopPolling()
+            clientRequestIdRef.current = null
             toast.error('Payment was declined. Please try again.')
             setChargeStep('failed')
         } else {
@@ -458,7 +513,14 @@ function WalletContent() {
         }
         checkingPaidRef.current = false
         setCheckingPaid(false)
-    }, [chargeReference, checkChargeStatus, handlePaidSuccess, stopPolling])
+    }, [chargeReference, manualGuard, checkChargeStatus, handlePaidSuccess, stopPolling])
+
+    // ── Cancel (OTP + pending steps) ──────────────────────────
+    const handleCancelCharge = useCallback(() => {
+        stopPolling()
+        clientRequestIdRef.current = null
+        setChargeStep('idle')
+    }, [stopPolling])
 
     // ── Initiate MoMo charge ──────────────────────────────────
     const handleCharge = async () => {
@@ -476,17 +538,28 @@ function WalletContent() {
             toast.error('Select your mobile network'); return
         }
 
+        // A new attempt must never leave an old loop alive
+        stopPolling()
+        // Reuse the key only for an identical retry after a transport failure;
+        // any change to amount/phone/network is a different payment.
+        const fingerprint = `${amount}|${momoPhone}|${selectedNetwork}`
+        if (!clientRequestIdRef.current || clientRequestFpRef.current !== fingerprint) {
+            clientRequestIdRef.current = crypto.randomUUID()
+            clientRequestFpRef.current = fingerprint
+        }
+
         setChargeStep('charging')
         try {
             const res = await fetchWithTimeout('/api/payments/charge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ amount, phone: momoPhone, provider: selectedNetwork }),
+                body: JSON.stringify({ amount, phone: momoPhone, provider: selectedNetwork, client_request_id: clientRequestIdRef.current }),
             }, 30_000)
             const data = await res.json()
             if (!res.ok) {
                 if (data.needsManualSelection) {
+                    clientRequestIdRef.current = null
                     setSelectedNetwork('')
                     setAutoDetected(false)
                     setChargeStep('idle')
@@ -511,6 +584,10 @@ function WalletContent() {
                 startPolling(data.reference)
             }
         } catch (err: any) {
+            // Keep the key only when the server's verdict is unknown (timeout /
+            // transport error) so a retry replays the same payment; any definite
+            // server rejection or failure burns it (a failed row keeps its key forever).
+            if (!isTransportError(err)) clientRequestIdRef.current = null
             toast.error(err.message || 'Payment failed')
             setChargeStep('failed')
         }
@@ -528,7 +605,16 @@ function WalletContent() {
                 body: JSON.stringify({ reference: chargeReference, otp: otpValue }),
             }, 30_000)
             const data = await res.json()
-            if (!res.ok) throw new Error(data.error || 'OTP submission failed')
+            if (!res.ok) {
+                if (data.retryable) {
+                    // Wrong code, payment still pending — let the user try again
+                    setOtpValue('')
+                    setChargeStep('otp_required')
+                    toast.error(data.error || 'Wrong code. Please try again.')
+                    return
+                }
+                throw new Error(data.error || 'OTP submission failed')
+            }
             setChargeDisplayText(data.display_text || '')
 
             if (data.status === 'success') {
@@ -545,6 +631,7 @@ function WalletContent() {
                 startPolling(chargeReference)
             }
         } catch (err: any) {
+            if (!isTransportError(err)) clientRequestIdRef.current = null
             toast.error(err.message || 'OTP submission failed')
             setChargeStep('failed')
         }
@@ -713,7 +800,7 @@ function WalletContent() {
                                     </div>
 
                                     {/* Fee summary */}
-                                    {topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup && (
+                                    {settingsLoaded && topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup && (
                                         <div className="p-4 rounded-xl bg-[#E6FAFF]/60 dark:bg-[#002A39]/30 border border-[#80E4FF]/60 dark:border-[#006F8F]/30 space-y-2">
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-foreground/70">You're adding</span>
@@ -734,9 +821,9 @@ function WalletContent() {
                                     {/* Pay button */}
                                     <Button onClick={handleCharge}
                                         className="w-full h-12 text-lg [--ft-c1:#006F8F]"
-                                        disabled={!topUpAmount || parseFloat(topUpAmount) < minTopup || parseFloat(topUpAmount) > maxTopup || !momoPhone}>
+                                        disabled={!settingsLoaded || !topUpAmount || parseFloat(topUpAmount) < minTopup || parseFloat(topUpAmount) > maxTopup || !momoPhone}>
                                         <Zap className="w-5 h-5 mr-2" />
-                                        {topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup
+                                        {settingsLoaded && topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup
                                             ? `Add ${formatCurrency(totalAmount)} now`
                                             : 'Add money now'}
                                     </Button>
@@ -799,8 +886,13 @@ function WalletContent() {
                                                     size="sm"
                                                     variant="outline"
                                                     className="h-11 px-4 shrink-0"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(userRef.code)
+                                                    onClick={async () => {
+                                                        try {
+                                                            await navigator.clipboard.writeText(userRef.code)
+                                                        } catch {
+                                                            toast.error('Could not copy. Please copy it manually.')
+                                                            return
+                                                        }
                                                         setRefCopied(true)
                                                         toast.success('Reference copied!')
                                                         setTimeout(() => setRefCopied(false), 2000)
@@ -851,8 +943,13 @@ function WalletContent() {
                                                             variant="outline"
                                                             size="sm"
                                                             className="h-8 px-3 text-xs shrink-0"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(acct.number)
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await navigator.clipboard.writeText(acct.number)
+                                                                } catch {
+                                                                    toast.error('Could not copy. Please copy it manually.')
+                                                                    return
+                                                                }
                                                                 setCopiedIndex(i)
                                                                 setTimeout(() => setCopiedIndex(null), 1800)
                                                                 toast.success('Number copied!')
@@ -958,7 +1055,7 @@ function WalletContent() {
                             <Button onClick={handleSubmitOtp} className="w-full h-12" disabled={!otpValue}>
                                 Submit OTP
                             </Button>
-                            <button type="button" onClick={() => setChargeStep('idle')}
+                            <button type="button" onClick={handleCancelCharge}
                                 className="w-full text-xs text-foreground/70 hover:text-foreground hover:underline text-center">
                                 Cancel
                             </button>
@@ -1002,7 +1099,7 @@ function WalletContent() {
                                 </span>
                             </div>
 
-                            <button type="button" onClick={() => { stopPolling(); setChargeStep('idle') }}
+                            <button type="button" onClick={handleCancelCharge}
                                 className="text-xs text-foreground/70 hover:text-foreground hover:underline">
                                 Cancel
                             </button>
@@ -1080,7 +1177,7 @@ function WalletContent() {
             {/* Recent Transactions */}
             <Card id="recent-activity">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">Recent Top-ups</CardTitle>
+                    <CardTitle className="text-sm font-semibold">Recent wallet credits</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {transactions.length === 0 ? (
