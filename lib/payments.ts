@@ -18,7 +18,7 @@ export async function processCompletedWalletPayment(reference: string, providerM
 
     // 1. Atomic credit (lock + verify + credit + ledger inside one DB transaction)
     const providerAmountKobo =
-        typeof providerMetadata?.amount === 'number' && Number.isFinite(providerMetadata.amount)
+        typeof providerMetadata?.amount === 'number' && Number.isInteger(providerMetadata.amount)
             ? providerMetadata.amount
             : null
 
@@ -43,7 +43,13 @@ export async function processCompletedWalletPayment(reference: string, providerM
         } else {
             console.error(`[PaymentProcess] Credit failed for ${reference}: ${rawError ?? 'unknown'}`)
         }
-        return { success: false, error: outcome.error ?? 'Failed to credit wallet' }
+        // Only expose the two stable, caller-meaningful errors. Everything else
+        // (raw RPC codes like amount_unverified / wallet_not_found) stays server-side.
+        const publicError =
+            outcome.error === 'Amount mismatch' || outcome.error === 'Payment not found'
+                ? outcome.error
+                : 'Failed to credit wallet'
+        return { success: false, error: publicError }
     }
 
     if (outcome.alreadyProcessed) {
@@ -53,24 +59,35 @@ export async function processCompletedWalletPayment(reference: string, providerM
     // First-time success: the money is already credited. Notify.
     const { userId, amount, newBalance } = outcome
     if (!userId || amount === undefined || newBalance === undefined || !Number.isFinite(amount) || !Number.isFinite(newBalance)) {
-        console.error('[PaymentProcess] Credit succeeded but RPC result incomplete; skipping notifications:', reference, data)
+        const missing = [
+            !userId && 'user_id',
+            (amount === undefined || !Number.isFinite(amount)) && 'amount',
+            (newBalance === undefined || !Number.isFinite(newBalance)) && 'new_balance',
+        ].filter(Boolean).join(',')
+        console.error(`[PaymentProcess] Credit succeeded but RPC result incomplete (missing: ${missing}); skipping notifications:`, reference)
         return { success: true }
     }
 
     // 2. Create notification
-    const { error: notifyError } = await (supabase.from('notifications') as any).insert({
-        user_id: userId,
-        title: 'Wallet Topped Up',
-        message: `Your wallet has been credited with GHS ${amount.toFixed(2)}`,
-        type: 'payment_success',
-        action_url: '/dashboard/wallet',
-    })
+    // Wrapped so a notification failure can never turn a committed credit into a failure.
+    try {
+        const { error: notifyError } = await (supabase.from('notifications') as any).insert({
+            user_id: userId,
+            title: 'Wallet Topped Up',
+            message: `Your wallet has been credited with GHS ${amount.toFixed(2)}`,
+            type: 'payment_success',
+            action_url: '/dashboard/wallet',
+        })
 
-    if (notifyError) {
-        console.error('[PaymentProcess] Notification error:', notifyError)
+        if (notifyError) {
+            console.error('[PaymentProcess] Notification error:', notifyError)
+        }
+    } catch (notifyErr) {
+        console.error('[PaymentProcess] Notification step threw:', notifyErr)
     }
 
     // 3. Send push, email and SMS notification in background
+    try {
     waitUntil((async () => {
         try {
             const { sendPushNotification } = await import('@/lib/push-service')
@@ -118,6 +135,9 @@ export async function processCompletedWalletPayment(reference: string, providerM
             console.error('[PaymentProcess] Notification error:', emailError)
         }
     })())
+    } catch (bgErr) {
+        console.error('[PaymentProcess] Failed to schedule background notifications:', bgErr)
+    }
 
     return { success: true }
 }
