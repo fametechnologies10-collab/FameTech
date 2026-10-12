@@ -28,7 +28,10 @@ const nf = mapCreditResult({ success: false, error: 'not_found' })
 eq(nf.error, 'Payment not found', 'not_found error')
 eq(!!nf.transient, false, 'not_found not transient')
 
-eq(mapCreditResult({ success: false, error: 'not_pending' }), { success: true, alreadyProcessed: true }, 'not_pending')
+const np = mapCreditResult({ success: false, error: 'not_pending' })
+eq(np, { success: false, error: 'Payment not pending' }, 'not_pending')
+eq(!!np.transient, false, 'not_pending not transient')
+eq(!!np.alreadyProcessed, false, 'not_pending not alreadyProcessed')
 
 const unk = mapCreditResult({ success: false, error: 'something_weird' })
 eq(unk.success, false, 'unknown success')

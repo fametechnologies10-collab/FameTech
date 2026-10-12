@@ -46,7 +46,9 @@ export async function processCompletedWalletPayment(reference: string, providerM
         // Only expose the two stable, caller-meaningful errors. Everything else
         // (raw RPC codes like amount_unverified / wallet_not_found) stays server-side.
         const publicError =
-            outcome.error === 'Amount mismatch' || outcome.error === 'Payment not found'
+            outcome.error === 'Amount mismatch' ||
+            outcome.error === 'Payment not found' ||
+            outcome.error === 'Payment not pending'
                 ? outcome.error
                 : 'Failed to credit wallet'
         return { success: false, error: publicError }

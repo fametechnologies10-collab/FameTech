@@ -112,7 +112,8 @@ export async function runPendingPaymentCheck(opts: RunOptions = {}): Promise<Run
         }
         // Counting reflects the row state the processor leaves behind: success → verified;
         // 'Amount mismatch' is the ONLY non-success that marks the row failed; every other
-        // non-success (e.g. transient credit-RPC failure) resets the row to pending → stillPending.
+        // non-success (e.g. transient credit-RPC failure, or 'Payment not pending') leaves the
+        // row as it was (still pending) → stillPending.
         if (r?.success) result.verified++
         else if (r?.error === 'Amount mismatch') result.failed++ // processor already marked it failed
         else result.stillPending++ // transient processor failure — next run retries

@@ -124,7 +124,8 @@ export async function GET(request: NextRequest) {
                 })
             }
             // Transient processing failure (e.g. credit RPC hiccup — the row simply
-            // stays pending; nothing was credited). Keep waiting; webhook/cron will retry.
+            // stays pending; nothing was credited) or a non-pending row ('Payment not
+            // pending' is never treated as paid). Keep waiting; webhook/cron will retry.
             return NextResponse.json({ paid: false, pending: true, status: 'pending' })
         }
 

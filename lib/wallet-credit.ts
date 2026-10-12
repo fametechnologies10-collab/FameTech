@@ -47,7 +47,11 @@ export function mapCreditResult(r: CreditRpcResult): WalletCreditOutcome {
         case 'not_found':
             return { success: false, error: 'Payment not found' }
         case 'not_pending':
-            return { success: true, alreadyProcessed: true }
+            // The row is no longer pending but was NOT completed by this call (a genuinely
+            // completed row arrives as the RPC's `already_processed` success). E.g. a row
+            // marked `failed` whose payment Paystack later reports successful: nothing was
+            // credited, so this must not be reported as processed.
+            return { success: false, error: 'Payment not pending' }
         default:
             return { success: false, transient: true, error: r.error || 'Failed to credit wallet' }
     }
