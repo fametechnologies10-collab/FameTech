@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 export const FT_LINK = 'text-ft-blue dark:text-[color:var(--ft-cyan)]'
 export const FT_ERROR_TEXT = 'text-red-700 dark:text-red-300'
 
+// Flip to true once Google OAuth is configured in Supabase.
+export const GOOGLE_SIGN_IN_ENABLED = false
+
 // ─── Terms content ────────────────────────────────────────────────────────────
 export const TERMS_SECTIONS = [
     {

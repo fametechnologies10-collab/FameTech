@@ -13,7 +13,7 @@ import { resolveLoginIdentifier } from '@/lib/login-identifier'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { Eye, EyeOff, Loader2, LogIn, Mail, Lock, KeyRound, RefreshCw } from 'lucide-react'
-import { AuthAlert, FT_LINK, GoogleButton, OrDivider } from './shared'
+import { AuthAlert, FT_LINK, GOOGLE_SIGN_IN_ENABLED, GoogleButton, OrDivider } from './shared'
 
 // ─── Sign In form ─────────────────────────────────────────────────────────────
 export function SignInForm({ onGoogleLoading, googleLoading }: {
@@ -253,8 +253,12 @@ export function SignInForm({ onGoogleLoading, googleLoading }: {
                 </>
             )}
 
-            <OrDivider />
-            <GoogleButton label="Continue with Google" isLoading={googleLoading} onClick={handleGoogle} />
+            {GOOGLE_SIGN_IN_ENABLED && (
+                <>
+                    <OrDivider />
+                    <GoogleButton label="Continue with Google" isLoading={googleLoading} onClick={handleGoogle} />
+                </>
+            )}
         </div>
     )
 }

@@ -23,7 +23,7 @@ import {
     Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, UserPlus,
     MessageSquare, RefreshCw, CheckCircle2, BookOpen,
 } from 'lucide-react'
-import { AuthAlert, FT_ERROR_TEXT, FT_LINK, GoogleButton, OrDivider, TERMS_SECTIONS } from './shared'
+import { AuthAlert, FT_ERROR_TEXT, FT_LINK, GOOGLE_SIGN_IN_ENABLED, GoogleButton, OrDivider, TERMS_SECTIONS } from './shared'
 
 // ─── Create Account form ──────────────────────────────────────────────────────
 export function SignUpForm({ onGoogleLoading, googleLoading }: {
@@ -318,9 +318,12 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
     // ── Main form step ────────────────────────────────────────────────────────
     return (
         <div className="space-y-4">
-            {/* Google first */}
-            <GoogleButton label="Sign up with Google" isLoading={googleLoading} onClick={handleGoogle} />
-            <OrDivider />
+            {GOOGLE_SIGN_IN_ENABLED && (
+                <>
+                    <GoogleButton label="Sign up with Google" isLoading={googleLoading} onClick={handleGoogle} />
+                    <OrDivider />
+                </>
+            )}
 
             {/* Terms of Service dialog */}
             <Dialog open={showTermsDialog} onOpenChange={setShowTermsDialog}>
