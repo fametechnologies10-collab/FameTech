@@ -87,7 +87,34 @@ export async function GET(request: NextRequest) {
 
         // ── 3. Paystack says success → credit (idempotent) ────────────────
         if (chargeStatus === 'success') {
-            const result = await processCompletedWalletPayment(reference, data.data)
+            let paystackData: any = data.data
+
+            // The charge-status endpoint's payload may omit `amount`, and the
+            // credit RPC fails closed without a Paystack-confirmed integer amount.
+            // Fetch the authoritative transaction instead. If that can't confirm
+            // success, keep the user waiting — the webhook will credit.
+            if (typeof paystackData.amount !== 'number' || !Number.isInteger(paystackData.amount)) {
+                let verified: any = null
+                try {
+                    const verifyRes = await fetch(
+                        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+                        { headers: { 'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } },
+                    )
+                    const verifyBody = await verifyRes.json()
+                    if (verifyBody?.status === true && verifyBody?.data?.status === 'success') {
+                        verified = verifyBody.data
+                    }
+                } catch (verifyError) {
+                    console.error('[ChargePending] Verify fallback failed:', reference, verifyError)
+                }
+
+                if (!verified) {
+                    return NextResponse.json({ paid: false, pending: true, status: 'pending' })
+                }
+                paystackData = verified
+            }
+
+            const result = await processCompletedWalletPayment(reference, paystackData)
             if (result.success) {
                 return NextResponse.json({ paid: true, status: 'success' })
             }
@@ -96,13 +123,52 @@ export async function GET(request: NextRequest) {
                     paid: false, terminal: true, status: 'failed', display_text: 'Amount mismatch',
                 })
             }
-            // Transient processing failure (e.g. credit RPC hiccup — already
-            // rolled back to pending). Keep waiting; webhook/cron will retry.
+            // Transient processing failure (e.g. credit RPC hiccup — the row simply
+            // stays pending; nothing was credited) or a non-pending row ('Payment not
+            // pending' is never treated as paid). Keep waiting; webhook/cron will retry.
             return NextResponse.json({ paid: false, pending: true, status: 'pending' })
         }
 
         // ── 4. Genuine terminal decline ───────────────────────────────────
         if (TERMINAL_CHARGE_STATUSES.has(chargeStatus)) {
+            // A declined charge can never succeed, so mark the row failed to free the
+            // per-user pending-payment cap. Marking failed is irreversible (the credit
+            // RPC and cron only act on pending rows), so `abandoned` and `reversed` are
+            // NOT persisted here: late-approving MoMo customers can still pay after
+            // `abandoned`, and a reversal may follow a success. The pending-payment cron
+            // fails abandoned rows later. Conditional on status='pending' so a completed
+            // row is never touched. Best-effort: errors are logged, never alter the response.
+            // PAYMENT-001: /charge/{ref} is a laggy endpoint, so a `failed` verdict from it
+            // alone is NOT enough for this irreversible write — it must be confirmed by the
+            // authoritative /transaction/verify/{ref}. Unreachable / non-JSON / anything other
+            // than an explicit verified `failed` → skip the write (the cron settles it later).
+            if (chargeStatus === 'failed') {
+                try {
+                    let verifiedFailed = false
+                    try {
+                        const confirmRes = await fetch(
+                            `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+                            { headers: { 'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } },
+                        )
+                        const confirmBody = await confirmRes.json()
+                        verifiedFailed = confirmBody?.status === true && confirmBody?.data?.status === 'failed'
+                    } catch (confirmError) {
+                        console.error('[ChargePending] Failure confirmation via verify failed:', reference, confirmError)
+                    }
+
+                    if (verifiedFailed) {
+                        const { error: failError } = await (supabaseAdmin.from('wallet_payments') as any)
+                            .update({ status: 'failed', updated_at: new Date().toISOString() })
+                            .eq('reference', reference)
+                            .eq('status', 'pending')
+                        if (failError) {
+                            console.error('[ChargePending] Failed to mark payment failed:', reference, failError.message)
+                        }
+                    }
+                } catch (failError) {
+                    console.error('[ChargePending] Failed to mark payment failed:', reference, failError)
+                }
+            }
             return NextResponse.json({
                 paid: false, terminal: true, status: chargeStatus, display_text: displayText,
             })

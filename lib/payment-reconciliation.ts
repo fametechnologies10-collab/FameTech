@@ -63,8 +63,9 @@ async function paystackGet(url: string, key: string): Promise<{ ok: boolean; dat
 
 /**
  * Charge-first, verify-confirmed status check.
- * - A `success` from `/charge/{ref}` is acted on immediately (fast path) — crediting
- *   downstream is idempotent + amount-verified, so an early success is safe.
+ * - A `success` from `/charge/{ref}` that carries an integer `amount` is acted on
+ *   immediately (fast path) — crediting downstream is idempotent + amount-verified, so
+ *   an early success is safe. Without an integer amount it falls through to verify.
  * - A TERMINAL charge verdict (failed/abandoned/reversed) is DESTRUCTIVE for the caller
  *   (it marks the payment failed), so it is confirmed against the authoritative
  *   `/transaction/verify/{ref}` endpoint before being treated as terminal.
@@ -83,10 +84,13 @@ export async function fetchPaystackStatus(reference: string): Promise<PaystackSt
     const st: string = charge.data.status
     // Fast path: a SUCCESS from /charge is safe to act on immediately — crediting is
     // idempotent and amount-verified downstream. This preserves the speed benefit.
-    if (st === 'success') {
+    // Only when /charge carries an integer amount: processCompletedWalletPayment fails
+    // closed without one, which would leave the row pending forever. Otherwise fall
+    // through to /transaction/verify below, which returns the authoritative amount.
+    if (st === 'success' && Number.isInteger(charge.data?.amount)) {
       return {
         paystackStatus: st,
-        amount: typeof charge.data.amount === 'number' ? charge.data.amount / 100 : undefined,
+        amount: charge.data.amount / 100,
         raw: charge.data, via: 'charge',
       }
     }

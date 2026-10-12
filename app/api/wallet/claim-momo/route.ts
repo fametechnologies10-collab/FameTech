@@ -6,26 +6,24 @@ import { sendMomoClaimSuccessEmail, sendMomoClaimAdminAlert } from '@/lib/email-
 import { createNotification, balanceUpdatedNotification } from '@/lib/notification-service'
 import { waitUntil } from '@vercel/functions'
 import { resolvePaystackFeePercent, resolveTopupLimits, parseSettingNumber } from '@/lib/paystack-fees'
+import { mapClaimError, mapClaimLimiterBlock } from '@/lib/claim-errors'
 
-// ── DB-backed rate limiter (per user, 3 requests per 30 seconds) ──
-// Queries the permanent momo_claim_attempts table so it survives
-// cold starts, redeployments, and multi-instance scaling.
-async function checkRateLimit(userId: string, supabaseAdmin: any): Promise<boolean> {
-    const since = new Date(Date.now() - 30_000).toISOString()
+// Rate limiting is done atomically in the claim_rate_limit_check RPC (per-user
+// advisory lock; inserts the attempt row before the claim runs). See POST below.
 
-    const { count, error } = await (supabaseAdmin
-        .from('momo_claim_attempts') as any)
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .gte('created_at', since)
-
-    if (error) {
-        console.error('[ClaimMoMo] Rate limit DB check failed:', error.message)
-        // VULN-03 fix: Fail-closed — block requests when we can't verify the limit
-        return false
+// Updates the attempt row created by claim_rate_limit_check with the final outcome.
+// Best-effort: a failure here is logged but never fails the request.
+async function recordAttemptResult(supabaseAdmin: any, attemptId: string, result: string): Promise<void> {
+    try {
+        const { error } = await (supabaseAdmin.from('momo_claim_attempts') as any)
+            .update({ result })
+            .eq('id', attemptId)
+        if (error) {
+            console.error('[ClaimMoMo] Failed to record attempt result:', error.message)
+        }
+    } catch (e: any) {
+        console.error('[ClaimMoMo] Failed to record attempt result:', e?.message)
     }
-
-    return (count || 0) < 3
 }
 
 // ── Input sanitization ───────────────────────────────────────────
@@ -164,18 +162,29 @@ export async function POST(request: NextRequest) {
 
         const supabaseAdmin = createServerClient()
 
-        // ── Rate limit check (DB-backed, survives cold starts) ──
-        if (!(await checkRateLimit(authUser.id, supabaseAdmin))) {
-            // Log the rate-limited attempt
-            await (supabaseAdmin.from('momo_claim_attempts') as any).insert({
-                user_id: authUser.id,
-                transaction_id_input: txnId,
-                result: 'rate_limited',
-            })
-            return NextResponse.json(
-                { error: 'Too many attempts. Please wait 30 seconds before trying again.' },
-                { status: 429 }
-            )
+        // ── Atomic rate limit + attempt row (fail-closed) ──────
+        // Inserts the attempt row BEFORE the claim runs, serialised per user.
+        const { data: limiter, error: limiterError } = await (supabaseAdmin
+            .rpc as any)('claim_rate_limit_check', {
+            p_user_id: authUser.id,
+            p_txn: txnId,
+        })
+
+        const limiterRes = limiter as any
+        if (limiterError || !limiterRes || typeof limiterRes.allowed !== 'boolean') {
+            console.error('[ClaimMoMo POST] Rate limit check failed:', limiterError?.message ?? 'malformed result')
+            return NextResponse.json({ error: 'Please try again shortly.' }, { status: 503 })
+        }
+
+        if (limiterRes.allowed === false) {
+            const block = mapClaimLimiterBlock(limiterRes.reason === 'hourly' ? 'hourly' : 'burst')
+            return NextResponse.json(block.body, { status: block.status })
+        }
+
+        const attemptId = limiterRes.attempt_id
+        if (typeof attemptId !== 'string' || !attemptId) {
+            console.error('[ClaimMoMo POST] Rate limit check returned no attempt_id')
+            return NextResponse.json({ error: 'Please try again shortly.' }, { status: 503 })
         }
 
         // ── Check if feature is enabled ────────────────────────
@@ -202,44 +211,21 @@ export async function POST(request: NextRequest) {
 
         if (rpcError) {
             console.error('[ClaimMoMo POST] RPC error:', rpcError)
+            await recordAttemptResult(supabaseAdmin, attemptId, 'rpc_error')
             return NextResponse.json({ error: 'Failed to process claim. Please try again.' }, { status: 500 })
         }
 
         const res = result as any
 
         if (!res?.success) {
-            const errCode = res?.error
+            const rawErr = typeof res?.error === 'string' && res.error ? res.error.slice(0, 64) : 'claim_failed'
+            await recordAttemptResult(supabaseAdmin, attemptId, rawErr)
 
-            // Log failed claim attempt for rate limiting
-            await (supabaseAdmin.from('momo_claim_attempts') as any).insert({
-                user_id: authUser.id,
-                transaction_id_input: txnId,
-                result: errCode || 'claim_failed',
-            })
-
-            if (errCode === 'already_claimed') {
-                return NextResponse.json({
-                    error: 'already_claimed',
-                    is_own_claim: res.is_own_claim,
-                    claimed_at: res.claimed_at,
-                }, { status: 409 })
-            }
-
-            if (errCode === 'below_minimum') {
-                return NextResponse.json({
-                    error: `Below minimum claimable amount of GHS ${parseFloat(res.min_claimable).toFixed(2)}.`,
-                }, { status: 400 })
-            }
-
-            return NextResponse.json({ error: errCode || 'Claim failed.' }, { status: 400 })
+            const mapped = mapClaimError(res ?? {})
+            return NextResponse.json(mapped.body, { status: mapped.status })
         }
 
-        // Log successful claim attempt
-        await (supabaseAdmin.from('momo_claim_attempts') as any).insert({
-            user_id: authUser.id,
-            transaction_id_input: txnId,
-            result: 'claimed_successfully',
-        })
+        await recordAttemptResult(supabaseAdmin, attemptId, 'claimed_successfully')
 
         // ── Fetch user details for notifications ───────────────
         const { data: userDetails } = await supabaseAdmin
