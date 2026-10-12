@@ -12,8 +12,10 @@ import { PinFirstScreen } from './_components/pin-first-screen'
 import { SignInForm } from './_components/sign-in-form'
 import { SignUpForm } from './_components/sign-up-form'
 
+const DEFAULT_GUEST_URL = 'https://fametechgh.com/shop/felix-s-shop'
+
 // ─── Main auth page ───────────────────────────────────────────────────────────
-export default function AuthPage({ guestUrl }: { guestUrl?: string }) {
+export default function AuthPage() {
     const searchParams = useSearchParams()
     const tabParam = searchParams.get('tab')
     const oauthError = searchParams.get('error')
@@ -39,6 +41,20 @@ export default function AuthPage({ guestUrl }: { guestUrl?: string }) {
     const [emailHint, setEmailHint] = useState('')
     const [firstName, setFirstName] = useState('')
     const [googleLoading, setGoogleLoading] = useState(false)
+    const [guestUrl, setGuestUrl] = useState(DEFAULT_GUEST_URL)
+
+    // Admin-configurable "browse as a guest" destination (Settings → Guest
+    // Storefront Configuration). This page is a client component, so it can't
+    // receive it from the server layout as a typed prop — Next's page default
+    // export must match PageProps, which rejects custom props. Fetch it the
+    // same way other client pages (e.g. shop-domain) read public admin
+    // settings instead.
+    useEffect(() => {
+        fetch('/api/admin-settings?keys=guest_storefront_url')
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d?.guest_storefront_url) setGuestUrl(d.guest_storefront_url) })
+            .catch(() => {})
+    }, [])
 
     useEffect(() => {
         const init = async () => {
@@ -110,7 +126,7 @@ export default function AuthPage({ guestUrl }: { guestUrl?: string }) {
                     </ClayButton>
                     <ClayButton asChild variant="soft" className="px-4 text-sm">
                         <a
-                            href={guestUrl || 'https://fametechgh.com/shop/felix-s-shop'}
+                            href={guestUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                         >
