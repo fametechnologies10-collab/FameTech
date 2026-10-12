@@ -59,6 +59,11 @@ export default function ResetPasswordPage() {
                 return
             }
             toast.success('New code sent!')
+            // The previous code is now invalid server-side — clear it so the
+            // user doesn't submit stale digits and get a confusing "invalid
+            // code" error with no indication a resend is what broke it.
+            setOtp('')
+            setError('')
             setResendCooldown(60)
         } catch {
             toast.error('Could not resend. Please try again.')

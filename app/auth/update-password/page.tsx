@@ -116,7 +116,14 @@ export default function UpdatePasswordPage() {
                 markRecoverySessionActive()
             }
 
-            const attempts = hasRecoveryAttempt ? 6 : 1
+            // Retry (not just a single check) whenever we're expecting a recovery
+            // session to exist — that includes arriving via the OTP-code flow on
+            // /auth/reset-password, which sets this flag right before navigating
+            // here with no URL params at all. Without this, a session that was
+            // just written a moment ago but hasn't finished propagating (slower
+            // device, localStorage read lag) gets reported as "link expired" even
+            // though the OTP the user typed was correct.
+            const attempts = (hasRecoveryAttempt || isRecoverySessionActive()) ? 6 : 1
 
             for (let index = 0; index < attempts; index++) {
                 const { data: { session } } = await supabase.auth.getSession()
