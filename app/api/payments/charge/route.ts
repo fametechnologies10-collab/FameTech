@@ -28,14 +28,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { amount, phone, provider } = await request.json()
+        const { amount: rawAmount, phone, provider, client_request_id: rawClientRequestId } = await request.json()
 
         // Strict type check: a string amount would make `amount + fee` below
         // concatenate instead of add, corrupting the charged total. The
         // configurable min/max band is enforced after admin settings load.
-        if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+        if (typeof rawAmount !== 'number' || !Number.isFinite(rawAmount) || rawAmount <= 0) {
             return NextResponse.json({ error: 'Enter a valid amount' }, { status: 400 })
         }
+
+        // Round to 2 dp (pesewas) so fee/total math and the stored row never carry
+        // sub-pesewa fractions; everything below uses the rounded value.
+        const amount = Math.round(rawAmount * 100) / 100
+        if (amount < 0.01) {
+            return NextResponse.json({ error: 'Enter a valid amount' }, { status: 400 })
+        }
+
+        // Optional client-supplied idempotency key (UUID). Anything else is ignored.
+        const clientRequestId: string | null =
+            typeof rawClientRequestId === 'string' && /^[0-9a-fA-F-]{36}$/.test(rawClientRequestId)
+                ? rawClientRequestId
+                : null
 
         if (!phone || !/^0[0-9]{9}$/.test(phone)) {
             return NextResponse.json(
@@ -70,34 +83,27 @@ export async function POST(request: NextRequest) {
 
         const userId = authUser.id
 
-        // ── Anti-abuse: cap simultaneous pending charges per user ──────────
-        // Each charge fires a real MoMo prompt to an attacker-controlled phone
-        // and inserts a wallet_payments row. Without a ceiling, the endpoint can
-        // be used to spam prompts at arbitrary numbers and flood the table.
-        // Legitimate users almost never have more than one charge in flight.
-        const pendingSince = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-        const { count: pendingCount } = await (supabaseAdmin.from('wallet_payments') as any)
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .eq('status', 'pending')
-            .gte('created_at', pendingSince)
-
-        if ((pendingCount || 0) >= 5) {
-            return NextResponse.json(
-                { error: 'You have too many pending payments. Finish or wait for them to expire before starting a new one.' },
-                { status: 429 }
-            )
-        }
+        // The anti-abuse cap on simultaneous pending charges per user is enforced
+        // atomically inside create_pending_wallet_payment (see below).
 
         const { data: userData, error: userDataError } = await supabaseAdmin
             .from('users')
-            .select('email, role, dealer_expires_at, agent_expires_at')
+            .select('email, role, status, dealer_expires_at, agent_expires_at')
             .eq('id', userId)
             .single()
 
-        if (userDataError) {
-            console.error('[ChargeInit] User lookup failed:', userDataError.message)
-            // non-blocking — continue with authUser.email and base fee
+        // Fail closed: without the row we can't verify account status or the
+        // correct fee tier, so don't start a charge.
+        if (userDataError || !userData) {
+            console.error('[ChargeInit] User lookup failed:', userDataError?.message)
+            return NextResponse.json({ error: 'Please try again' }, { status: 503 })
+        }
+
+        if ((userData as any).status !== 'active') {
+            return NextResponse.json(
+                { error: 'Your account is not active. Contact support.' },
+                { status: 403 }
+            )
         }
 
         const email = (userData as any)?.email || authUser.email
@@ -137,7 +143,6 @@ export async function POST(request: NextRequest) {
 
         const fee = calculatePaystackFee(amount, feePercent)
         const totalAmount = amount + fee
-        const reference = `WAL-${generateReferenceCode()}`
 
         let { data: wallet } = await (supabaseAdmin.from('wallets') as any)
             .select('id')
@@ -156,47 +161,108 @@ export async function POST(request: NextRequest) {
             wallet = newWallet
         }
 
-        const { data: payment, error: paymentError } = await (supabaseAdmin.from('wallet_payments') as any)
-            .insert({
-                user_id: userId,
-                wallet_id: (wallet as any)!.id,
-                amount: amount,
-                fee: fee,
-                total_amount: totalAmount,
-                reference: reference,
-                provider: 'paystack',
-                status: 'pending',
+        // Atomic create: a per-user advisory lock inside the RPC enforces the pending
+        // cap (5 / 15 min) and client_request_id replay without a check-then-insert
+        // race. A duplicate reference raises unique_violation (23505) — retry with a
+        // fresh reference.
+        let created: any = null
+        let reference = ''
+        for (let attempt = 0; attempt < 3; attempt++) {
+            reference = `WAL-${generateReferenceCode()}`
+            const { data: rpcData, error: rpcError } = await (supabaseAdmin as any).rpc('create_pending_wallet_payment', {
+                p_user_id: userId,
+                p_wallet_id: (wallet as any)!.id,
+                p_amount: amount,
+                p_fee: fee,
+                p_total: totalAmount,
+                p_reference: reference,
+                p_client_request_id: clientRequestId,
             })
-            .select()
-            .single()
 
-        if (paymentError) {
-            console.error('[ChargeInit] Payment record error:', paymentError)
+            if (!rpcError) {
+                created = rpcData
+                break
+            }
+            if (rpcError.code === '23505' && attempt < 2) {
+                console.warn('[ChargeInit] Duplicate reference on create, retrying:', rpcError.message)
+                continue
+            }
+            console.error('[ChargeInit] Payment record error:', rpcError)
             return NextResponse.json({ error: 'Failed to create payment record' }, { status: 500 })
         }
 
-        const paystackRes = await fetch('https://api.paystack.co/charge', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                email,
-                amount: Math.round(totalAmount * 100),
-                currency: 'GHS',
-                reference,
-                mobile_money: { phone, provider: resolvedProvider },
-            }),
-        })
+        if (!created) {
+            console.error('[ChargeInit] Payment record RPC returned no data')
+            return NextResponse.json({ error: 'Failed to create payment record' }, { status: 500 })
+        }
 
-        const paystackData = await paystackRes.json()
+        if (created.error === 'too_many_pending') {
+            return NextResponse.json(
+                { error: 'You have too many pending payments. Finish or wait for them to expire before starting a new one.' },
+                { status: 429 }
+            )
+        }
+
+        if (created.error) {
+            console.error('[ChargeInit] Payment record RPC error:', created.error)
+            return NextResponse.json({ error: 'Failed to create payment record' }, { status: 500 })
+        }
+
+        // Replay of a request we already accepted: return its stored state and never
+        // fire a second Paystack charge. Use the stored fee/total (the RPC ignores
+        // the amount passed on replay).
+        if (created.existing) {
+            return NextResponse.json({
+                status: created.charge_status ?? 'pending',
+                reference: created.reference,
+                display_text: created.display_text ?? 'Check your phone to approve the payment',
+                fee: created.fee,
+                total_amount: created.total_amount,
+            })
+        }
+
+        const paymentId: string = created.id
+
+        let paystackData: any
+        try {
+            const paystackRes = await fetch('https://api.paystack.co/charge', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    amount: Math.round(totalAmount * 100),
+                    currency: 'GHS',
+                    reference,
+                    mobile_money: { phone, provider: resolvedProvider },
+                }),
+                signal: AbortSignal.timeout(25_000),
+            })
+
+            paystackData = await paystackRes.json()
+        } catch (fetchError: any) {
+            if (fetchError?.name === 'TimeoutError' || fetchError?.name === 'AbortError') {
+                // Outcome unknown (the prompt may already be on the customer's phone).
+                // Leave the row pending so check-pending / the webhook can settle it.
+                console.warn('[ChargeInit] Paystack charge timed out; leaving payment pending:', reference)
+                return NextResponse.json({
+                    status: 'pending',
+                    reference,
+                    display_text: 'Check your phone to approve the payment',
+                    fee,
+                    total_amount: totalAmount,
+                })
+            }
+            throw fetchError
+        }
 
         if (!paystackData.status) {
             console.error('[ChargeInit] Paystack charge failed:', paystackData)
             await (supabaseAdmin.from('wallet_payments') as any)
                 .update({ status: 'failed' })
-                .eq('id', (payment as any).id)
+                .eq('id', paymentId)
             return NextResponse.json({ error: 'Failed to initiate charge' }, { status: 500 })
         }
 
@@ -204,7 +270,7 @@ export async function POST(request: NextRequest) {
             console.error('[ChargeInit] Paystack charge response missing data:', paystackData)
             await (supabaseAdmin.from('wallet_payments') as any)
                 .update({ status: 'failed' })
-                .eq('id', payment.id)
+                .eq('id', paymentId)
             return NextResponse.json({ error: 'Unexpected response from payment processor' }, { status: 500 })
         }
 
@@ -212,8 +278,11 @@ export async function POST(request: NextRequest) {
         const displayText: string = paystackData.data.display_text || paystackData.data.message || ''
 
         await (supabaseAdmin.from('wallet_payments') as any)
-            .update({ provider_reference: paystackData.data.reference || reference })
-            .eq('id', (payment as any).id)
+            .update({
+                provider_reference: paystackData.data.reference || reference,
+                metadata: { ...(created.metadata ?? {}), charge_status: chargeStatus, display_text: displayText },
+            })
+            .eq('id', paymentId)
 
         return NextResponse.json({
             status: chargeStatus,
