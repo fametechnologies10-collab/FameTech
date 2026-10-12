@@ -13,7 +13,7 @@ import { SignInForm } from './_components/sign-in-form'
 import { SignUpForm } from './_components/sign-up-form'
 
 // ─── Main auth page ───────────────────────────────────────────────────────────
-export default function AuthPage() {
+export default function AuthPage({ guestUrl }: { guestUrl?: string }) {
     const searchParams = useSearchParams()
     const tabParam = searchParams.get('tab')
     const oauthError = searchParams.get('error')
@@ -110,7 +110,7 @@ export default function AuthPage() {
                     </ClayButton>
                     <ClayButton asChild variant="soft" className="px-4 text-sm">
                         <a
-                            href="https://fametechgh.com/shop/felix-s-shop"
+                            href={guestUrl || 'https://fametechgh.com/shop/felix-s-shop'}
                             target="_blank"
                             rel="noopener noreferrer"
                         >

@@ -91,11 +91,16 @@ export function AuthAlert({ tone, children }: { tone: 'error' | 'warn' | 'info';
                 'flex items-start gap-3 rounded-lg border border-l-[3px] px-4 py-3 text-sm font-semibold text-ft-ink',
                 tone === 'error'
                     ? 'border-red-200 border-l-red-600 bg-red-50 dark:border-red-400/25 dark:border-l-red-400 dark:bg-red-500/10'
-                    : 'border-amber-200 border-l-amber-500 bg-amber-50 dark:border-amber-400/25 dark:border-l-amber-400 dark:bg-amber-500/10'
+                : tone === 'warn'
+                    ? 'border-amber-200 border-l-amber-500 bg-amber-50 dark:border-amber-400/25 dark:border-l-amber-400 dark:bg-amber-500/10'
+                    : 'border-sky-200 border-l-ft-blue bg-sky-50 dark:border-[color:var(--ft-cyan)]/25 dark:border-l-[color:var(--ft-cyan)] dark:bg-sky-500/10'
             )}
         >
             <Icon
-                className={cn('mt-0.5 h-5 w-5 shrink-0', tone === 'error' ? FT_ERROR_TEXT : 'text-amber-700 dark:text-amber-300')}
+                className={cn(
+                    'mt-0.5 h-5 w-5 shrink-0',
+                    tone === 'error' ? FT_ERROR_TEXT : tone === 'warn' ? 'text-amber-700 dark:text-amber-300' : FT_LINK
+                )}
                 aria-hidden="true"
             />
             <span className="min-w-0 break-words">{children}</span>

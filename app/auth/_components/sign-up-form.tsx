@@ -54,6 +54,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
     const [otpError, setOtpError] = useState('')
     const [resendCooldown, setResendCooldown] = useState(0)
     const pendingPhone = useRef('')
+    const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
@@ -62,9 +63,22 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
     }
 
     const startResendTimer = () => {
+        // Clear any running timer first — this fires from three call sites
+        // (initial OTP send, resend code, resend confirmation email), so a
+        // user going back and resubmitting before a prior timer finishes
+        // would otherwise stack a second interval, ticking the countdown
+        // down twice as fast.
+        if (resendTimerRef.current) clearInterval(resendTimerRef.current)
         setResendCooldown(60)
-        const t = setInterval(() => setResendCooldown(c => { if (c <= 1) { clearInterval(t); return 0 } return c - 1 }), 1000)
+        resendTimerRef.current = setInterval(() => setResendCooldown(c => {
+            if (c <= 1) { clearInterval(resendTimerRef.current!); resendTimerRef.current = null; return 0 }
+            return c - 1
+        }), 1000)
     }
+
+    useEffect(() => {
+        return () => { if (resendTimerRef.current) clearInterval(resendTimerRef.current) }
+    }, [])
 
     const handleCreateAccount = async (e: React.FormEvent) => {
         e.preventDefault()
