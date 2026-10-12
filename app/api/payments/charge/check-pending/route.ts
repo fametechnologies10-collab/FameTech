@@ -130,12 +130,14 @@ export async function GET(request: NextRequest) {
 
         // ── 4. Genuine terminal decline ───────────────────────────────────
         if (TERMINAL_CHARGE_STATUSES.has(chargeStatus)) {
-            // A declined/abandoned charge can never succeed, so mark the row failed
-            // to free the per-user pending-payment cap. `reversed` is excluded (a
-            // reversal may follow a success, so leave that row to the webhook).
-            // Conditional on status='pending' so a completed row is never touched.
-            // Best-effort: errors are logged and never alter the response.
-            if (chargeStatus === 'failed' || chargeStatus === 'abandoned') {
+            // A declined charge can never succeed, so mark the row failed to free the
+            // per-user pending-payment cap. Marking failed is irreversible (the credit
+            // RPC and cron only act on pending rows), so `abandoned` and `reversed` are
+            // NOT persisted here: late-approving MoMo customers can still pay after
+            // `abandoned`, and a reversal may follow a success. The pending-payment cron
+            // fails abandoned rows later. Conditional on status='pending' so a completed
+            // row is never touched. Best-effort: errors are logged, never alter the response.
+            if (chargeStatus === 'failed') {
                 try {
                     const { error: failError } = await (supabaseAdmin.from('wallet_payments') as any)
                         .update({ status: 'failed', updated_at: new Date().toISOString() })
