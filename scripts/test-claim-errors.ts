@@ -13,7 +13,7 @@ const ac = mapClaimError({ error: 'already_claimed', is_own_claim: true, claimed
 eq(ac.status, 409, 'already_claimed status')
 eq(ac.body.error, 'already_claimed', 'already_claimed error')
 eq(ac.body.is_own_claim, true, 'is_own_claim passthrough')
-eq(ac.body.claimed_at, '2026-01-01T00:00:00Z', 'claimed_at passthrough')
+ok(!('claimed_at' in ac.body), 'claimed_at not disclosed')
 
 const bm = mapClaimError({ error: 'below_minimum', min_claimable: '5' })
 eq(bm.status, 400, 'below_minimum status')

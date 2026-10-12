@@ -23,7 +23,6 @@ export function mapClaimError(res: {
                 body: {
                     error: 'already_claimed',
                     is_own_claim: res.is_own_claim,
-                    claimed_at: res.claimed_at,
                 },
             }
         case 'below_minimum': {
