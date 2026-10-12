@@ -94,7 +94,7 @@ export async function POST() {
         }
 
         // ── Generate a unique code (bounded retry) ────────────
-        // Each round: generate a candidate, probe for an existing owner, insert.
+        // Each round: probe up to MAX_PROBES candidates for an unclaimed code, then insert.
         // Capacity is only ~70k codes (39 words x ~900 numbers x 2 orderings), so
         // collisions are NOT negligible and get likelier as the user base grows.
         // The format cannot simply be widened: incoming SMS are matched against
@@ -102,18 +102,27 @@ export async function POST() {
         // (letters+digits, digits+letters, or 5 alphanumerics), so any code
         // must still satisfy that regex. Rounds are bounded, never recursive.
         const MAX_ROUNDS = 3
+        const MAX_PROBES = 10 // per round, so total candidates are bounded by 30
 
         for (let round = 0; round < MAX_ROUNDS; round++) {
-            const candidate = generateCandidateCode()
+            // Inner probe loop: up to MAX_PROBES candidates per round until one is unclaimed.
+            let candidate: string | null = null
+            for (let probe = 0; probe < MAX_PROBES; probe++) {
+                const probed = generateCandidateCode()
+                const { data: clash } = await (supabaseAdmin
+                    .from('user_payment_references') as any)
+                    .select('id')
+                    .eq('reference_code', probed)
+                    .single()
 
-            const { data: clash } = await (supabaseAdmin
-                .from('user_payment_references') as any)
-                .select('id')
-                .eq('reference_code', candidate)
-                .single()
+                if (!clash) {
+                    candidate = probed
+                    break
+                }
+            }
 
-            if (clash) {
-                console.warn(`[Reference POST] Code "${candidate}" already taken (round ${round + 1}/${MAX_ROUNDS}), retrying...`)
+            if (!candidate) {
+                console.warn(`[Reference POST] All ${MAX_PROBES} candidates taken (round ${round + 1}/${MAX_ROUNDS}), retrying...`)
                 continue
             }
 
