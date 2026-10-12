@@ -933,7 +933,9 @@ export async function middleware(request: NextRequest) {
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
         } else if (pathname === '/api/shop/withdraw') {
             limiter = rateLimiters.shopWithdraw
-            identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
+            // Per USER only. Keying on user+IP let a session holder get a fresh 3/hour
+            // bucket by switching IP (mobile data / proxy), defeating the money-out cap.
+            identifier = authUser?.id ?? ip
         } else if (pathname === '/api/shop/invites') {
             limiter = rateLimiters.shopInvites
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip

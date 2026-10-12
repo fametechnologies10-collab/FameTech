@@ -1484,6 +1484,43 @@ export async function sendShopWithdrawalProcessedEmail(
 }
 
 /**
+ * Withdrawal requested  -  Email to the shop owner (security notice).
+ * Sent the moment a payout is requested so a hijacked session can't quietly
+ * cash out: the real owner sees it and can contact support before admin pays.
+ */
+export async function sendShopWithdrawalRequestedOwnerEmail(
+    email: string,
+    firstName: string,
+    shopName: string,
+    amount: number,
+    netAmount: number,
+    momoNumber: string,
+    network: string
+): Promise<EmailResult> {
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.fametechgh.com'
+    const maskNum = (n: string) => !n ? '' : n.length <= 4 ? '****' : '*'.repeat(n.length - 4) + n.slice(-4)
+    const content = `
+        <h1 class="greeting">Withdrawal Requested</h1>
+        <p class="subtitle">We received your payout request</p>
+        <div class="amount-display">
+            <p class="amount-label">You Will Receive</p>
+            <p class="amount-value"><span class="amount-currency">GH</span>${netAmount.toFixed(2)}</p>
+        </div>
+        <p class="message-text">Hi ${escapeHtml(firstName)}, a withdrawal was requested from <strong>${escapeHtml(shopName)}</strong>. It is now waiting for admin processing.</p>
+        <div class="info-card">
+            <div class="info-card-header"><div class="info-card-icon">i</div><span class="info-card-title">Request Details</span></div>
+            <div class="info-row"><span class="info-label">Amount Requested</span><span class="info-value">GH${amount.toFixed(2)}</span></div>
+            <div class="info-row"><span class="info-label">Network</span><span class="info-value">${escapeHtml(network)}</span></div>
+            <div class="info-row"><span class="info-label">MoMo Number</span><span class="info-value">${maskNum(momoNumber)}</span></div>
+            <div class="info-row"><span class="info-label">Date</span><span class="info-value">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></div>
+        </div>
+        <p class="message-text"><strong>Didn't make this request?</strong> Contact support immediately and change your password.</p>
+        <div class="cta-container"><a href="${siteUrl}/dashboard/shop/withdraw" class="cta-button">View Withdrawal History</a></div>
+    `
+    return sendEmail({ to: email, toName: firstName, subject: `Withdrawal request of GH${amount.toFixed(2)}  -  ${shopName}`, htmlContent: generateProfessionalTemplate('Withdrawal Requested', content) }, 'billing@fametechgh.com')
+}
+
+/**
  * Alert 7b Â· Withdrawal Rejected  -  Email to shop owner
  */
 export async function sendShopWithdrawalRejectedEmail(

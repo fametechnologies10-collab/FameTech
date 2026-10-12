@@ -19,10 +19,12 @@ import {
 import {
     Banknote, Loader2, Clock, CheckCircle2, XCircle, AlertCircle,
     Wallet, ArrowLeft, Star, Trash2, Plus, BookUser,
-    CreditCard, Shield, Info, CheckCircle, Landmark,
+    CreditCard, Shield, Info, CheckCircle, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { parseWithdrawAmount } from '@/lib/shop-withdraw-validation'
+import { resolveRoleFeeSetting } from '@/lib/pricing/shop-fee-resolver'
 
 // ─────────────────────────────────────────────
 // Types
@@ -70,6 +72,7 @@ interface WithdrawalRequest {
     created_at: string
     balance_snapshot: number | null
     payment_type: 'momo' | 'bank' | null
+    account_number?: string | null
     moolre_transaction_id: string | null
 }
 
@@ -86,13 +89,6 @@ interface SavedDetail {
     network: Network
     is_default: boolean
     payment_type?: 'momo' | 'bank'
-    bank_id?: string
-    bank_name?: string
-}
-
-interface BankEntry {
-    id: string
-    name: string
 }
 
 const statusConfig = {
@@ -119,16 +115,14 @@ export default function ShopWithdrawPage() {
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
     const [shopName, setShopName] = useState('')
-    const [banks, setBanks] = useState<BankEntry[]>([])
+    const [hasPin, setHasPin] = useState(false)
+    const [pin, setPin] = useState('')
 
     // Form state
     const [amount, setAmount] = useState('')
     const [selectedSavedId, setSelectedSavedId] = useState<string>('manual')
     const [network, setNetwork] = useState<Network | ''>('')
     const [momoNumber, setMomoNumber] = useState('')
-    const [paymentType, setPaymentType] = useState<'momo' | 'bank'>('momo')
-    const [selectedBankId, setSelectedBankId] = useState<string>('')
-    const [branch, setBranch] = useState<string>('')
     const [saveForLater, setSaveForLater] = useState(false)
 
     // Validation state
@@ -161,68 +155,69 @@ export default function ShopWithdrawPage() {
     const fetchData = useCallback(async () => {
         try {
             const db = supabase as any
-            const [walletRes, historyRes, settingsRes, shopRes, savedRes] = await Promise.all([
-                db.from('shop_wallets').select('*').eq('owner_id', dbUser!.id).maybeSingle(),
-                db.from('shop_wallet_transactions')
-                    .select('*')
-                    .eq('type', 'withdrawal')
-                    .order('created_at', { ascending: false })
-                    .limit(20),
-                db.from('shop_global_settings').select('*'),
+            // Wallet first: the history query must be scoped to THIS wallet. RLS also lets
+            // admins and upline Leads read other wallets' rows, which would otherwise be
+            // mixed into the owner's own history.
+            const { data: walletRow } = await db.from('shop_wallets').select('*').eq('owner_id', dbUser!.id).maybeSingle()
+            if (walletRow) setWallet(walletRow)
+
+            const [historyRes, settingsRes, shopRes, savedRes] = await Promise.all([
+                walletRow
+                    ? db.from('shop_wallet_transactions')
+                        .select('id, amount, fee, net_amount, account_name, momo_number, account_number, network, status, failure_reason, created_at, payment_type, moolre_transaction_id')
+                        .eq('shop_wallet_id', walletRow.id)
+                        .eq('type', 'withdrawal')
+                        .order('created_at', { ascending: false })
+                        .limit(20)
+                    : Promise.resolve({ data: [] }),
+                db.from('shop_global_settings').select('key, value'),
                 db.from('shop_profiles')
                     .select('shop_name, withdrawal_fee_percent, withdrawal_fee_flat, min_withdrawal_amount')
                     .eq('owner_id', dbUser!.id)
                     .maybeSingle(),
                 db.from('shop_payment_details')
-                    .select('*')
+                    .select('id, account_name, momo_number, network, is_default, payment_type')
                     .eq('shop_owner_id', dbUser!.id)
                     .order('is_default', { ascending: false }),
             ])
 
-            if (walletRes.data) setWallet(walletRes.data)
             setHistory(historyRes.data || [])
             if (shopRes.data?.shop_name) setShopName(shopRes.data.shop_name)
-            setSavedDetails(savedRes.data || [])
+            // Bank payouts were removed: legacy bank rows can't be withdrawn to.
+            const saved: SavedDetail[] = (savedRes.data || []).filter((d: SavedDetail) => (d.payment_type || 'momo') === 'momo')
+            setSavedDetails(saved)
 
-            if (settingsRes.data) {
-                const s: Record<string, any> = {}
-                for (const row of settingsRes.data) {
-                    s[row.key] = typeof row.value === 'string' ? parseFloat(row.value) : row.value
-                }
-                const ownerRole = dbUser!.role || 'customer'
-                const resolveGlobal = (baseKey: string, fallback: number): number => {
-                    const roleVal = s[`${baseKey}_${ownerRole}`]
-                    if (roleVal != null && !isNaN(roleVal)) return roleVal
-                    const legacyVal = s[baseKey]
-                    if (legacyVal != null && !isNaN(legacyVal)) return legacyVal
-                    return fallback
-                }
-                setSettings({
-                    withdrawal_fee_percent: resolveGlobal('withdrawal_fee_percent', 0),
-                    withdrawal_fee_flat: resolveGlobal('withdrawal_fee_flat', 0),
-                    min_withdrawal_amount: resolveGlobal('min_withdrawal_amount', 0),
-                })
-                if (shopRes.data) {
-                    const sp = shopRes.data
-                    setSettings(prev => ({
-                        withdrawal_fee_percent: sp.withdrawal_fee_percent != null ? parseFloat(String(sp.withdrawal_fee_percent)) : prev.withdrawal_fee_percent,
-                        withdrawal_fee_flat: sp.withdrawal_fee_flat != null ? parseFloat(String(sp.withdrawal_fee_flat)) : prev.withdrawal_fee_flat,
-                        min_withdrawal_amount: sp.min_withdrawal_amount != null ? parseFloat(String(sp.min_withdrawal_amount)) : prev.min_withdrawal_amount,
-                    }))
-                }
-            }
+            // Same resolution (and defaults) as the server route, so the "You Receive"
+            // preview matches what is actually charged.
+            const globalMap: Record<string, string> = {}
+            for (const row of (settingsRes.data || [])) globalMap[row.key] = row.value
+            const ownerRole = dbUser!.role || 'customer'
+            const sp = shopRes.data
+            setSettings({
+                withdrawal_fee_percent: resolveRoleFeeSetting(globalMap, ownerRole, 'withdrawal_fee_percent', 2, sp?.withdrawal_fee_percent),
+                withdrawal_fee_flat: resolveRoleFeeSetting(globalMap, ownerRole, 'withdrawal_fee_flat', 0, sp?.withdrawal_fee_flat),
+                min_withdrawal_amount: resolveRoleFeeSetting(globalMap, ownerRole, 'min_withdrawal_amount', 50, sp?.min_withdrawal_amount),
+            })
 
             // Pre-fill with default payment detail
-            const defaultDetail = savedRes.data?.find((d: SavedDetail) => d.is_default)
+            const defaultDetail = saved.find((d: SavedDetail) => d.is_default)
             if (defaultDetail) {
                 setSelectedSavedId(defaultDetail.id)
                 setNetwork(defaultDetail.network)
                 setMomoNumber(defaultDetail.momo_number)
-                setPaymentType(defaultDetail.payment_type || 'momo')
-                if (defaultDetail.bank_id) setSelectedBankId(defaultDetail.bank_id)
                 // Saved details were verified at save-time; use the stored name directly.
                 setVerifiedName(defaultDetail.account_name)
             }
+
+            // The server demands the app-lock PIN for withdrawals when one is set.
+            fetch('/api/auth/pin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'status' }),
+            })
+                .then(r => r.json())
+                .then(d => setHasPin(!!d?.hasPin))
+                .catch(() => { /* server still enforces; the submit error will ask for the PIN */ })
         } catch (err) {
             console.error(err)
         } finally {
@@ -230,18 +225,9 @@ export default function ShopWithdrawPage() {
         }
     }, [dbUser])
 
-    // Fetch bank list lazily when switching to bank mode
-    useEffect(() => {
-        if (paymentType === 'bank' && banks.length === 0) {
-            fetch('/api/shop/banks')
-                .then(r => r.json())
-                .then(d => { if (d.banks) setBanks(d.banks) })
-                .catch(err => console.warn('[banks]', err))
-        }
-    }, [paymentType])
 
     // ─── Account name validation ──────────────────────────────────────────────
-    const triggerValidation = useCallback((phone: string, net: string, bankId?: string) => {
+    const triggerValidation = useCallback((phone: string, net: string) => {
         if (!phone || !net) {
             setVerifiedName(null)
             setValidationError(null)
@@ -259,7 +245,7 @@ export default function ShopWithdrawPage() {
         fetch('/api/shop/validate-account', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone.trim(), network: net, bankId }),
+            body: JSON.stringify({ phone: phone.trim(), network: net }),
         })
             .then(r => r.json())
             .then(data => {
@@ -286,8 +272,6 @@ export default function ShopWithdrawPage() {
         if (id === 'manual') {
             setNetwork('')
             setMomoNumber('')
-            setSelectedBankId('')
-            setBranch('')
             setVerifiedName(null)
             setValidationError(null)
         } else {
@@ -295,9 +279,6 @@ export default function ShopWithdrawPage() {
             if (d) {
                 setNetwork(d.network)
                 setMomoNumber(d.momo_number)
-                setPaymentType(d.payment_type || 'momo')
-                if (d.bank_id) setSelectedBankId(d.bank_id)
-                setBranch('')
                 // Use the previously verified name directly — no Moolre round-trip needed.
                 setVerifiedName(d.account_name)
                 setValidationError(null)
@@ -306,7 +287,10 @@ export default function ShopWithdrawPage() {
         }
     }
 
-    const amountNum = parseFloat(amount) || 0
+    // At most 2 decimal places, same rule the server enforces.
+    const parsedAmount = parseWithdrawAmount(amount.trim())
+    const amountNum = parsedAmount ?? 0
+    const amountInvalid = amount.trim() !== '' && parsedAmount === null
     const feePercent = (amountNum * settings.withdrawal_fee_percent) / 100
     const totalFee = feePercent + settings.withdrawal_fee_flat
     const netAmount = amountNum - totalFee
@@ -322,7 +306,8 @@ export default function ShopWithdrawPage() {
         !!momoNumber &&
         hasUsableName &&
         !validating &&
-        !submitting
+        !submitting &&
+        (!hasPin || /^\d{6}$/.test(pin))
 
     const handleSubmit = async () => {
         if (!canSubmit) return
@@ -338,9 +323,8 @@ export default function ShopWithdrawPage() {
                     amount: amountNum,
                     momoNumber: momoNumber.trim(),
                     network,
-                    payment_type: paymentType,
-                    bankId: selectedBankId || undefined,
-                    branch: branch.trim() || undefined,
+                    payment_type: 'momo',
+                    ...(hasPin ? { pin } : {}),
                     saveForLater: saveForLater && !isSaved,
                     // For saved details the server fetches the verified name from DB.
                     ...(isSaved ? { savedDetailId: selectedSavedId } : {}),
@@ -354,6 +338,7 @@ export default function ShopWithdrawPage() {
 
             toast.success(`Withdrawal submitted! Admin will process shortly.`)
             setAmount('')
+            setPin('')
             setSaveForLater(false)
             setVerifiedName(null)
             setManualName('')
@@ -361,6 +346,7 @@ export default function ShopWithdrawPage() {
 
         } catch (err: any) {
             toast.error(err.message || 'Failed to submit request')
+            setPin('')
         } finally {
             setSubmitting(false)
         }
@@ -449,7 +435,7 @@ export default function ShopWithdrawPage() {
                         Withdraw Earnings
                     </h1>
                     <p className="text-muted-foreground text-sm mt-0.5">
-                        Payout from your shop wallet to mobile money or bank.
+                        Payout from your shop wallet to mobile money.
                     </p>
                 </div>
             </div>
@@ -502,6 +488,11 @@ export default function ShopWithdrawPage() {
                             placeholder={`Min: ${formatCurrency(settings.min_withdrawal_amount)}`}
                             className="h-12 text-lg font-semibold"
                         />
+                        {amountInvalid && (
+                            <p className="text-xs text-red-500 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> Enter a valid amount (up to 2 decimal places)
+                            </p>
+                        )}
                         {amountNum > (wallet?.balance || 0) && amountNum > 0 && (
                             <p className="text-xs text-red-500 flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" /> Amount exceeds your available balance
@@ -563,67 +554,16 @@ export default function ShopWithdrawPage() {
                         </div>
                     </div>
 
-                    {/* STEP 2 — Payment Type Toggle */}
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">2</span>
-                            <Label className="text-sm font-semibold">Payment Method Type</Label>
-                        </div>
-                        <div className="flex p-1 bg-muted rounded-xl gap-1">
-                            <button
-                                type="button"
-                                onClick={() => { 
-                                    setPaymentType('momo')
-                                    setSelectedBankId('')
-                                    setBranch('')
-                                    setVerifiedName(null)
-                                    setValidationError(null)
-                                    setSelectedSavedId('manual')
-                                    setMomoNumber('') 
-                                }}
-                                className={cn(
-                                    'flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-xs font-bold transition-all',
-                                    paymentType === 'momo'
-                                        ? 'bg-white dark:bg-card shadow-sm text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                )}
-                            >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                Mobile Money
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => { 
-                                    setPaymentType('bank')
-                                    setNetwork('Bank' as any)
-                                    setSelectedSavedId('manual')
-                                    setVerifiedName(null)
-                                    setValidationError(null)
-                                    setMomoNumber('') 
-                                }}
-                                className={cn(
-                                    'flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-xs font-bold transition-all',
-                                    paymentType === 'bank'
-                                        ? 'bg-white dark:bg-card shadow-sm text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                )}
-                            >
-                                <Landmark className="w-3.5 h-3.5" />
-                                Bank Transfer
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* STEP 3 — Payment Method */}
+                    {/* STEP 2 — Payment Method */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">3</span>
+                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">2</span>
                                 <Label className="text-sm font-semibold">
-                                    {paymentType === 'momo' ? 'Mobile Money Account' : 'Bank Account'}
+                                    Mobile Money Account
                                 </Label>
                             </div>
-                            {paymentType === 'momo' && (
+                            {(
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -637,7 +577,7 @@ export default function ShopWithdrawPage() {
                         </div>
 
                         {/* Saved detail cards for MoMo */}
-                        {paymentType === 'momo' && savedDetails.length > 0 && (
+                        {savedDetails.length > 0 && (
                             <div className="space-y-2.5">
                                 {savedDetails.map(d => (
                                     <button
@@ -703,11 +643,11 @@ export default function ShopWithdrawPage() {
                         )}
 
                         {/* Manual entry fields */}
-                        {(isManual || paymentType === 'bank') && (
+                        {isManual && (
                             <div className="space-y-3 p-4 rounded-xl bg-muted/30 border border-dashed">
 
-                                {/* Network selector — MoMo only */}
-                                {paymentType === 'momo' && (
+                                {/* Network selector */}
+                                {(
                                     <div>
                                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                             Mobile Money Network
@@ -727,51 +667,10 @@ export default function ShopWithdrawPage() {
                                     </div>
                                 )}
 
-                                {/* Bank selector */}
-                                {paymentType === 'bank' && (
-                                    <div>
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                            Select Bank
-                                        </Label>
-                                        <Select value={selectedBankId} onValueChange={(v) => {
-                                            setSelectedBankId(v)
-                                            setNetwork('Bank' as any)
-                                            setVerifiedName(null)
-                                            setValidationError(null)
-                                        }}>
-                                            <SelectTrigger className="mt-1.5 h-11">
-                                                <SelectValue placeholder="Select your bank" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {banks.length === 0 ? (
-                                                    <SelectItem value="loading" disabled>Loading banks...</SelectItem>
-                                                ) : (
-                                                    banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-
-                                {/* Branch — Bank only, optional */}
-                                {paymentType === 'bank' && (
-                                    <div>
-                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                            Branch <span className="normal-case font-normal">(Optional)</span>
-                                        </Label>
-                                        <Input
-                                            value={branch}
-                                            onChange={(e) => setBranch(e.target.value)}
-                                            placeholder="e.g. Accra Main"
-                                            className="mt-1.5 h-11"
-                                        />
-                                    </div>
-                                )}
-
-                                {/* MoMo / Bank Account Number */}
+                                {/* MoMo Number */}
                                 <div>
                                     <Label htmlFor="momo" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                        {paymentType === 'momo' ? 'MoMo Number' : 'Bank Account Number'}
+                                        MoMo Number
                                     </Label>
                                     <Input
                                         id="momo"
@@ -781,7 +680,7 @@ export default function ShopWithdrawPage() {
                                             setVerifiedName(null)
                                             setValidationError(null)
                                         }}
-                                        placeholder={paymentType === 'momo' ? '0244123456' : 'Account number'}
+                                        placeholder="0244123456"
                                         className="mt-1.5 h-11 font-mono"
                                     />
                                 </div>
@@ -796,7 +695,7 @@ export default function ShopWithdrawPage() {
                                             <Button 
                                                 size="sm" 
                                                 className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-bold px-3 uppercase tracking-wide transition-all"
-                                                onClick={() => triggerValidation(momoNumber, network || '', selectedBankId || undefined)}
+                                                onClick={() => triggerValidation(momoNumber, network || '')}
                                                 disabled={validating || !momoNumber || !network}
                                                 type="button"
                                             >
@@ -909,12 +808,35 @@ export default function ShopWithdrawPage() {
                         })()}
                     </div>
 
+                    {/* ── PIN confirmation (only when the user has an app-lock PIN) */}
+                    {hasPin && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">3</span>
+                                <Label htmlFor="withdraw-pin" className="text-sm font-semibold flex items-center gap-1.5">
+                                    <Lock className="w-3.5 h-3.5" /> Confirm with your PIN
+                                </Label>
+                            </div>
+                            <Input
+                                id="withdraw-pin"
+                                type="password"
+                                inputMode="numeric"
+                                autoComplete="off"
+                                maxLength={6}
+                                value={pin}
+                                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                placeholder="6-digit PIN"
+                                className="h-11 font-mono tracking-widest"
+                            />
+                        </div>
+                    )}
+
                     {/* ── Notice */}
                     {!hasUsableName && (
                         <div className="flex items-start gap-2 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
                             <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                             <span>
-                                Account name must be verified via Moolre. If verification keeps
+                                The account name is verified with your mobile money provider. If verification keeps
                                 failing, you can enter the name manually — admin will review before
                                 paying out.
                             </span>
@@ -1001,7 +923,7 @@ export default function ShopWithdrawPage() {
                                                                 {row.network}
                                                             </span>
                                                         )}
-                                                        <p className="font-mono text-xs text-muted-foreground mt-0.5">{row.momo_number}</p>
+                                                        <p className="font-mono text-xs text-muted-foreground mt-0.5">{row.momo_number || row.account_number}</p>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <span className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full', cfg.color)}>
@@ -1072,7 +994,7 @@ export default function ShopWithdrawPage() {
                                                 </div>
                                                 <div className="col-span-2">
                                                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">MoMo Number</p>
-                                                    <p className="font-mono mt-0.5">{row.momo_number}</p>
+                                                    <p className="font-mono mt-0.5">{row.momo_number || row.account_number}</p>
                                                 </div>
                                             </div>
                                         </div>

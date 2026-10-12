@@ -3,7 +3,8 @@ import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { z } from 'zod'
 import { phoneSchema } from '@/lib/validation'
-import { validateAccountName, MOOLRE_CHANNEL_MAP } from '@/lib/moolre-transfer-service'
+import { resolveNameSingle } from '@/lib/momo-verify'
+import { normalizeGhanaPhone } from '@/lib/sms-service'
 import { computeCommissionWithdrawalFee, getCommissionMinWithdrawal } from '@/lib/commission-wallet'
 import { sendAdminShopWithdrawalRequestAlert } from '@/lib/email-service'
 import { consumeRateLimit } from '@/lib/simple-rate-limit'
@@ -99,22 +100,23 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: `Amount too low to cover the GH₵${fee.toFixed(2)} processing fee` }, { status: 400 })
         }
 
-        // Resolve the account name: Moolre live lookup first; a manual fallback
-        // (flagged unverified for admin review) only when Moolre fails and the
-        // caller supplied one — mirrors app/api/shop/withdraw/route.ts exactly.
-        const channel = MOOLRE_CHANNEL_MAP[network]
-        const nameValidation = await validateAccountName(momoNumber, channel)
+        // Resolve the account name: live lookup first (Paystack primary, Moolre fallback —
+        // see lib/momo-verify.ts); a manual fallback (flagged unverified for admin review)
+        // only when the lookup fails and the caller supplied one — mirrors
+        // app/api/shop/withdraw/route.ts.
+        const normalizedMomo = normalizeGhanaPhone(momoNumber)
+        const resolvedName = normalizedMomo ? await resolveNameSingle(normalizedMomo) : null
         let verifiedAccountName: string
         let isNameVerified: boolean
-        if (nameValidation.success && nameValidation.name) {
-            verifiedAccountName = nameValidation.name
+        if (resolvedName?.fullName?.trim()) {
+            verifiedAccountName = resolvedName.fullName.trim()
             isNameVerified = true
         } else if (manualAccountName) {
             verifiedAccountName = manualAccountName
             isNameVerified = false
-            console.warn(`[commission/withdraw] User ${user.id} used manual name fallback after Moolre rejection:`, nameValidation.error)
+            console.warn(`[commission/withdraw] User ${user.id} used manual name fallback — name lookup returned nothing`)
         } else {
-            return NextResponse.json({ success: false, error: nameValidation.error || 'Could not verify account name' }, { status: 400 })
+            return NextResponse.json({ success: false, error: 'Could not verify account name. Please check the number and try again.' }, { status: 400 })
         }
 
         const { data: rpcResult, error: rpcError } = await admin.rpc('process_commission_withdrawal', {

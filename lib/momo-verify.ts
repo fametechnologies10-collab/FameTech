@@ -142,13 +142,14 @@ async function resolveViaMoolre(normalizedPhone: string): Promise<NameResolveRes
 
 // ─── Provider registry ────────────────────────────────────────────────────────
 // Order matters for single lookups — first entry is tried first.
-// Moolre is listed first because it connects directly to Ghanaian networks.
-// Paystack is the fallback with broad coverage.
+// Paystack is primary (changed 2026-10-12): the Moolre account is not live, and
+// Paystack is the rail payouts actually use. Moolre stays as the fallback — it
+// self-disables (returns null) while its credentials are unset.
 type Resolver = (phone: string) => Promise<NameResolveResult | null>
 
 const PROVIDERS: { name: string; fn: Resolver }[] = [
-    { name: 'moolre',   fn: resolveViaMoolre   },
     { name: 'paystack', fn: resolveViaPaystack  },
+    { name: 'moolre',   fn: resolveViaMoolre   },
     // { name: 'hubtel', fn: resolveViaHubtel }, // uncomment when ready
 ]
 
@@ -165,9 +166,9 @@ export async function resolveNameSingle(
         const result = await fn(normalizedPhone)
         if (result) return result
     }
-    // Moolre's failures are intermittent — measured 2026-09-28, the same numbers flipped
-    // between resolving and not across runs minutes apart. Once every provider has had a
-    // go, one retry of the primary recovers most of them. Only runs on a full miss, and
+    // Name-enquiry failures are intermittent — measured 2026-09-28 (on Moolre), the same
+    // numbers flipped between resolving and not across runs minutes apart. Once every
+    // provider has had a go, one retry of the primary recovers most of them. Only runs on a full miss, and
     // no caller is on the USSD hot path (all are owner/admin-triggered API routes).
     return await PROVIDERS[0].fn(normalizedPhone)
 }
