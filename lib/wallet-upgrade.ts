@@ -1,34 +1,258 @@
 /**
  * Wallet-based role upgrade processor.
- * Deducts from wallet balance atomically and applies agent/dealer role upgrade.
- * Used by the wallet upgrade API route and the auto-upgrade cron job.
+ *
+ * The purchase itself (lock → idempotency → eligibility → balance → deduct → ledger → role grant)
+ * is ONE atomic Postgres function, `process_wallet_upgrade` (supabase/migrations/
+ * 20261012b_wallet_upgrade_atomic_rpc.sql). This file only validates input, calls it, maps the
+ * result, and fires best-effort notifications afterwards.
+ *
+ * Why it lives in the database: the old TS flow read the user, deducted the wallet, then wrote the
+ * role as separate statements. Concurrent requests double-charged for one extension, a failed role
+ * write kept the money, and a Lifetime Agent could be re-bought into a time-limited pass.
  */
 
+import { randomUUID } from 'node:crypto'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { waitUntil } from '@vercel/functions'
 
 export type UpgradeType = 'agent' | 'dealer'
 export type AgentPlan = '3d' | '14d' | '30d' | 'permanent'
 export type DealerPlan = '1m' | '3m' | '6m'
 export type PlanType = AgentPlan | DealerPlan
 
+const AGENT_PLANS: readonly string[] = ['3d', '14d', '30d', 'permanent']
+const DEALER_PLANS: readonly string[] = ['1m', '3m', '6m']
+
+/** Hard ceiling mirrored by the RPC's sanity check. */
+const MAX_UPGRADE_PRICE = 100000
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Thrown when an upgrade price cannot be resolved to a safe, positive, finite number. */
+export class UpgradePriceError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'UpgradePriceError'
+    }
+}
+
+export type UpgradeFailureCode =
+    | 'insufficient_balance'
+    | 'already_permanent'
+    | 'not_eligible'
+    | 'account_inactive'
+    | 'not_due'
+    | 'invalid_request'
+    | 'user_not_found'
+    | 'wallet_not_found'
+    | 'rpc_error'
+
 interface UpgradeParams {
     userId: string
     upgradeType: UpgradeType
     plan: PlanType
-    /** Pre-fetched price — must be verified server-side, never trust client */
+    /** Server-resolved price (fetchUpgradePrice) — never a client-supplied value. */
     price: number
     planLabel: string
-    /** Whether this is triggered by the auto-upgrade cron (affects notifications) */
+    /** Whether this is triggered by the auto-upgrade cron (affects notifications + ledger text) */
     isAutoUpgrade?: boolean
+    /**
+     * Stable per-attempt key. A retry carrying the same key can never charge twice. Callers that
+     * don't pass one get a fresh UUID (the user-row lock still serialises them).
+     */
+    idempotencyKey?: string
+    /** Auto-renewal only: re-verify "due for renewal" on the locked row inside the transaction. */
+    onlyIfDue?: boolean
 }
 
-interface UpgradeResult {
+export interface UpgradeResult {
     success: boolean
     error?: string
+    code?: UpgradeFailureCode
     insufficientBalance?: boolean
     currentBalance?: number
     requiredAmount?: number
     newExpiry?: string | null
+    newBalance?: number
+    /** True when this reference was already settled — nothing was charged this time. */
+    alreadyProcessed?: boolean
+    wasExtension?: boolean
+}
+
+// ── Pure helpers (unit-tested in scripts/test-wallet-upgrade.ts) ─────────────────────────────
+
+export function isPlanValidForType(upgradeType: UpgradeType, plan: unknown): boolean {
+    if (typeof plan !== 'string') return false
+    return (upgradeType === 'dealer' ? DEALER_PLANS : AGENT_PLANS).includes(plan)
+}
+
+/** Keep a well-formed client UUID; replace anything else with a fresh server-generated one. */
+export function normalizeIdempotencyKey(raw: unknown): string {
+    if (typeof raw === 'string' && UUID_RE.test(raw)) return raw.toLowerCase()
+    return randomUUID()
+}
+
+/**
+ * Consent check: did the user agree to the price the server is about to charge?
+ * An omitted value skips the check (non-UI callers); any present-but-wrong value fails.
+ */
+export function pricesMatch(expected: unknown, actual: number): boolean {
+    if (expected === undefined) return true
+    if (typeof expected !== 'number' || !Number.isFinite(expected)) return false
+    return Math.abs(expected - actual) <= 0.005
+}
+
+function toSafePrice(raw: unknown): number | null {
+    let n: number
+    if (typeof raw === 'number') n = raw
+    else if (typeof raw === 'string' && raw.trim() !== '') n = Number(raw)
+    else return null
+    return Number.isFinite(n) && n > 0 && n <= MAX_UPGRADE_PRICE ? n : null
+}
+
+const AGENT_PLAN_META: Record<AgentPlan, { key: string; def: number; label: string; days: number | null }> = {
+    '3d':        { key: 'agent_upgrade_price_3d',        def: 9.99,   label: '3 Days Agent Pass',    days: 3 },
+    '14d':       { key: 'agent_upgrade_price_14d',       def: 49.99,  label: '14 Days Agent Pass',   days: 14 },
+    '30d':       { key: 'agent_upgrade_price_30d',       def: 99.99,  label: '30 Days Agent Pass',   days: 30 },
+    'permanent': { key: 'agent_upgrade_price_permanent', def: 149.99, label: 'Permanent Agent Pass', days: null },
+}
+
+const DEALER_PLAN_META: Record<DealerPlan, { key: string; def: number; label: string; days: number }> = {
+    '1m': { key: 'dealer_upgrade_price_1m', def: 99.99,  label: '1 Month Dealer Pass',  days: 30 },
+    '3m': { key: 'dealer_upgrade_price_3m', def: 199.99, label: '3 Months Dealer Pass', days: 90 },
+    '6m': { key: 'dealer_upgrade_price_6m', def: 299.99, label: '6 Months Dealer Pass', days: 180 },
+}
+
+const PRICE_KEYS = [
+    ...Object.values(AGENT_PLAN_META).map(m => m.key),
+    ...Object.values(DEALER_PLAN_META).map(m => m.key),
+]
+
+/**
+ * Resolve a plan's price from `admin_settings` rows. A missing row uses the documented default;
+ * a present-but-unusable value (NaN, ≤ 0, Infinity, wrong type) THROWS rather than charging it.
+ */
+export function resolveUpgradePrice(
+    settings: Array<{ key: string; value: unknown }> | null | undefined,
+    upgradeType: UpgradeType,
+    plan: unknown
+): { price: number; planLabel: string; planDays: number | null } {
+    if (!isPlanValidForType(upgradeType, plan)) {
+        throw new UpgradePriceError(`Invalid ${upgradeType} plan`)
+    }
+    const meta = upgradeType === 'dealer'
+        ? DEALER_PLAN_META[plan as DealerPlan]
+        : AGENT_PLAN_META[plan as AgentPlan]
+
+    const row = settings?.find(s => s.key === meta.key)
+    if (!row) return { price: meta.def, planLabel: meta.label, planDays: meta.days }
+
+    const price = toSafePrice(row.value)
+    if (price === null) throw new UpgradePriceError(`Unusable price configured for ${meta.key}`)
+    return { price, planLabel: meta.label, planDays: meta.days }
+}
+
+/**
+ * Add calendar months in UTC, clamping to the last day of the target month — the same result as
+ * Postgres `timestamptz + make_interval(months => n)` (Jan 31 + 1 month = Feb 28). JS `setMonth`
+ * would overflow into March. Used by the legacy dealer processor so it agrees with the RPC.
+ */
+export function addMonthsClamped(base: Date, months: number): Date {
+    const targetMonthIndex = base.getUTCMonth() + months
+    const year = base.getUTCFullYear() + Math.floor(targetMonthIndex / 12)
+    const month = ((targetMonthIndex % 12) + 12) % 12
+    const daysInTarget = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+    const out = new Date(base)
+    out.setUTCDate(1)
+    out.setUTCFullYear(year, month, Math.min(base.getUTCDate(), daysInTarget))
+    return out
+}
+
+export function planDaysFromType(plan: AgentPlan): number | null {
+    return plan in AGENT_PLAN_META ? AGENT_PLAN_META[plan].days : 30
+}
+
+export function dealerMonthsFromPlan(plan: DealerPlan): number {
+    if (plan === '1m') return 1
+    if (plan === '3m') return 3
+    return 6
+}
+
+// ── RPC wrapper ──────────────────────────────────────────────────────────────────────────────
+
+const FAILURE_MESSAGES: Record<Exclude<UpgradeFailureCode, 'rpc_error'>, string> = {
+    insufficient_balance: 'Insufficient wallet balance',
+    already_permanent: 'You already have permanent Agent access — no further Agent pass is needed.',
+    not_eligible: 'This upgrade is not available for your account.',
+    account_inactive: 'Your account is not active. Please contact support.',
+    not_due: 'This membership is not due for renewal yet.',
+    invalid_request: 'Invalid upgrade request.',
+    user_not_found: 'User not found',
+    wallet_not_found: 'Wallet not found',
+}
+
+/**
+ * Run the atomic purchase. Every non-success outcome means NOTHING was charged or changed.
+ * Exported separately from processWalletUpgrade so it can be tested with a stub client.
+ */
+export async function applyWalletUpgrade(
+    client: Pick<SupabaseClient, 'rpc'>,
+    params: UpgradeParams
+): Promise<UpgradeResult> {
+    const { userId, upgradeType, plan, price, planLabel, isAutoUpgrade = false, onlyIfDue = false } = params
+    const key = params.idempotencyKey ?? randomUUID()
+
+    const { data, error } = await client.rpc('process_wallet_upgrade', {
+        p_user_id: userId,
+        p_upgrade_type: upgradeType,
+        p_plan: plan,
+        p_price: price,
+        p_plan_label: planLabel,
+        p_reference: `upgrade_${upgradeType}_${key}`,
+        p_only_if_due: onlyIfDue,
+        p_is_auto: isAutoUpgrade,
+    })
+
+    if (error || !data || typeof data !== 'object') {
+        console.error('[WalletUpgrade] RPC error:', error?.message ?? 'empty response')
+        return {
+            success: false,
+            code: 'rpc_error',
+            error: 'Upgrade could not be completed. Please try again — you will not be charged twice.',
+        }
+    }
+
+    const r = data as Record<string, any>
+    const status = String(r.status)
+
+    if (status === 'ok' || status === 'already_processed') {
+        return {
+            success: true,
+            alreadyProcessed: status === 'already_processed',
+            newExpiry: r.new_expiry ?? null,
+            newBalance: typeof r.new_balance === 'number' ? r.new_balance : undefined,
+            wasExtension: Boolean(r.was_extension),
+        }
+    }
+
+    if (status === 'insufficient_balance') {
+        return {
+            success: false,
+            code: 'insufficient_balance',
+            insufficientBalance: true,
+            currentBalance: Number(r.current_balance ?? 0),
+            requiredAmount: Number(r.required_amount ?? price),
+            error: FAILURE_MESSAGES.insufficient_balance,
+        }
+    }
+
+    if (status in FAILURE_MESSAGES) {
+        const code = status as Exclude<UpgradeFailureCode, 'rpc_error'>
+        return { success: false, code, error: FAILURE_MESSAGES[code] }
+    }
+
+    console.error('[WalletUpgrade] Unrecognised RPC status:', status)
+    return { success: false, code: 'rpc_error', error: 'Upgrade could not be completed. Please try again.' }
 }
 
 function buildAdminClient(): SupabaseClient {
@@ -40,188 +264,29 @@ function buildAdminClient(): SupabaseClient {
 }
 
 /**
- * Compute agent expiry given current expiry and plan days.
- * Returns null for permanent plans.
- */
-function computeAgentExpiry(currentExpiry: Date | null, planDays: number | null): Date | null {
-    if (planDays === null) return null
-    const now = new Date()
-    const base = currentExpiry && currentExpiry > now ? currentExpiry : now
-    return new Date(base.getTime() + planDays * 24 * 60 * 60 * 1000)
-}
-
-/**
- * Compute dealer expiry given current dealer expiry.
- * Extensions stack from existing expiry if still in future.
- */
-function computeDealerExpiry(currentDealerExpiry: Date | null, months: number): Date {
-    const now = new Date()
-    const base = currentDealerExpiry && currentDealerExpiry > now ? currentDealerExpiry : now
-    const expiry = new Date(base)
-    expiry.setMonth(expiry.getMonth() + months)
-    return expiry
-}
-
-export function planDaysFromType(plan: AgentPlan): number | null {
-    if (plan === 'permanent') return null
-    if (plan === '3d') return 3
-    if (plan === '14d') return 14
-    return 30
-}
-
-export function dealerMonthsFromPlan(plan: DealerPlan): number {
-    if (plan === '1m') return 1
-    if (plan === '3m') return 3
-    return 6
-}
-
-/**
- * Process a wallet-funded role upgrade for a user.
- *
- * Security guarantees:
- * - Balance check and deduction happen in a single atomic RPC (`deduct_wallet_balance`)
- *   which uses `FOR UPDATE` row lock and raises INSUFFICIENT_BALANCE on failure.
- * - Price is resolved from `admin_settings` server-side — never from client input.
- * - Idempotency is not needed here (no payment record) but the role update uses
- *   an atomic DB write that is safe to retry.
+ * Process a wallet-funded role upgrade for a user (atomic purchase + best-effort notifications).
  */
 export async function processWalletUpgrade(params: UpgradeParams): Promise<UpgradeResult> {
     const { userId, upgradeType, plan, price, planLabel, isAutoUpgrade = false } = params
     const supabase = buildAdminClient()
 
-    // 1. Fetch user + wallet in parallel
-    const [userRes, walletRes] = await Promise.all([
-        supabase
-            .from('users')
-            .select('role, agent_expires_at, dealer_expires_at, email, first_name, phone_number')
-            .eq('id', userId)
-            .single(),
-        supabase
-            .from('wallets')
-            .select('id, balance')
-            .eq('user_id', userId)
-            .single(),
-    ])
+    const result = await applyWalletUpgrade(supabase, params)
 
-    if (userRes.error || !userRes.data) {
-        return { success: false, error: 'User not found' }
-    }
-    if (walletRes.error || !walletRes.data) {
-        return { success: false, error: 'Wallet not found' }
-    }
+    // A replay settled earlier: don't re-send notifications.
+    if (!result.success || result.alreadyProcessed) return result
 
-    const user = userRes.data as any
-    const wallet = walletRes.data as any
-
-    // 2. Pre-check balance (optimistic — the RPC does the authoritative atomic check)
-    if (wallet.balance < price) {
-        return {
-            success: false,
-            insufficientBalance: true,
-            currentBalance: wallet.balance,
-            requiredAmount: price,
-            error: 'Insufficient wallet balance',
-        }
-    }
-
-    // 3. Validate eligibility
-    if (upgradeType === 'dealer') {
-        const isLifetimeAgent = user.role === 'agent' && user.agent_expires_at === null
-        const isCurrentDealer = user.role === 'dealer'
-        if (!isLifetimeAgent && !isCurrentDealer) {
-            return { success: false, error: 'Dealer upgrade requires Lifetime Agent or current Dealer status' }
-        }
-    } else {
-        if (user.role !== 'customer' && user.role !== 'agent') {
-            return { success: false, error: 'Agent upgrade is only available to customers and existing agents' }
-        }
-    }
-
-    // 4. Atomic wallet deduction via SECURITY DEFINER RPC
-    const { data: deductResult, error: deductError } = await supabase.rpc(
-        'deduct_wallet_balance',
-        { p_user_id: userId, p_amount: price }
-    )
-
-    if (deductError) {
-        if (deductError.message?.includes('INSUFFICIENT_BALANCE')) {
-            return {
-                success: false,
-                insufficientBalance: true,
-                currentBalance: wallet.balance,
-                requiredAmount: price,
-                error: 'Insufficient wallet balance',
-            }
-        }
-        console.error('[WalletUpgrade] Deduction error:', deductError)
-        return { success: false, error: 'Failed to deduct wallet balance' }
-    }
-
-    const newBalance = (deductResult as any)?.[0]?.new_balance ?? wallet.balance - price
-
-    // 5. Log wallet transaction
-    await (supabase.from('wallet_transactions') as any).insert({
-        wallet_id: wallet.id,
-        user_id: userId,
-        type: 'debit',
-        amount: price,
-        description: isAutoUpgrade
-            ? `Auto-upgrade: ${planLabel}`
-            : `Upgrade purchase: ${planLabel}`,
-        reference: `upgrade_${upgradeType}_${Date.now()}`,
-        source: 'purchase',
-        status: 'completed',
-    })
-
-    // 6. Compute new role/expiry and update user
-    let newExpiry: Date | null = null
-    let updatePayload: Record<string, any>
-
-    if (upgradeType === 'dealer') {
-        const currentDealerExpiry = user.dealer_expires_at ? new Date(user.dealer_expires_at) : null
-        const months = dealerMonthsFromPlan(plan as DealerPlan)
-        newExpiry = computeDealerExpiry(currentDealerExpiry, months)
-        updatePayload = {
-            role: 'dealer',
-            dealer_expires_at: newExpiry.toISOString(),
-            updated_at: new Date().toISOString(),
-        }
-    } else {
-        const planDays = planDaysFromType(plan as AgentPlan)
-        const currentAgentExpiry = user.agent_expires_at ? new Date(user.agent_expires_at) : null
-        newExpiry = computeAgentExpiry(currentAgentExpiry, planDays)
-        updatePayload = {
-            role: 'agent',
-            agent_expires_at: newExpiry ? newExpiry.toISOString() : null,
-            updated_at: new Date().toISOString(),
-        }
-    }
-
-    const { error: updateUserError } = await (supabase.from('users') as any)
-        .update(updatePayload)
-        .eq('id', userId)
-
-    if (updateUserError) {
-        console.error('[WalletUpgrade] User update error:', updateUserError)
-        // Wallet already deducted — log the failure for manual review but don't bubble up
-        // as a user-facing error. In practice this should never happen.
-        return { success: false, error: 'Role update failed after deduction — contact support' }
-    }
-
-    const expiryISO = newExpiry?.toISOString() ?? null
+    const newExpiry = result.newExpiry ? new Date(result.newExpiry) : null
+    const newBalance = result.newBalance ?? 0
+    const isPermanent = plan === 'permanent'
+    const isExtension = Boolean(result.wasExtension)
     const expiryFormatted = newExpiry
         ? newExpiry.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
         : null
-    const isPermanent = plan === 'permanent'
-    const isExtension = upgradeType === 'dealer'
-        ? user.role === 'dealer'
-        : user.role === 'agent' && user.agent_expires_at && new Date(user.agent_expires_at) > new Date()
 
-    // 7. In-app notification
     const notifTitle = isPermanent
         ? 'Permanent Agent Unlocked!'
         : isAutoUpgrade
-            ? `Auto-Upgrade Successful`
+            ? 'Auto-Upgrade Successful'
             : isExtension
                 ? `${upgradeType === 'dealer' ? 'Dealer' : 'Agent'} Membership Extended!`
                 : `${upgradeType === 'dealer' ? 'Dealer' : 'Agent'} Status Activated!`
@@ -232,17 +297,25 @@ export async function processWalletUpgrade(params: UpgradeParams): Promise<Upgra
             ? `Your ${planLabel} was auto-renewed from your wallet. ${expiryFormatted ? `Active until ${expiryFormatted}.` : ''} Balance: GHS ${newBalance.toFixed(2)}.`
             : `Your ${planLabel} is now active${expiryFormatted ? ` until ${expiryFormatted}` : ''}. GHS ${price.toFixed(2)} deducted from wallet.`
 
-    await (supabase.from('notifications') as any).insert({
-        user_id: userId,
-        title: notifTitle,
-        message: notifMessage,
-        type: 'system',
-        action_url: '/dashboard',
-    })
-
-    // 8. Background: push + SMS + email notifications
-    ;(async () => {
+    // The money + role are already committed; notification failures must never surface as an
+    // upgrade failure.
+    const notify = (async () => {
         try {
+            await (supabase.from('notifications') as any).insert({
+                user_id: userId,
+                title: notifTitle,
+                message: notifMessage,
+                type: 'system',
+                action_url: '/dashboard',
+            })
+
+            const { data: user } = await supabase
+                .from('users')
+                .select('email, first_name, phone_number')
+                .eq('id', userId)
+                .single()
+            const u = (user ?? {}) as any
+
             const { sendPushNotification } = await import('@/lib/push-service')
             await sendPushNotification(userId, {
                 title: notifTitle,
@@ -265,38 +338,36 @@ export async function processWalletUpgrade(params: UpgradeParams): Promise<Upgra
                 sendDealerExtensionSuccessEmail,
             } = await import('@/lib/email-service')
 
-            if (user.phone_number) {
+            if (u.phone_number) {
                 if (isAutoUpgrade && newExpiry) {
-                    await sendAutoUpgradeSuccessSMS(user.phone_number, user.first_name || 'User', planLabel, newExpiry, newBalance)
+                    await sendAutoUpgradeSuccessSMS(u.phone_number, u.first_name || 'User', planLabel, newExpiry, newBalance)
                         .catch(() => null)
                 } else if (upgradeType === 'dealer' && newExpiry) {
                     if (isExtension) {
-                        await sendDealerExtensionSuccessSMS(user.phone_number, newExpiry).catch(() => null)
+                        await sendDealerExtensionSuccessSMS(u.phone_number, newExpiry).catch(() => null)
                     } else {
-                        await sendDealerActivationSuccessSMS(user.phone_number, user.first_name || 'Dealer', newExpiry).catch(() => null)
+                        await sendDealerActivationSuccessSMS(u.phone_number, u.first_name || 'Dealer', newExpiry).catch(() => null)
                     }
                 } else if (isPermanent) {
-                    await sendPermanentAgentUpgradeSuccessSMS(user.phone_number).catch(() => null)
+                    await sendPermanentAgentUpgradeSuccessSMS(u.phone_number).catch(() => null)
                 } else if (newExpiry) {
-                    const now = new Date()
-                    const currentAgentExpiry = user.agent_expires_at ? new Date(user.agent_expires_at) : null
-                    if (currentAgentExpiry && currentAgentExpiry > now) {
-                        await sendAgentExtensionSuccessSMS(user.phone_number, newExpiry).catch(() => null)
+                    if (isExtension) {
+                        await sendAgentExtensionSuccessSMS(u.phone_number, newExpiry).catch(() => null)
                     } else {
-                        const remainingDays = Math.ceil((newExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                        await sendAgentUpgradeSuccessSMS(user.phone_number, user.first_name || 'Agent', planLabel, remainingDays, newExpiry.toISOString()).catch(() => null)
+                        const remainingDays = Math.ceil((newExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                        await sendAgentUpgradeSuccessSMS(u.phone_number, u.first_name || 'Agent', planLabel, remainingDays, newExpiry.toISOString()).catch(() => null)
                     }
                 }
             }
 
-            if (user.email) {
+            if (u.email) {
                 if (isPermanent) {
-                    await sendPermanentAgentUpgradeSuccessEmail(user.email, user.first_name || 'User').catch(() => null)
+                    await sendPermanentAgentUpgradeSuccessEmail(u.email, u.first_name || 'User').catch(() => null)
                 } else if (upgradeType === 'dealer' && newExpiry) {
                     if (isExtension) {
-                        await sendDealerExtensionSuccessEmail(user.email, user.first_name || 'Dealer', newExpiry).catch(() => null)
+                        await sendDealerExtensionSuccessEmail(u.email, u.first_name || 'Dealer', newExpiry).catch(() => null)
                     } else {
-                        await sendDealerActivationSuccessEmail(user.email, user.first_name || 'Dealer', newExpiry).catch(() => null)
+                        await sendDealerActivationSuccessEmail(u.email, u.first_name || 'Dealer', newExpiry).catch(() => null)
                     }
                 }
             }
@@ -305,54 +376,35 @@ export async function processWalletUpgrade(params: UpgradeParams): Promise<Upgra
         }
     })()
 
-    return { success: true, newExpiry: expiryISO }
+    // waitUntil keeps the serverless invocation alive until notifications finish (a bare
+    // floating promise can be frozen as soon as the response is sent).
+    try {
+        waitUntil(notify)
+    } catch {
+        // Outside a Vercel request context (local/tests) the promise simply runs on its own.
+    }
+
+    return result
 }
 
 /**
- * Fetch upgrade price from admin_settings.
- * Returns the price and human-readable label for the given plan.
+ * Fetch the authoritative upgrade price from `admin_settings`.
+ * Throws UpgradePriceError for an invalid plan or an unusable configured value.
  */
 export async function fetchUpgradePrice(
     upgradeType: UpgradeType,
     plan: PlanType,
     supabase: SupabaseClient
 ): Promise<{ price: number; planLabel: string; planDays: number | null }> {
-    const keys = [
-        'agent_upgrade_price_3d',
-        'agent_upgrade_price_14d',
-        'agent_upgrade_price_30d',
-        'agent_upgrade_price_permanent',
-        'dealer_upgrade_price_1m',
-        'dealer_upgrade_price_3m',
-        'dealer_upgrade_price_6m',
-    ]
-    const { data: settings } = await supabase
+    const { data: settings, error } = await supabase
         .from('admin_settings')
         .select('key, value')
-        .in('key', keys)
+        .in('key', PRICE_KEYS)
 
-    const get = (key: string, def: number) => {
-        const s = settings?.find((s: any) => s.key === key)
-        return s ? Number(s.value) : def
+    if (error) {
+        console.error('[WalletUpgrade] Failed to load upgrade prices:', error.message)
+        throw new UpgradePriceError('Upgrade prices are temporarily unavailable')
     }
 
-    if (upgradeType === 'dealer') {
-        const dealerPlanMap: Record<DealerPlan, { key: string; def: number; label: string; days: number }> = {
-            '1m': { key: 'dealer_upgrade_price_1m', def: 99.99,  label: '1 Month Dealer Pass',  days: 30  },
-            '3m': { key: 'dealer_upgrade_price_3m', def: 199.99, label: '3 Months Dealer Pass', days: 90  },
-            '6m': { key: 'dealer_upgrade_price_6m', def: 299.99, label: '6 Months Dealer Pass', days: 180 },
-        }
-        const entry = dealerPlanMap[plan as DealerPlan] ?? dealerPlanMap['6m']
-        return { price: get(entry.key, entry.def), planLabel: entry.label, planDays: entry.days }
-    }
-
-    const planMap: Record<AgentPlan, { key: string; def: number; label: string; days: number | null }> = {
-        '3d':        { key: 'agent_upgrade_price_3d',        def: 9.99,   label: '3 Days Agent Pass',   days: 3  },
-        '14d':       { key: 'agent_upgrade_price_14d',       def: 49.99,  label: '14 Days Agent Pass',  days: 14 },
-        '30d':       { key: 'agent_upgrade_price_30d',       def: 99.99,  label: '30 Days Agent Pass',  days: 30 },
-        'permanent': { key: 'agent_upgrade_price_permanent', def: 149.99, label: 'Permanent Agent Pass', days: null },
-    }
-
-    const entry = planMap[plan as AgentPlan] ?? planMap['30d']
-    return { price: get(entry.key, entry.def), planLabel: entry.label, planDays: entry.days }
+    return resolveUpgradePrice(settings as any, upgradeType, plan)
 }

@@ -11,15 +11,17 @@
  *
  * Security:
  *  - Requires CRON_SECRET Bearer token (validateCronAuth)
- *  - Uses service_role client for DB operations — no RLS bypass exploits possible
- *    because the RPC is SECURITY DEFINER and validates user ownership internally
- *  - Rate-limited to one attempt per user per cron run via deduplication check
+ *  - Uses service_role client for DB operations
+ *  - Each charge is the atomic `process_wallet_upgrade` RPC: it locks the user row, re-checks that
+ *    the membership is still due (so a manual renewal that raced this run is never charged twice),
+ *    and is idempotent per user per hour. A failure rolls back, so money is never kept without the
+ *    role grant.
  */
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { validateCronAuth } from '@/lib/cron-utils'
-import { processWalletUpgrade, fetchUpgradePrice } from '@/lib/wallet-upgrade'
+import { processWalletUpgrade, fetchUpgradePrice, isPlanValidForType } from '@/lib/wallet-upgrade'
 import { sendAutoUpgradeFailedSMS } from '@/lib/sms-service'
 import type { UpgradeType, PlanType } from '@/lib/wallet-upgrade'
 
@@ -65,12 +67,11 @@ export async function GET(request: Request) {
                 return new Date(u.dealer_expires_at) <= in24h
             }
             if (u.role === 'agent') {
-                // Permanent agents (agent_expires_at = null) don't need renewal
-                // unless they want to upgrade to dealer
-                if (!u.agent_expires_at) {
-                    const dealerPlans: string[] = ['1m', '3m', '6m']
-                    return dealerPlans.includes(u.auto_upgrade_plan) // lifetime agent → dealer renewal
-                }
+                // Permanent agents (agent_expires_at = null) never need an Agent renewal; only a
+                // Dealer plan applies. A leftover Agent plan is passed through on purpose: the RPC
+                // answers `already_permanent` (nothing charged) and the handler below switches the
+                // stale setting off and tells the user, instead of leaving it inert forever.
+                if (!u.agent_expires_at) return true
                 return new Date(u.agent_expires_at) <= in24h
             }
             // customer: eligible for any plan
@@ -85,6 +86,12 @@ export async function GET(request: Request) {
 
         const results: Array<{ id: string; status: string; error?: string }> = []
 
+        // Authoritative prices, resolved once per (type, plan) per run rather than once per user.
+        const priceCache = new Map<string, { price: number; planLabel: string }>()
+        // One idempotency key per user per hour: a re-fired cron in the same hour can never charge
+        // twice, and the RPC's own "still due?" re-check covers every other overlap.
+        const runBucket = now.toISOString().slice(0, 13)
+
         for (const user of due) {
             const plan = user.auto_upgrade_plan as PlanType
             if (!plan) {
@@ -92,29 +99,29 @@ export async function GET(request: Request) {
                 continue
             }
 
-            const DEALER_PLANS: PlanType[] = ['1m', '3m', '6m']
-            const upgradeType: UpgradeType = DEALER_PLANS.includes(plan) ? 'dealer' : 'agent'
-
-            // Deduplication: skip if we already successfully auto-upgraded this user
-            // in the last 12 hours (prevents double-fire if cron runs twice)
-            const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000)
-            const { data: recentNotif } = await supabaseAdmin
-                .from('notifications')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('title', 'Auto-Upgrade Successful')
-                .gte('created_at', twelveHoursAgo.toISOString())
-                .limit(1)
-
-            if (recentNotif && recentNotif.length > 0) {
-                results.push({ id: user.id, status: 'already_upgraded' })
+            const upgradeType: UpgradeType = ['1m', '3m', '6m'].includes(plan) ? 'dealer' : 'agent'
+            if (!isPlanValidForType(upgradeType, plan)) {
+                results.push({ id: user.id, status: 'skipped', error: 'Invalid plan configured' })
                 continue
             }
 
-            // Fetch authoritative price from admin_settings
-            const { price, planLabel } = await fetchUpgradePrice(upgradeType, plan, supabaseAdmin)
+            let price: number
+            let planLabel: string
+            try {
+                const cacheKey = `${upgradeType}:${plan}`
+                let resolved = priceCache.get(cacheKey)
+                if (!resolved) {
+                    resolved = await fetchUpgradePrice(upgradeType, plan, supabaseAdmin)
+                    priceCache.set(cacheKey, resolved)
+                }
+                ;({ price, planLabel } = resolved)
+            } catch (err) {
+                console.error(`[AutoUpgrade] Price unavailable for ${upgradeType}:${plan}:`, err)
+                results.push({ id: user.id, status: 'failed', error: 'Price unavailable' })
+                continue
+            }
 
-            // Attempt upgrade
+            // Attempt upgrade — atomic, re-verifies "due" on the locked user row
             const result = await processWalletUpgrade({
                 userId: user.id,
                 upgradeType,
@@ -122,11 +129,32 @@ export async function GET(request: Request) {
                 price,
                 planLabel,
                 isAutoUpgrade: true,
+                onlyIfDue: true,
+                idempotencyKey: `auto_${user.id}_${runBucket}`,
             })
 
-            if (result.success) {
+            if (result.success && result.alreadyProcessed) {
+                results.push({ id: user.id, status: 'already_upgraded' })
+            } else if (result.success) {
                 results.push({ id: user.id, status: 'upgraded' })
                 console.log(`[AutoUpgrade] User ${user.id} auto-upgraded (${planLabel})`)
+            } else if (result.code === 'not_due' || result.code === 'account_inactive') {
+                // Renewed meanwhile (manually or by an overlapping run), or the account is on hold.
+                results.push({ id: user.id, status: 'skipped', error: result.code })
+            } else if (result.code === 'not_eligible' || result.code === 'already_permanent' || result.code === 'invalid_request') {
+                // The saved plan can never be bought by this account (role changed, or the setting was
+                // tampered with). Nothing was charged — switch the flag off so it isn't retried every run.
+                await (supabaseAdmin.from('users') as any)
+                    .update({ auto_upgrade_enabled: false, auto_upgrade_plan: null, updated_at: now.toISOString() })
+                    .eq('id', user.id)
+                await (supabaseAdmin.from('notifications') as any).insert({
+                    user_id: user.id,
+                    title: 'Auto-Upgrade Turned Off',
+                    message: `Your auto-upgrade for ${planLabel} is no longer applicable to your account and has been turned off. You can set it up again from the Upgrade page.`,
+                    type: 'system',
+                    action_url: '/dashboard/upgrade',
+                })
+                results.push({ id: user.id, status: 'disabled_ineligible', error: result.code })
             } else if (result.insufficientBalance) {
                 console.log(`[AutoUpgrade] User ${user.id} insufficient balance — need GHS ${result.requiredAmount}, have GHS ${result.currentBalance}`)
 
@@ -189,6 +217,6 @@ export async function GET(request: Request) {
         })
     } catch (err: any) {
         console.error('[AutoUpgrade] Exception:', err)
-        return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 })
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }

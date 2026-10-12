@@ -2,8 +2,9 @@ import { createServerClient } from './supabase'
 import { waitUntil } from '@vercel/functions'
 import { sendDealerActivationSuccessEmail, sendDealerExtensionSuccessEmail } from './email-service'
 import { sendDealerActivationSuccessSMS, sendDealerExtensionSuccessSMS } from './sms-service'
-import { dealerMonthsFromPlan } from './wallet-upgrade'
+import { dealerMonthsFromPlan, addMonthsClamped } from './wallet-upgrade'
 import type { DealerPlan } from './wallet-upgrade'
+import { refundUpgradePaymentToWallet } from './upgrade-payment-refund'
 
 /**
  * Processes a completed dealer upgrade payment.
@@ -101,7 +102,12 @@ export async function processCompletedDealerUpgradePayment(reference: string, pr
     const isCurrentDealer = user.role === 'dealer'
     if (!isLifetimeAgent && !isCurrentDealer) {
         console.error('[DealerUpgradeProcess] User is not eligible:', payment.user_id)
-        return { success: false, error: 'User must be a Lifetime Agent or current Dealer' }
+        // Money is already taken and the payment is marked completed (no reconciler will retry):
+        // return it to the wallet instead of keeping it without granting the role.
+        const refund = await refundUpgradePaymentToWallet(supabase, payment, 'not_eligible')
+        return refund.success
+            ? { success: false, error: 'User not eligible — payment refunded to wallet', refunded: true }
+            : { success: false, error: 'User must be a Lifetime Agent or current Dealer' }
     }
 
     // 4. Compute new expiry using the plan stored in payment metadata.
@@ -113,22 +119,34 @@ export async function processCompletedDealerUpgradePayment(reference: string, pr
     const planLabel = payment.metadata?.plan_label ?? `${months === 1 ? '1 Month' : `${months} Months`} Dealer Pass`
     const currentExpiry = user.dealer_expires_at ? new Date(user.dealer_expires_at) : null
     const base = currentExpiry && currentExpiry > new Date() ? currentExpiry : new Date()
-    const dealerExpiry = new Date(base)
-    dealerExpiry.setMonth(dealerExpiry.getMonth() + months)
+    const dealerExpiry = addMonthsClamped(base, months)
     const isExtension = isCurrentDealer
 
-    const { error: updateUserError } = await (supabase
-        .from('users') as any)
+    // Compare-and-swap on exactly what we read: this path holds no row lock, so if a wallet upgrade
+    // (process_wallet_upgrade, which does lock) changed the role/expiry in the meantime, 0 rows match
+    // and we refund rather than overwrite the newer grant.
+    let casUpdate = (supabase.from('users') as any)
         .update({
             role: 'dealer',
             dealer_expires_at: dealerExpiry.toISOString(),
             updated_at: new Date().toISOString(),
         })
         .eq('id', payment.user_id)
+        .eq('role', user.role)
+    casUpdate = user.agent_expires_at === null ? casUpdate.is('agent_expires_at', null) : casUpdate.eq('agent_expires_at', user.agent_expires_at)
+    casUpdate = user.dealer_expires_at === null ? casUpdate.is('dealer_expires_at', null) : casUpdate.eq('dealer_expires_at', user.dealer_expires_at)
+    const { data: updatedRows, error: updateUserError } = await casUpdate.select('id')
 
-    if (updateUserError) {
-        console.error('[DealerUpgradeProcess] Update user error:', updateUserError)
-        return { success: false, error: 'Failed to update user role' }
+    if (updateUserError || !updatedRows || updatedRows.length === 0) {
+        console.error('[DealerUpgradeProcess] Update user failed or state changed:', updateUserError ?? 'no rows matched')
+        const refund = await refundUpgradePaymentToWallet(
+            supabase,
+            payment,
+            updateUserError ? 'role_update_failed' : 'state_changed'
+        )
+        return refund.success
+            ? { success: false, error: 'Failed to update user role — payment refunded to wallet', refunded: true }
+            : { success: false, error: 'Failed to update user role' }
     }
 
     const expiryFormatted = dealerExpiry.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })

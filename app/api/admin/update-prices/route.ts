@@ -33,6 +33,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Prices are required' }, { status: 400 })
         }
 
+        // Every price that will be stored must be a finite, positive GHS amount. Anything else
+        // ("NaN", 0, negative) would otherwise be saved and then rejected (fail-closed) at checkout.
+        const candidatePrices: Record<string, unknown> = {
+            '3d': prices['3d'], '14d': prices['14d'], '30d': prices['30d'], 'permanent': prices['permanent'],
+            ...(dealerPrice !== undefined ? { dealer6m: dealerPrice } : {}),
+            ...(dealerPrice1m !== undefined ? { dealer1m: dealerPrice1m } : {}),
+            ...(dealerPrice3m !== undefined ? { dealer3m: dealerPrice3m } : {}),
+        }
+        for (const [label, raw] of Object.entries(candidatePrices)) {
+            const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN
+            if (!Number.isFinite(n) || n <= 0 || n > 100000) {
+                return NextResponse.json({ error: `Invalid price for ${label}` }, { status: 400 })
+            }
+        }
+
         // Create admin client with service role key to bypass RLS
         const supabaseAdmin = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -73,14 +88,8 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Update old prices
-        for (const { key, value } of oldPriceUpdates) {
-            await supabaseAdmin.from('admin_settings').delete().eq('key', key)
-            await supabaseAdmin.from('admin_settings').insert({ key, value } as any)
-        }
-
-        // Update new prices
-        const updates = [
+        // New prices (old-price snapshots are folded into the same atomic upsert below)
+        const updates: Array<{ key: string; value: any }> = [
             { key: 'agent_upgrade_price_3d', value: String(prices['3d']) },
             { key: 'agent_upgrade_price_14d', value: String(prices['14d']) },
             { key: 'agent_upgrade_price_30d', value: String(prices['30d']) },
@@ -102,20 +111,16 @@ export async function POST(request: NextRequest) {
             updates.push({ key: 'dealer_upgrade_price_3m', value: String(dealerPrice3m) })
         }
 
-        for (const { key, value } of updates) {
-            // Delete existing record if it exists
-            await supabaseAdmin.from('admin_settings').delete().eq('key', key)
+        // ONE atomic upsert. The previous delete-then-insert per key left a window in which the
+        // price row didn't exist, during which the purchase flow fell back to its hardcoded default
+        // price (and a failure mid-loop left the prices half-updated).
+        const { error: upsertError } = await supabaseAdmin
+            .from('admin_settings')
+            .upsert([...oldPriceUpdates, ...updates] as any, { onConflict: 'key' })
 
-            // Insert new record
-            const { error } = await supabaseAdmin.from('admin_settings').insert({ key, value } as any)
-
-            if (error) {
-                console.error(`Error updating ${key}:`, error)
-                return NextResponse.json(
-                    { error: `Failed to update ${key}: ${error.message}` },
-                    { status: 500 }
-                )
-            }
+        if (upsertError) {
+            console.error('Error updating prices:', upsertError)
+            return NextResponse.json({ error: 'Failed to update prices' }, { status: 500 })
         }
 
         // Verify the updates

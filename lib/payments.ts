@@ -2,6 +2,7 @@ import { createServerClient } from './supabase'
 import { sendWalletTopupSuccessEmail, sendPermanentAgentUpgradeSuccessEmail } from './email-service'
 import { sendWalletTopupSuccessSMS, sendAgentUpgradeSuccessSMS, sendAgentExtensionSuccessSMS, sendPermanentAgentUpgradeSuccessSMS } from './sms-service'
 import { waitUntil } from '@vercel/functions'
+import { refundUpgradePaymentToWallet } from './upgrade-payment-refund'
 
 export { processCompletedDealerUpgradePayment } from './dealer-payments'
 
@@ -298,6 +299,22 @@ export async function processCompletedUpgradePayment(reference: string, provider
         return { success: false, error: 'User not found' }
     }
 
+    // 3b. Eligibility. A Lifetime Agent must never be re-bought into a timed pass (it would erase
+    // lifetime status), and only customers / existing agents may buy an Agent pass. The money is
+    // already taken, so refund it to the wallet rather than keep it without granting anything.
+    const isLifetimeAgent = user.role === 'agent' && user.agent_expires_at === null
+    if (isLifetimeAgent || (user.role !== 'customer' && user.role !== 'agent')) {
+        console.error('[UpgradeProcess] User not eligible for agent pass:', payment.user_id, user.role)
+        const refund = await refundUpgradePaymentToWallet(
+            supabase,
+            payment,
+            isLifetimeAgent ? 'already_permanent' : 'not_eligible'
+        )
+        return refund.success
+            ? { success: false, error: 'User not eligible — payment refunded to wallet', refunded: true }
+            : { success: false, error: 'User not eligible and refund failed' }
+    }
+
     // 4. Calculate new expiry
     const isPermanent = (payment.metadata as any)?.plan_type === 'permanent';
     const planDays = (payment.metadata as any)?.plan_days || 30
@@ -316,18 +333,28 @@ export async function processCompletedUpgradePayment(reference: string, provider
     }
 
     // 5. Update user role and expiry
-    const { error: updateUserError } = await (supabase
-        .from('users') as any)
+    // Compare-and-swap on exactly what we read: this path holds no row lock, so if a wallet upgrade
+    // (process_wallet_upgrade, which does lock) changed the role/expiry in the meantime — e.g. granted
+    // Lifetime Agent — 0 rows match and we refund rather than overwrite the newer grant.
+    let casUpdate = (supabase.from('users') as any)
         .update({
             role: 'agent',
             agent_expires_at: isPermanent ? null : newExpiry?.toISOString(),
             updated_at: new Date().toISOString(),
         })
         .eq('id', payment.user_id)
+        .eq('role', user.role)
+    casUpdate = user.agent_expires_at === null ? casUpdate.is('agent_expires_at', null) : casUpdate.eq('agent_expires_at', user.agent_expires_at)
+    const { data: updatedRows, error: updateUserError } = await casUpdate.select('id')
 
-    if (updateUserError) {
-        console.error('[UpgradeProcess] Update user error:', updateUserError)
-        return { success: false, error: 'Failed to update user role' }
+    if (updateUserError || !updatedRows || updatedRows.length === 0) {
+        console.error('[UpgradeProcess] Update user failed or state changed:', updateUserError ?? 'no rows matched')
+        // Payment is already marked completed, so no reconciler will retry this — refund instead
+        // of leaving the customer paid-but-not-upgraded.
+        const refund = await refundUpgradePaymentToWallet(supabase, payment, updateUserError ? 'role_update_failed' : 'state_changed')
+        return refund.success
+            ? { success: false, error: 'Failed to update user role — payment refunded to wallet', refunded: true }
+            : { success: false, error: 'Failed to update user role' }
     }
 
     // 6. Create notification
