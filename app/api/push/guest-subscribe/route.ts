@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
         if (!body || typeof body !== 'object') {
             return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
         }
-        const { shopId, endpoint, p256dh, auth, guestPhone } = body as Record<string, unknown>
+        // NOTE: a client-supplied guestPhone is deliberately NOT accepted. Order pushes are keyed
+        // on the phone (lib/push-service sendGuestOrderPush), so an unverified phone would let
+        // anyone subscribe as a victim's number and receive their order details.
+        const { shopId, endpoint, p256dh, auth } = body as Record<string, unknown>
 
         // ── Strict field validation ────────────────────────────────────
         if (typeof shopId !== 'string' || !UUID_RE.test(shopId)) {
@@ -49,9 +52,6 @@ export async function POST(req: NextRequest) {
         }
         if (typeof auth !== 'string' || auth.length < 1 || auth.length > 256) {
             return NextResponse.json({ error: 'Invalid auth key' }, { status: 400 })
-        }
-        if (guestPhone != null && (typeof guestPhone !== 'string' || guestPhone.length > 20)) {
-            return NextResponse.json({ error: 'Invalid guestPhone' }, { status: 400 })
         }
 
         const adminDb = createClient(
@@ -96,7 +96,6 @@ export async function POST(req: NextRequest) {
                     endpoint,
                     p256dh,
                     auth,
-                    guest_phone: guestPhone || null,
                     updated_at: new Date().toISOString(),
                 },
                 { onConflict: 'shop_id,endpoint' }

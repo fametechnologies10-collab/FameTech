@@ -373,14 +373,14 @@ async function sendOrderStatusPush(
             if (shopOrder?.guest_phone && shopOrder?.shop_id) {
                 const { data: shopProfile } = await (adminDb as any)
                     .from('shop_profiles')
-                    .select('slug')
+                    .select('shop_slug')
                     .eq('id', shopOrder.shop_id)
                     .single()
 
                 await sendGuestOrderPush(shopOrder.shop_id, shopOrder.guest_phone, {
                     title: guestNotification.title,
                     body: guestNotification.body(order),
-                    url: shopProfile?.slug ? `/shop/${shopProfile.slug}` : '/',
+                    url: shopProfile?.shop_slug ? `/shop/${shopProfile.shop_slug}` : '/',
                 })
             }
         }
@@ -459,11 +459,11 @@ export async function sendGuestAnnouncementPush(payload: {
     const shopIds: string[] = [...new Set<string>(subs.map((s: any) => s.shop_id as string))]
     const { data: shops } = await (adminDb as any)
         .from('shop_profiles')
-        .select('id, slug')
+        .select('id, shop_slug')
         .in('id', shopIds)
 
     const slugMap: Record<string, string> = {}
-    for (const s of (shops ?? [])) slugMap[s.id] = s.slug
+    for (const s of (shops ?? [])) slugMap[s.id] = s.shop_slug
 
     let sent = 0
     let failed = 0

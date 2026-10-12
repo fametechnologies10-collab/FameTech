@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getClientIp } from '@/lib/api-auth'
-import { consumeRateLimit } from '@/lib/simple-rate-limit'
+import { getGuestIp } from '@/lib/client-ip'
+import { checkGuestLimit } from '@/lib/guest-ratelimit'
 import { isUtilityBiller, UTILITY_BILLERS, sanitizeAccountInfoForClient } from '@/lib/hubtel-utility/billers'
 import { lookupUtilityAccountKingFlexy } from '@/lib/kingflexy-commission-service'
 
@@ -24,11 +24,10 @@ const MAX_INPUT_LEN = 30
 export async function POST(request: NextRequest) {
     try {
         // ── Rate limit (guest, IP-scoped) — first statement, matching the charge route ──
-        const ip = getClientIp(request) || 'unknown'
-        const rl = consumeRateLimit(`util-sf-lookup:${ip}`, 6, 60_000)
-        if (!rl.allowed) {
+        const ip = getGuestIp(request)
+        if (!(await checkGuestLimit('util-sf-lookup', ip, 6, 60))) {
             return NextResponse.json(
-                { success: false, error: `Too many lookups. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+                { success: false, error: 'Too many lookups. Please try again in a minute.' },
                 { status: 429 },
             )
         }

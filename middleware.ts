@@ -93,6 +93,11 @@ const fallbackCriticalLimits: Record<string, InMemoryLimitConfig> = {
     // Storefront guest MoMo charge — same reasoning (real prompts). Fail-closed on Redis outage.
     '/api/shop/charge': { maxRequests: 10, windowMs: 60 * 1000 },
     '/api/shop/charge/submit-otp': { maxRequests: 10, windowMs: 60 * 1000 },
+    // Storefront siblings: each fires a real MoMo prompt or a real SMS to a caller-chosen number.
+    '/api/shop/afa/charge': { maxRequests: 10, windowMs: 60 * 1000 },
+    '/api/shop/results-checker/charge': { maxRequests: 10, windowMs: 60 * 1000 },
+    '/api/shop/utility/charge': { maxRequests: 10, windowMs: 60 * 1000 },
+    '/api/shop/verify-number': { maxRequests: 10, windowMs: 60 * 1000 },
     // Admin payout endpoint — triggers real MoMo/bank transfers; cap tightly if Redis is down.
     '/api/admin/process-withdrawal': { maxRequests: 5, windowMs: 60 * 1000 },
     // Money/fulfillment paths — a Redis outage must NOT remove their limit (they
@@ -255,6 +260,15 @@ const rateLimiters = REDIS_CONFIGURED ? {
     shopCharge: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopCharge' }),
     shopChargeOtp: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopChargeOtp' }),
     shopChargePoll: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 m'), prefix: 'ft:shopChargePoll' }),
+    // Storefront siblings of /charge — same GUEST + real-prompt (or real-SMS) risk, previously
+    // fell through to the loose `general` bucket (100/min) and failed OPEN on a Redis outage.
+    shopAfaCharge: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopAfaCharge' }),
+    shopRcCharge: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopRcCharge' }),
+    shopUtilityCharge: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopUtilityCharge' }),
+    shopUtilityLookup: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, '1 m'), prefix: 'ft:shopUtilityLookup' }),
+    shopVerifyNumber: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:shopVerifyNumber' }),
+    rcRetrieve: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 m'), prefix: 'ft:rcRetrieve' }),
+    guestPushSubscribe: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '10 m'), prefix: 'ft:guestPushSubscribe' }),
     // ── Webhooks ──────────────────────────────────────────────
     webhook: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 m'), prefix: 'ft:webhook' }),
     // ── User actions ──────────────────────────────────────────
@@ -877,8 +891,32 @@ export async function middleware(request: NextRequest) {
         } else if (pathname === '/api/shop/charge/submit-otp') {
             limiter = rateLimiters.shopChargeOtp
             identifier = ip
-        } else if (pathname === '/api/shop/charge/status') {
+        } else if (pathname === '/api/shop/charge/status'
+            || pathname === '/api/shop/afa/charge/status'
+            || pathname === '/api/shop/results-checker/charge/status'
+            || pathname === '/api/shop/utility/charge/status') {
             limiter = rateLimiters.shopChargePoll
+            identifier = ip
+        } else if (pathname === '/api/shop/afa/charge') {
+            limiter = rateLimiters.shopAfaCharge
+            identifier = ip
+        } else if (pathname === '/api/shop/results-checker/charge') {
+            limiter = rateLimiters.shopRcCharge
+            identifier = ip
+        } else if (pathname === '/api/shop/utility/charge') {
+            limiter = rateLimiters.shopUtilityCharge
+            identifier = ip
+        } else if (pathname === '/api/shop/utility/lookup') {
+            limiter = rateLimiters.shopUtilityLookup
+            identifier = ip
+        } else if (pathname === '/api/shop/verify-number') {
+            limiter = rateLimiters.shopVerifyNumber
+            identifier = ip
+        } else if (pathname === '/api/results-checker/retrieve') {
+            limiter = rateLimiters.rcRetrieve
+            identifier = ip
+        } else if (pathname === '/api/push/guest-subscribe') {
+            limiter = rateLimiters.guestPushSubscribe
             identifier = ip
         } else if (pathname === '/api/webhooks/paystack') {
             limiter = rateLimiters.webhook

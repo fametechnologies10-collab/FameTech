@@ -18,7 +18,7 @@
  */
 import crypto from 'crypto'
 import { sendPhoneOTPSms } from '@/lib/sms-service'
-import { consumeRateLimit } from '@/lib/simple-rate-limit'
+import { checkGuestLimit } from '@/lib/guest-ratelimit'
 
 // Store hashed OTP — raw code is never written to DB. Identical algorithm to
 // verify-phone's hashOTP so a reader auditing either table sees the same format.
@@ -89,15 +89,15 @@ export async function sendVerificationOtp(
         return { ok: true, alreadyVerified: true }
     }
 
+    // Both caps are Redis-backed (global across serverless instances): an SMS goes to a
+    // number the caller chooses, so a per-instance counter would not bind an attacker.
     // Per-IP: max 5 send attempts per 10 minutes
-    const ipLimit = consumeRateLimit(`verify-number-send-ip:${ip}`, 5, 10 * 60 * 1000)
-    if (!ipLimit.allowed) {
+    if (!(await checkGuestLimit('verify-number-send-ip', ip, 5, 10 * 60))) {
         return { ok: false, status: 429, error: 'Too many requests. Please try again later.' }
     }
 
     // Per-phone: max 3 OTPs per hour
-    const phoneLimit = consumeRateLimit(`verify-number-send-phone:${phone233}`, 3, 60 * 60 * 1000)
-    if (!phoneLimit.allowed) {
+    if (!(await checkGuestLimit('verify-number-send-phone', phone233, 3, 60 * 60))) {
         return { ok: false, status: 429, error: 'Too many codes sent to this number. Please wait before requesting another.' }
     }
 
@@ -194,8 +194,7 @@ export async function confirmVerificationOtp(
     recordId?: string; alreadyProcessed?: boolean; cachedResult?: unknown
 }> {
     // Per-IP: max 10 verify attempts per 5 minutes (cross-session brute-force guard)
-    const ipLimit = consumeRateLimit(`verify-number-verify-ip:${ip}`, 10, 5 * 60 * 1000)
-    if (!ipLimit.allowed) {
+    if (!(await checkGuestLimit('verify-number-verify-ip', ip, 10, 5 * 60))) {
         return { ok: false, status: 429, error: 'Too many attempts. Please try again later.' }
     }
 

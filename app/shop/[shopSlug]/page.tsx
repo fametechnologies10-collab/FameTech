@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase'
 import { createServerComponentClient } from '@/lib/supabase-server'
 import ShopStorefront from './ShopStorefront'
 import { getAdminOOSNetworks, mergeOOS } from '@/lib/network-stock'
-import type { UtilityBiller } from '@/lib/hubtel-utility/billers'
+import { STOREFRONT_SHOP_COLUMNS, toClientShop, isShopLive, resolveUtilityStorefrontConfig } from '@/lib/storefront-shared'
 
 interface Props {
     params: Promise<{ shopSlug: string }>
@@ -19,11 +19,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     const { data: shop } = await (supabase
         .from('shop_profiles')
-        .select('shop_name, description, logo_url')
+        .select('shop_name, description, logo_url, approval_status, is_active')
         .eq('shop_slug', shopSlug)
         .single() as any)
 
-    if (!shop) {
+    if (!shop || !isShopLive(shop)) {
         return { title: 'Shop Not Found' }
     }
 
@@ -65,14 +65,15 @@ export default async function ShopPage({ params }: Props) {
     // Fetch shop — include pricing_status so we can show Under Review state
     const { data: shop } = await (supabase
         .from('shop_profiles')
-        .select('id, shop_name, shop_slug, description, owner_phone, owner_email, whatsapp_number, logo_url, community_link, divider_style, brand_color, brand_accent, approval_status, pricing_status, is_active, owner_id, airtime_fee_mtn, airtime_fee_telecel, airtime_fee_at, mashup_fee_percent, results_checker_markup_customer, ussd_code, ussd_active, oos_networks, utilities_enabled, afa_selling_price, paystack_fee_percent')
+        .select(STOREFRONT_SHOP_COLUMNS)
         .eq('shop_slug', shopSlug)
         .single() as any)
 
     // Note: session refresh is handled by middleware; no explicit call needed here
 
-    // Shop doesn't exist → 404
-    if (!shop) {
+    // Shop doesn't exist or is explicitly deactivated → 404 (same rule as shop-domain; checkout
+    // already rejects inactive shops, so rendering a buyable storefront here was a UX dead end).
+    if (!shop || !shop.is_active) {
         notFound()
     }
 
@@ -110,29 +111,10 @@ export default async function ShopPage({ params }: Props) {
         adminSettingsMap[row.key] = row.value
     }
 
-    // ── Utility Bills tab gate — resolved ONCE, server-side, into a single boolean so the
-    // client never re-derives gating. Mirrors the gate chain in app/api/shop/utility/lookup
-    // and lib/shop-checkout.ts's 'utility' branch: global admin gates AND ≥1 biller enabled
-    // AND the shop's own opt-in (shop_profiles.utilities_enabled). Sub-agent shops are allowed
-    // to sell utilities same as any other shop — no sub-agent exclusion here. ──
-    const { UTILITY_BILLER_KEYS } = await import('@/lib/hubtel-utility/billers')
-    const { parseSettingNumber } = await import('@/lib/paystack-fees')
-
-    const billersMapRaw = adminSettingsMap['hubtel_utility_billers']
-    const enabledUtilityBillers: Partial<Record<UtilityBiller, boolean>> = {}
-    for (const key of UTILITY_BILLER_KEYS as UtilityBiller[]) {
-        enabledUtilityBillers[key] = !!(billersMapRaw && typeof billersMapRaw === 'object' && !Array.isArray(billersMapRaw) && billersMapRaw[key] === true)
-    }
-    const anyUtilityBillerEnabled = Object.values(enabledUtilityBillers).some(Boolean)
-
-    const utilitiesEnabled =
-        adminSettingsMap['utility_bills_enabled'] === 'true' &&
-        adminSettingsMap['storefront_utilities_enabled'] === 'true' &&
-        anyUtilityBillerEnabled &&
-        shop.utilities_enabled === true
-
-    const utilityMinAmount = parseSettingNumber(adminSettingsMap['utility_min_amount'], 1)
-    const utilityMaxAmount = parseSettingNumber(adminSettingsMap['utility_max_amount'], 1000)
+    // Utility Bills tab gate — resolved ONCE, server-side (shared with app/shop-domain/[shopSlug]/page.tsx
+    // via lib/storefront-shared so the two entry points cannot drift again).
+    const { utilitiesEnabled, enabledUtilityBillers, utilityMinAmount, utilityMaxAmount } =
+        resolveUtilityStorefrontConfig(adminSettingsMap, shop.utilities_enabled)
 
     // Check Global Storefront Access Settings
     const storefrontSetting = adminSettingsMap['page_access_storefront']
@@ -337,7 +319,7 @@ export default async function ShopPage({ params }: Props) {
     const oosNetworks = [...mergeOOS(adminOOS, shop.oos_networks)]
 
     return <ShopStorefront
-        shop={{ ...shop, ownerRole }}
+        shop={toClientShop(shop, ownerRole)}
         packages={packages}
         adminSettings={adminSettingsMap}
         initialAnnouncement={initialAnnouncement}

@@ -12,6 +12,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { computeShopAfaCheckout } from '@/lib/shop-afa-checkout'
 import { sanitizeForPaystack, buildGuestEmail } from '@/lib/shop-checkout'
+import { getGuestIp } from '@/lib/client-ip'
+import { checkChargePhoneLimit } from '@/lib/charge-phone-ratelimit'
 
 // Best-effort per-lambda IP rate limit (10/min). Real dup-guard is the DB UNIQUE
 // constraint on shop_afa_pending_orders.paystack_reference. Mirrors shop/charge/route.ts.
@@ -30,7 +32,7 @@ const GHANA_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATL'> = {
 export async function POST(request: NextRequest) {
     try {
         cleanup()
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+        const ip = getGuestIp(request)
         const rl = rateLimitCache.get(ip) || { count: 0, resetTime: Date.now() + 60000 }
         if (rl.count >= 10 && rl.resetTime > Date.now()) {
             return NextResponse.json({ error: 'Too many requests. Please try again in a minute.' }, { status: 429 })
@@ -51,6 +53,11 @@ export async function POST(request: NextRequest) {
         const provider = (momoProvider && PROVIDER_MAP[momoProvider]) || GHANA_NETWORK_MAP[momoPhone.slice(0, 3)] || null
         if (!provider) {
             return NextResponse.json({ error: 'Could not detect your mobile money network. Please select it.', needsManualSelection: true }, { status: 400 })
+        }
+
+        // Prompt target is caller-chosen — cap prompts per phone (global, Redis).
+        if (!(await checkChargePhoneLimit(momoPhone))) {
+            return NextResponse.json({ error: 'Too many payment prompts sent to this number. Please wait a few minutes and try again.' }, { status: 429 })
         }
 
         const { createServerClient } = await import('@/lib/supabase')

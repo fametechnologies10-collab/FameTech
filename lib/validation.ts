@@ -7,7 +7,23 @@ import {
 } from '@/lib/password-validation'
 
 const htmlBlockRegex = /[<>&]/
-const scriptBlockRegex = /script|javascript:|onclick|onerror|onload|onmouseover|eval\(|data:/i
+// Matches script-injection VECTORS, not substrings of ordinary words. The previous bare
+// /script|data:|onload.../ rejected legitimate copy such as "description", "subscription",
+// "transcript" and "Cheap Data: MTN" (every Ghana data shop's favourite phrase) with a generic
+// "Invalid characters detected". Output is also React-escaped, so this is defence in depth —
+// it must stay strict on real payloads (<script, javascript:, inline handlers, eval(, data: URIs
+// with a MIME type) without hitting prose.
+const scriptBlockRegex = new RegExp(
+  [
+    String.raw`<\s*\/?\s*script`,                                   // <script> / </script>
+    String.raw`\b(?:java|vb)script\s*:`,                            // javascript: / vbscript:
+    String.raw`\bon[a-z]{3,20}\s*=`,                                // inline handlers: onclick=, onfocus=, onmouseenter=, …
+    String.raw`\beval\s*\(`,                                        // eval(
+    String.raw`\bdata\s*:\s*(?:text\/|application\/|image\/svg)`,   // data:text/html, data:application/…, data:image/svg…
+    String.raw`\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+\s*[;,]`,           // data:<mime>;base64, / data:<mime>,
+  ].join('|'),
+  'i'
+)
 
 // User-facing schemas — strict, block all HTML and script patterns
 export const nameSchema = z.string()

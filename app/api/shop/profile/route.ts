@@ -41,6 +41,20 @@ const shopProfileSchema = z.object({
     }).optional(),
 })
 
+// True only for a public object under `<our supabase project>/storage/v1/object/public/shop-logos/<ownerId>/`.
+function isOwnShopLogoUrl(raw: string, ownerId: string): boolean {
+    try {
+        const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (!base) return false
+        const u = new URL(raw)
+        return u.protocol === 'https:'
+            && u.host === new URL(base).host
+            && u.pathname.startsWith(`/storage/v1/object/public/shop-logos/${ownerId}/`)
+    } catch {
+        return false
+    }
+}
+
 // Helper: convert empty strings to null for optional text fields
 function emptyToNull(val: string | undefined | null): string | null {
     if (val === undefined || val === null || val.trim() === '') return null
@@ -96,6 +110,17 @@ async function handleShopProfileWrite(request: NextRequest, mode: 'create' | 'up
             logo_url?: string | null
             divider_style?: string
             setup_progress?: { step: number; completed: string[] }
+        }
+
+        // Logos must be the owner's OWN object in our shop-logos bucket (what /api/shop/upload
+        // returns). urlSchema alone accepts any https URL, which lets a shop point visitors'
+        // browsers at an arbitrary third-party host (tracking pixel / IP + UA harvesting on every
+        // storefront view and OG preview) — and next/image only optimises *.supabase.co anyway.
+        if (data.logo_url && !isOwnShopLogoUrl(data.logo_url.trim(), userId)) {
+            return NextResponse.json(
+                { error: 'Invalid input', details: ['logo_url: Upload your logo with the logo uploader.'] },
+                { status: 400 }
+            )
         }
 
         // Build safe DB payload — empty optional strings become null

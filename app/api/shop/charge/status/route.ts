@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 
 const refLimitCache = new Map<string, { count: number; resetAt: number }>()
@@ -21,7 +22,7 @@ const TERMINAL = new Set(['failed', 'abandoned', 'reversed'])
 export async function GET(request: NextRequest) {
     try {
         cleanup()
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+        const ip = getGuestIp(request)
         if (!bump(ipLimitCache, ip, 60)) {
             return NextResponse.json({ paid: false, pending: true, status: 'pending' }, { status: 429 })
         }

@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
@@ -24,7 +25,7 @@ setInterval(() => {
 const supabaseAdmin = createServerClient()
 
 export async function GET(req: NextRequest) {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+    const ip = getGuestIp(req)
     if (!checkRateLimit(ip)) {
         return NextResponse.json({ error: 'Too many requests. Please wait a minute.' }, { status: 429 })
     }
@@ -32,7 +33,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const phone    = searchParams.get('phone')
     const shopSlug = searchParams.get('shopSlug')
-    const limit    = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
+    // Clamp to 1..100. parseInt('abc') is NaN, which JSON-serialises to null → `LIMIT NULL`
+    // (unbounded) in the RPC; a negative value is a SQL error. Both must fall back to the default.
+    const parsedLimit = parseInt(searchParams.get('limit') || '50', 10)
+    const limit    = Number.isFinite(parsedLimit) && parsedLimit >= 1 ? Math.min(parsedLimit, 100) : 50
 
     // Require both phone AND shopSlug — prevents cross-shop enumeration
     if (!phone || !shopSlug) {

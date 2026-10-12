@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateReferenceCode } from '@/lib/utils'
 import {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     try {
         cleanupCache()
 
-        const ip = request.headers.get('x-forwarded-for') || 'unknown'
+        const ip = getGuestIp(request)
         let body: any
         try {
             body = await request.json()

@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import {
     isStorefrontRCEnabled,
@@ -34,7 +35,7 @@ function cleanup() { const now = Date.now(); for (const [k, v] of rateLimitCache
 export async function POST(request: NextRequest) {
     try {
         cleanup()
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+        const ip = getGuestIp(request)
 
         const body = await request.json().catch(() => null)
         if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })

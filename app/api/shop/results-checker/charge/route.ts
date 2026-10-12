@@ -22,6 +22,8 @@ import {
 } from '@/lib/results-checker-utils'
 import { resolveSubAgentContext } from '@/lib/sub-agent-account'
 import { resolveSubAgentRcCost } from '@/lib/sub-agent-rc-pricing'
+import { getGuestIp } from '@/lib/client-ip'
+import { checkChargePhoneLimit } from '@/lib/charge-phone-ratelimit'
 
 // Storefront network name → Paystack mobile_money provider code (mirrors /api/shop/charge).
 const PROVIDER_MAP: Record<string, 'MTN' | 'VOD' | 'ATL'> = { MTN: 'MTN', Telecel: 'VOD', AT: 'ATL' }
@@ -45,7 +47,7 @@ function cleanup() { const now = Date.now(); for (const [k, v] of rateLimitCache
 export async function POST(request: NextRequest) {
     try {
         cleanup()
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+        const ip = getGuestIp(request)
 
         const body = await request.json().catch(() => null)
         if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
@@ -75,6 +77,11 @@ export async function POST(request: NextRequest) {
         const provider = (momoProvider && PROVIDER_MAP[momoProvider]) || GHANA_NETWORK_MAP[momoPhone.slice(0, 3)] || null
         if (!provider) {
             return NextResponse.json({ error: 'Could not detect your mobile money network. Please select it.', needsManualSelection: true }, { status: 400 })
+        }
+
+        // Prompt target is caller-chosen — cap prompts per phone (global, Redis).
+        if (!(await checkChargePhoneLimit(momoPhone))) {
+            return NextResponse.json({ error: 'Too many payment prompts sent to this number. Please wait a few minutes and try again.' }, { status: 429 })
         }
 
         // Rate limit (mirrors RC initialize: 5/min per ip+shop)

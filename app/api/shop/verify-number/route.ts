@@ -1,8 +1,8 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { validateGhanaianPhone } from '@/lib/phone-validation'
 import { hasTrustedRequestOrigin } from '@/lib/site-url'
-import { consumeRateLimit } from '@/lib/simple-rate-limit'
 import { toMsisdn233 } from '@/lib/hubtel-commission-service'
 import { sendVerificationOtp, confirmVerificationOtp } from '@/lib/hubtel-receive/number-verification'
 
@@ -23,11 +23,7 @@ import { sendVerificationOtp, confirmVerificationOtp } from '@/lib/hubtel-receiv
  */
 
 function getClientIp(request: NextRequest): string {
-    return (
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip') ||
-        'unknown'
-    )
+    return getGuestIp(request)
 }
 
 export async function POST(request: NextRequest) {

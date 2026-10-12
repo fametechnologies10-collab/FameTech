@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
@@ -14,7 +15,7 @@ function checkRateLimit(ip: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+    const ip = getGuestIp(request)
     if (!checkRateLimit(ip)) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
         const supabase = createServerClient()
         const { data, error } = await supabase
             .from('shop_profiles')
-            .select('shop_name, logo_url, owner_phone, owner_email, whatsapp_number, brand_color, is_active, approval_status, ussd_code, ussd_active')
+            .select('shop_name, logo_url, owner_phone, owner_email, whatsapp_number, brand_color, is_active, approval_status')
             .eq('shop_slug', slug)
             .single()
 
@@ -38,8 +39,18 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Shop not found' }, { status: 404 })
         }
 
-        // Return only what is needed for public branding
-        return NextResponse.json(data)
+        // Return only what the status page needs. Owner contact details are shown to the public
+        // only for a live (approved + active) shop — an unapproved/suspended shop's phone and
+        // email must not be enumerable by slug.
+        const live = data.approval_status === 'approved' && data.is_active === true
+        return NextResponse.json({
+            shop_name: data.shop_name,
+            logo_url: data.logo_url,
+            brand_color: data.brand_color,
+            owner_phone: live ? data.owner_phone : null,
+            owner_email: live ? data.owner_email : null,
+            whatsapp_number: live ? data.whatsapp_number : null,
+        })
     } catch (err) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
@@ -17,17 +18,23 @@ function checkRateLimit(ip: string): boolean {
     return entry.count <= 5
 }
 
+// Same shape the checkout routes enforce (computeShopCheckout) — anything else is never a real shop.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/
+// Card checkouts mint SHOP-<8 hex shop id>-<ms>-<8 hex>; the loose class keeps older refs working.
+const REF_RE = /^SHOP-[A-Za-z0-9-]{1,90}$/
+
 export async function GET(request: NextRequest) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+    const ip = getGuestIp(request)
+    // slug/ref are interpolated into redirect URLs below — validate before use so a crafted
+    // link cannot inject path segments or extra query params into our own redirect.
+    const { searchParams } = new URL(request.url)
+    const rawSlug = searchParams.get('slug') || ''
+    const slug = SLUG_RE.test(rawSlug) ? rawSlug : null
     if (!checkRateLimit(ip)) {
         // Redirect to error rather than exposing the rate limit in JSON
-        const { searchParams } = new URL(request.url)
-        const slug = searchParams.get('slug') || ''
-        return NextResponse.redirect(new URL(`https://shop.fametechgh.com/${slug}?error=too_many_requests`))
+        return NextResponse.redirect(new URL(`https://shop.fametechgh.com/${slug || ''}?error=too_many_requests`))
     }
-    const { searchParams } = new URL(request.url)
     const ref = searchParams.get('ref')
-    const slug = searchParams.get('slug')
 
     const protocol = request.headers.get('x-forwarded-proto') || 'https'
     const host = request.headers.get('host') || ''
@@ -40,7 +47,7 @@ export async function GET(request: NextRequest) {
         targetBaseUrl = 'https://shop.fametechgh.com'
     }
 
-    if (!ref || !slug) {
+    if (!ref || !slug || !REF_RE.test(ref)) {
         return NextResponse.redirect(new URL(`${targetBaseUrl}/${slug || ''}?error=invalid_ref`))
     }
 
@@ -85,7 +92,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.redirect(new URL(`${targetBaseUrl}/${slug}?error=${errorType}`))
         }
 
-        return NextResponse.redirect(new URL(`${targetBaseUrl}/${slug}/success?ref=${ref}`))
+        return NextResponse.redirect(new URL(`${targetBaseUrl}/${slug}/success?ref=${encodeURIComponent(ref)}`))
 
     } catch (error) {
         console.error('[Shop Verify] Error:', error)

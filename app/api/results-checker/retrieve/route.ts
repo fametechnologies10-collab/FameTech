@@ -1,3 +1,4 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextResponse } from 'next/server'
 import { getResultsCheckerOrderForGuest } from '@/lib/results-checker-retrieval'
 import {
@@ -7,8 +8,7 @@ import {
 import { checkRcRetrieveLimit } from '@/lib/rc-retrieve-ratelimit'
 
 function getClientIp(request: Request): string {
-    const forwardedFor = request.headers.get('x-forwarded-for') || ''
-    return forwardedFor.split(',')[0]?.trim() || 'unknown'
+    return getGuestIp(request)
 }
 
 export async function POST(req: Request) {

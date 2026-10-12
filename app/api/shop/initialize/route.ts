@@ -1,6 +1,8 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { computeShopCheckout, sanitizeForPaystack, buildGuestEmail } from '@/lib/shop-checkout'
+import { isTrustedAppOrigin, getSiteUrl } from '@/lib/site-url'
 
 // In-memory rate limiter — best-effort per lambda instance (not distributed)
 // The real duplicate-order guard is the DB UNIQUE constraint on paystack_reference
@@ -18,7 +20,7 @@ function cleanupCaches() {
 export async function POST(request: NextRequest) {
     try {
         cleanupCaches()
-        const ip = request.headers.get('x-forwarded-for') || 'unknown'
+        const ip = getGuestIp(request)
         const body = await request.json()
 
         // Rate limit: 10 initialize attempts per IP per minute
@@ -50,9 +52,15 @@ export async function POST(request: NextRequest) {
         // random), shared with the MoMo charge route so card + MoMo behave identically.
         const paystackEmail = validatedGuestEmail || buildGuestEmail(shop.shop_name, cleanPhone)
         const paystackRef = `SHOP-${shop.id.slice(0, 8)}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`
-        const protocol = request.headers.get('x-forwarded-proto') || 'https'
+        // The callback host comes from request headers — only honour it when it is one of OUR
+        // origins (apex, shop., store., agent., this deployment); otherwise fall back to the
+        // canonical site URL so a forged Host can never point Paystack's redirect elsewhere.
         const host = request.headers.get('host') || 'fametechgh.com'
-        const callbackUrl = `${protocol}://${host}/api/shop/verify?ref=${paystackRef}&slug=${shopSlug}`
+        const isLocalHost = /^(localhost|127\.0\.0\.1|[a-z]+\.localhost)(:\d+)?$/.test(host)
+        const protocol = isLocalHost || request.headers.get('x-forwarded-proto') === 'http' ? 'http' : 'https'
+        const hostOrigin = `${protocol}://${host}`
+        const callbackOrigin = isTrustedAppOrigin(hostOrigin) ? hostOrigin : getSiteUrl()
+        const callbackUrl = `${callbackOrigin}/api/shop/verify?ref=${encodeURIComponent(paystackRef)}&slug=${encodeURIComponent(shopSlug)}`
 
         // In-memory idempotency (same lambda instance)
         // SEC-020: include product identity (network:size) so two different packages

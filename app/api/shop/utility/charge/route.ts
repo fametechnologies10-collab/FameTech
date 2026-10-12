@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getClientIp } from '@/lib/api-auth'
-import { consumeRateLimit } from '@/lib/simple-rate-limit'
+import { getGuestIp } from '@/lib/client-ip'
+import { checkGuestLimit } from '@/lib/guest-ratelimit'
+import { checkChargePhoneLimit } from '@/lib/charge-phone-ratelimit'
 import { computeShopCheckout, buildGuestEmail, sanitizeForPaystack } from '@/lib/shop-checkout'
 import { makeUtilityPaystackReference, makeUtilityVerifyReference, UTILITY_BILLERS, UtilityBiller } from '@/lib/hubtel-utility/billers'
 import { runHubtelUtilityCharge } from '@/lib/hubtel-checkout'
@@ -13,6 +14,28 @@ export const dynamic = 'force-dynamic'
 
 const MAX_SNAPSHOT_BYTES = 8 * 1024
 const MAX_ACCOUNT_NAME_LEN = 80
+
+/**
+ * The lookup snapshot is CLIENT-supplied and stored verbatim for the admin/audit trail, so
+ * it must not carry control characters (log forging), markup, or unbounded strings into
+ * admin views. Keeps the shape (objects/arrays/primitives, depth-limited) but scrubs every
+ * string and drops anything exotic.
+ */
+function sanitizeSnapshotValue(value: unknown, depth = 0): unknown {
+    if (value === null || typeof value === 'boolean') return value
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value === 'string') return sanitizeForStorage(value, 200).replace(/[<>]/g, '')
+    if (depth >= 4) return null
+    if (Array.isArray(value)) return value.slice(0, 50).map((v) => sanitizeSnapshotValue(v, depth + 1))
+    if (typeof value === 'object') {
+        const out: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(value as Record<string, unknown>).slice(0, 50)) {
+            out[sanitizeForStorage(k, 60).replace(/[<>]/g, '')] = sanitizeSnapshotValue(v, depth + 1)
+        }
+        return out
+    }
+    return null
+}
 
 // Storefront network name (ServiceChargeSheet's own detector) → Paystack mobile_money provider code.
 const PAYSTACK_PROVIDER_MAP: Record<string, 'MTN' | 'VOD' | 'ATL'> = { MTN: 'MTN', Telecel: 'VOD', AT: 'ATL' }
@@ -46,13 +69,9 @@ const PAYSTACK_PROVIDER_MAP: Record<string, 'MTN' | 'VOD' | 'ATL'> = { MTN: 'MTN
  */
 export async function POST(request: NextRequest) {
     try {
-        const ip = getClientIp(request) || 'unknown'
-        const rl = consumeRateLimit(`util-sf-charge:${ip}`, 4, 60_000)
-        if (!rl.allowed) {
-            return NextResponse.json(
-                { error: `Too many requests. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
-                { status: 429 },
-            )
+        const ip = getGuestIp(request)
+        if (!(await checkGuestLimit('util-sf-charge', ip, 4, 60))) {
+            return NextResponse.json({ error: 'Too many requests. Please try again in a minute.' }, { status: 429 })
         }
 
         const body = await request.json().catch(() => null)
@@ -69,12 +88,19 @@ export async function POST(request: NextRequest) {
         }
         const momo233 = toMsisdn233(momoNumber)
 
+        // The prompt (or verification SMS) goes to momoNumber, which the caller chooses —
+        // cap per phone (global, Redis) so no third party's number can be spammed.
+        if (!(await checkChargePhoneLimit(momoNumber))) {
+            return NextResponse.json({ error: 'Too many payment prompts sent to this number. Please wait a few minutes and try again.' }, { status: 429 })
+        }
+
         let trimmedAccountName: string | null = null
         if (accountName !== undefined && accountName !== null) {
             if (typeof accountName !== 'string') {
                 return NextResponse.json({ error: 'Invalid account name' }, { status: 400 })
             }
-            trimmedAccountName = accountName.trim().slice(0, MAX_ACCOUNT_NAME_LEN) || null
+            // Client-asserted (never verified server-side) — scrub before it reaches admin views.
+            trimmedAccountName = sanitizeForStorage(accountName.trim(), MAX_ACCOUNT_NAME_LEN).replace(/[<>]/g, '') || null
         }
 
         let snapshot: Record<string, unknown> | null = null
@@ -88,7 +114,7 @@ export async function POST(request: NextRequest) {
             // Defense-in-depth: never persist a client-supplied sessionId, forged or otherwise —
             // the dispatch pipeline always fetches its own fresh Ghana Water session at pay-time.
             const { sessionId: _sessionId, ...rest } = lookupSnapshot as Record<string, unknown>
-            snapshot = rest
+            snapshot = sanitizeSnapshotValue(rest) as Record<string, unknown>
         }
 
         const { createServerClient } = await import('@/lib/supabase')

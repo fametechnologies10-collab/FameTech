@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { computeShopCheckout, sanitizeForPaystack, buildGuestEmail } from '@/lib/shop-checkout'
+import { getGuestIp } from '@/lib/client-ip'
+import { checkChargePhoneLimit } from '@/lib/charge-phone-ratelimit'
 
 // Best-effort per-lambda IP rate limit (10/min). Real dup-guard is the DB +
 // processShopOrder idempotency. Mirrors the initialize route.
@@ -19,7 +21,7 @@ const GHANA_NETWORK_MAP: Record<string, 'MTN' | 'VOD' | 'ATL'> = {
 export async function POST(request: NextRequest) {
     try {
         cleanup()
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
+        const ip = getGuestIp(request)
         const rl = rateLimitCache.get(ip) || { count: 0, resetTime: Date.now() + 60000 }
         if (rl.count >= 10 && rl.resetTime > Date.now()) {
             return NextResponse.json({ error: 'Too many requests. Please try again in a minute.' }, { status: 429 })
@@ -41,6 +43,12 @@ export async function POST(request: NextRequest) {
         const provider = (momoProvider && PROVIDER_MAP[momoProvider]) || GHANA_NETWORK_MAP[momoPhone.slice(0, 3)] || null
         if (!provider) {
             return NextResponse.json({ error: 'Could not detect your mobile money network. Please select it.', needsManualSelection: true }, { status: 400 })
+        }
+
+        // The prompt goes to momoPhone, which the caller chooses — cap prompts PER PHONE
+        // (global, Redis) so no third party's number can be prompt-spammed from any IP.
+        if (!(await checkChargePhoneLimit(momoPhone))) {
+            return NextResponse.json({ error: 'Too many payment prompts sent to this number. Please wait a few minutes and try again.' }, { status: 429 })
         }
 
         const { createServerClient } = await import('@/lib/supabase')

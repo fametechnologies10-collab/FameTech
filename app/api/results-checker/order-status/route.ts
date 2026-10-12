@@ -1,24 +1,23 @@
+import { getGuestIp } from '@/lib/client-ip'
 import { NextResponse } from 'next/server'
 import { getResultsCheckerOrderForGuest } from '@/lib/results-checker-retrieval'
 import {
     isValidResultsCheckerPhone,
     normalizeResultsCheckerPhone,
 } from '@/lib/results-checker-utils'
-import { consumeRateLimit } from '@/lib/simple-rate-limit'
+import { checkGuestLimit } from '@/lib/guest-ratelimit'
 
-const RATE_LIMIT_WINDOW = 10 * 60 * 1000
+const RATE_LIMIT_WINDOW_SEC = 10 * 60
 const MAX_REQUESTS = 5
 
 function getClientIp(request: Request): string {
-    const forwardedFor = request.headers.get('x-forwarded-for') || ''
-    return forwardedFor.split(',')[0]?.trim() || 'unknown'
+    return getGuestIp(request)
 }
 
 export async function POST(req: Request) {
     try {
         const ip = getClientIp(req)
-        const rateLimit = consumeRateLimit(`rc-order-status:${ip}`, MAX_REQUESTS, RATE_LIMIT_WINDOW)
-        if (!rateLimit.allowed) {
+        if (!(await checkGuestLimit('rc-order-status', ip, MAX_REQUESTS, RATE_LIMIT_WINDOW_SEC))) {
             return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
         }
 
