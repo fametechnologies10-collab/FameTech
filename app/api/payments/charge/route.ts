@@ -69,22 +69,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // ── Anti-abuse: cap charges per TARGET PHONE, across all accounts ──
-        // The middleware limiter is keyed per-user+IP, so one account could
-        // still fire its full per-minute budget at someone else's number
-        // indefinitely over time. This caps prompts to any single phone
-        // regardless of who is initiating them.
-        if (!(await checkChargePhoneLimit(phone))) {
-            return NextResponse.json(
-                { error: 'Too many payment requests to this number. Please try again later.' },
-                { status: 429 }
-            )
-        }
-
         const userId = authUser.id
-
-        // The anti-abuse cap on simultaneous pending charges per user is enforced
-        // atomically inside create_pending_wallet_payment (see below).
 
         const { data: userData, error: userDataError } = await supabaseAdmin
             .from('users')
@@ -99,12 +84,29 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Please try again' }, { status: 503 })
         }
 
+        // Checked BEFORE the phone limiter so a non-active account can't burn a
+        // third party's global per-phone rate-limit slot.
         if ((userData as any).status !== 'active') {
             return NextResponse.json(
                 { error: 'Your account is not active. Contact support.' },
                 { status: 403 }
             )
         }
+
+        // ── Anti-abuse: cap charges per TARGET PHONE, across all accounts ──
+        // The middleware limiter is keyed per-user+IP, so one account could
+        // still fire its full per-minute budget at someone else's number
+        // indefinitely over time. This caps prompts to any single phone
+        // regardless of who is initiating them.
+        if (!(await checkChargePhoneLimit(phone))) {
+            return NextResponse.json(
+                { error: 'Too many payment requests to this number. Please try again later.' },
+                { status: 429 }
+            )
+        }
+
+        // The anti-abuse cap on simultaneous pending charges per user is enforced
+        // atomically inside create_pending_wallet_payment (see below).
 
         const email = (userData as any)?.email || authUser.email
 
@@ -142,7 +144,9 @@ export async function POST(request: NextRequest) {
         }, settings)
 
         const fee = calculatePaystackFee(amount, feePercent)
-        const totalAmount = amount + fee
+        // Pesewa-rounded so the RPC, Paystack payload and responses all agree
+        // (a raw float sum like 10.1 + 0.15 can carry binary artefacts).
+        const totalAmount = Math.round((amount + fee) * 100) / 100
 
         let { data: wallet } = await (supabaseAdmin.from('wallets') as any)
             .select('id')
@@ -212,12 +216,27 @@ export async function POST(request: NextRequest) {
         // fire a second Paystack charge. Use the stored fee/total (the RPC ignores
         // the amount passed on replay).
         if (created.existing) {
-            return NextResponse.json({
-                status: created.charge_status ?? 'pending',
+            const replayBase = {
                 reference: created.reference,
-                display_text: created.display_text ?? 'Check your phone to approve the payment',
                 fee: created.fee,
                 total_amount: created.total_amount,
+            }
+            // Terminal rows: honour the stored status (the wallet page treats
+            // 'failed' as an error and confirms 'success' via check-pending).
+            if (created.status === 'failed') {
+                return NextResponse.json({
+                    status: 'failed',
+                    display_text: 'This payment could not be completed. Please start a new top-up.',
+                    ...replayBase,
+                })
+            }
+            if (created.status === 'completed') {
+                return NextResponse.json({ status: 'success', display_text: '', ...replayBase })
+            }
+            return NextResponse.json({
+                status: created.charge_status ?? 'pending',
+                display_text: created.display_text ?? 'Check your phone to approve the payment',
+                ...replayBase,
             })
         }
 
