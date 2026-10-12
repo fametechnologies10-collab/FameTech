@@ -7,6 +7,15 @@
 -- Any other RESULT line lists the failing cases.
 --
 -- It borrows one existing ACTIVE user (+ that user's wallet) and a throwaway auth user.
+-- Assumptions (a red 'N raised: ...' line usually means one of these does not hold):
+--   * case 5: a minimal INSERT INTO auth.users (id, email) succeeds for the executing role, and
+--     deleting the auto-created wallet of the throwaway public.users row is allowed;
+--   * case 9: public.users accepts status 'suspended' / 'inactive' updates (no blocking trigger);
+--   * case 9: a minimal INSERT INTO public.momo_transactions (transaction_id, amount, sender_name,
+--     sender_network, status) succeeds, and transaction_id '99999999999' does not already exist;
+--   * case 8: momo_claim_attempts_result_check was relaxed by the migration (rows with result
+--     'txn_not_found' / 'claimed_successfully' / 'attempt' must be insertable);
+--   * at least one active user with a wallet exists.
 -- To exercise the migration BEFORE applying it, prepend the migration SQL in the same call.
 
 DO $test$
@@ -54,30 +63,30 @@ BEGIN
         INSERT INTO public.wallet_payments (user_id, wallet_id, amount, fee, total_amount, reference, status, metadata)
         VALUES (v_user, v_wallet, 10.00, 0.50, 10.50, ref1, 'pending', '{"client_request_id":"cr-direct-1"}');
 
-        SELECT balance, total_credited, coalesce(total_spent,0) INTO b0, tc0, ts0 FROM public.wallets WHERE id = v_wallet;
+        SELECT balance, coalesce(total_credited,0), coalesce(total_spent,0) INTO b0, tc0, ts0 FROM public.wallets WHERE id = v_wallet;
 
         r := public.credit_wallet_topup(ref1, 1050, 'GHS', '{"amount":1050,"currency":"GHS","id":123}');
 
-        SELECT balance, total_credited, coalesce(total_spent,0) INTO b1, tc1, ts1 FROM public.wallets WHERE id = v_wallet;
+        SELECT balance, coalesce(total_credited,0), coalesce(total_spent,0) INTO b1, tc1, ts1 FROM public.wallets WHERE id = v_wallet;
 
-        IF NOT (r->>'success' = 'true') OR r ? 'error' THEN failures := failures || ('1: not success: ' || r::text); END IF;
+        IF coalesce(r->>'success', '') <> 'true' OR r ? 'error' THEN failures := failures || ('1: not success: ' || r::text); END IF;
         IF (r->>'new_balance')::numeric IS DISTINCT FROM b1 THEN failures := failures || '1: new_balance mismatch'; END IF;
-        IF b1 <> b0 + 10 THEN failures := failures || ('1: balance ' || b0 || ' -> ' || b1); END IF;
-        IF tc1 <> tc0 + 10 THEN failures := failures || ('1: total_credited ' || tc0 || ' -> ' || tc1); END IF;
-        IF ts1 <> ts0 THEN failures := failures || ('1: total_spent CHANGED ' || ts0 || ' -> ' || ts1); END IF;
+        IF b1 IS DISTINCT FROM b0 + 10 THEN failures := failures || ('1: balance ' || b0 || ' -> ' || b1); END IF;
+        IF tc1 IS DISTINCT FROM tc0 + 10 THEN failures := failures || ('1: total_credited ' || tc0 || ' -> ' || tc1); END IF;
+        IF ts1 IS DISTINCT FROM ts0 THEN failures := failures || ('1: total_spent CHANGED ' || ts0 || ' -> ' || ts1); END IF;
         SELECT count(*) INTO n FROM public.wallet_transactions WHERE reference = ref1 AND source = 'payment';
-        IF n <> 1 THEN failures := failures || ('1: ledger rows = ' || n); END IF;
+        IF n IS DISTINCT FROM 1 THEN failures := failures || ('1: ledger rows = ' || n); END IF;
         SELECT status, metadata->>'client_request_id' INTO s, v_cid FROM public.wallet_payments WHERE reference = ref1;
-        IF s <> 'completed' THEN failures := failures || ('1: payment status ' || s); END IF;
+        IF s IS DISTINCT FROM 'completed' THEN failures := failures || ('1: payment status ' || s); END IF;
         IF v_cid IS DISTINCT FROM 'cr-direct-1' THEN failures := failures || '1: client_request_id lost'; END IF;
 
         -- Case 2: replay
         r2 := public.credit_wallet_topup(ref1, 1050, 'GHS', '{"amount":1050}');
-        IF NOT (r2->>'already_processed' = 'true' AND r2->>'success' = 'true') THEN failures := failures || ('2: replay result ' || r2::text); END IF;
+        IF NOT coalesce(r2->>'already_processed' = 'true' AND r2->>'success' = 'true', false) THEN failures := failures || ('2: replay result ' || r2::text); END IF;
         SELECT balance INTO b0 FROM public.wallets WHERE id = v_wallet;
-        IF b0 <> b1 THEN failures := failures || '2: balance changed on replay'; END IF;
+        IF b0 IS DISTINCT FROM b1 THEN failures := failures || '2: balance changed on replay'; END IF;
         SELECT count(*) INTO n FROM public.wallet_transactions WHERE reference = ref1 AND source = 'payment';
-        IF n <> 1 THEN failures := failures || ('2: ledger rows after replay = ' || n); END IF;
+        IF n IS DISTINCT FROM 1 THEN failures := failures || ('2: ledger rows after replay = ' || n); END IF;
     EXCEPTION WHEN OTHERS THEN
         failures := failures || ('1/2 raised: ' || SQLERRM);
     END;
@@ -95,9 +104,9 @@ BEGIN
         r := public.credit_wallet_topup(ref2, 500, 'GHS', '{}');
         SELECT balance INTO b1 FROM public.wallets WHERE id = v_wallet;
         SELECT status INTO s FROM public.wallet_payments WHERE reference = ref2;
-        IF NOT (r->>'already_processed' = 'true') THEN failures := failures || ('2b: expected already_processed ' || r::text); END IF;
-        IF b1 <> b0 THEN failures := failures || '2b: double credit'; END IF;
-        IF s <> 'completed' THEN failures := failures || ('2b: status ' || s); END IF;
+        IF NOT coalesce(r->>'already_processed' = 'true', false) THEN failures := failures || ('2b: expected already_processed ' || r::text); END IF;
+        IF b1 IS DISTINCT FROM b0 THEN failures := failures || '2b: double credit'; END IF;
+        IF s IS DISTINCT FROM 'completed' THEN failures := failures || ('2b: status ' || s); END IF;
     EXCEPTION WHEN OTHERS THEN
         failures := failures || ('2b raised: ' || SQLERRM);
     END;
@@ -114,8 +123,10 @@ BEGIN
         SELECT balance INTO b1 FROM public.wallets WHERE id = v_wallet;
         SELECT status INTO s FROM public.wallet_payments WHERE reference = ref3 || 'a';
         IF r->>'error' IS DISTINCT FROM 'amount_unverified' THEN failures := failures || ('3: ' || r::text); END IF;
-        IF s <> 'pending' THEN failures := failures || ('3: status ' || s); END IF;
-        IF b1 <> b0 THEN failures := failures || '3: balance changed'; END IF;
+        IF s IS DISTINCT FROM 'pending' THEN failures := failures || ('3: status ' || s); END IF;
+        IF b1 IS DISTINCT FROM b0 THEN failures := failures || '3: balance changed'; END IF;
+        -- Retire the intentionally-left-pending row so it cannot count toward case 7's pending cap.
+        UPDATE public.wallet_payments SET status = 'failed' WHERE reference = ref3 || 'a';
     EXCEPTION WHEN OTHERS THEN
         failures := failures || ('3 raised: ' || SQLERRM);
     END;
@@ -132,15 +143,15 @@ BEGIN
         r := public.credit_wallet_topup(ref3 || 'b', 1999, 'GHS', '{}');
         SELECT status INTO s FROM public.wallet_payments WHERE reference = ref3 || 'b';
         IF r->>'error' IS DISTINCT FROM 'amount_mismatch' THEN failures := failures || ('4a: ' || r::text); END IF;
-        IF s <> 'failed' THEN failures := failures || ('4a: status ' || s); END IF;
+        IF s IS DISTINCT FROM 'failed' THEN failures := failures || ('4a: status ' || s); END IF;
 
         r := public.credit_wallet_topup(ref3 || 'c', 2000, 'USD', '{}');
         SELECT status INTO s FROM public.wallet_payments WHERE reference = ref3 || 'c';
         IF r->>'error' IS DISTINCT FROM 'amount_mismatch' THEN failures := failures || ('4b: ' || r::text); END IF;
-        IF s <> 'failed' THEN failures := failures || ('4b: status ' || s); END IF;
+        IF s IS DISTINCT FROM 'failed' THEN failures := failures || ('4b: status ' || s); END IF;
 
         SELECT balance INTO b1 FROM public.wallets WHERE id = v_wallet;
-        IF b1 <> b0 THEN failures := failures || '4: balance changed'; END IF;
+        IF b1 IS DISTINCT FROM b0 THEN failures := failures || '4: balance changed'; END IF;
 
         -- Case 6b: an already-failed row -> not_pending (even with a now-correct amount)
         r := public.credit_wallet_topup(ref3 || 'b', 2000, 'GHS', '{}');
@@ -167,7 +178,7 @@ BEGIN
         r := public.credit_wallet_topup('WAHT-' || v_tag || '-nw', 700, 'GHS', '{}');
         SELECT status INTO s FROM public.wallet_payments WHERE reference = 'WAHT-' || v_tag || '-nw';
         IF r->>'error' IS DISTINCT FROM 'wallet_not_found' THEN failures := failures || ('5: ' || r::text); END IF;
-        IF s <> 'pending' THEN failures := failures || ('5: status ' || s); END IF;
+        IF s IS DISTINCT FROM 'pending' THEN failures := failures || ('5: status ' || s); END IF;
     EXCEPTION WHEN OTHERS THEN
         failures := failures || ('5 raised: ' || SQLERRM);
     END;
@@ -186,33 +197,41 @@ BEGIN
     -- Case 7: create_pending_wallet_payment
     -- ===================================================================
     BEGIN
+        -- Cap arithmetic (pending rows for v_user in the last 15 min): first defensively retire any pending
+        -- row this test created earlier (case 3 already does; cases 1/2/2b/4 end completed/failed; case 5
+        -- uses another user), so the count starts at 0. 7a creates cp1 (pending=1), which 7d completes
+        -- (pending=0). The loop then adds 4 pending (=4); the 'cap5' call is the 5th (allowed, =5);
+        -- the 'cap6' call is the 6th -> too_many_pending.
+        UPDATE public.wallet_payments SET status = 'failed'
+        WHERE user_id = v_user AND status = 'pending' AND reference LIKE 'WAHT-' || v_tag || '-%';
+
         r := public.create_pending_wallet_payment(v_user, v_wallet, 10, 0.5, 10.5, 'WAHT-' || v_tag || '-cp1', 'cr-' || v_tag);
-        IF NOT (r->>'existing' = 'false' AND r->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r ? 'id') THEN
+        IF NOT coalesce(r->>'existing' = 'false' AND r->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r ? 'id', false) THEN
             failures := failures || ('7a: first call ' || r::text);
         END IF;
         IF r->'metadata'->>'client_request_id' IS DISTINCT FROM 'cr-' || v_tag THEN failures := failures || '7a: metadata missing client_request_id'; END IF;
 
         -- Replay with same client_request_id (different candidate reference) -> existing, same reference
         r2 := public.create_pending_wallet_payment(v_user, v_wallet, 10, 0.5, 10.5, 'WAHT-' || v_tag || '-cp2', 'cr-' || v_tag);
-        IF NOT (r2->>'existing' = 'true' AND r2->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r2->>'status' = 'pending'
-                AND (r2->>'fee')::numeric = 0.5 AND (r2->>'total_amount')::numeric = 10.5) THEN
+        IF NOT coalesce(r2->>'existing' = 'true' AND r2->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r2->>'status' = 'pending'
+                AND (r2->>'fee')::numeric = 0.5 AND (r2->>'total_amount')::numeric = 10.5, false) THEN
             failures := failures || ('7b: replay ' || r2::text);
         END IF;
         SELECT count(*) INTO n FROM public.wallet_payments WHERE user_id = v_user AND reference IN ('WAHT-' || v_tag || '-cp1', 'WAHT-' || v_tag || '-cp2');
-        IF n <> 1 THEN failures := failures || ('7b: rows after replay = ' || n); END IF;
+        IF n IS DISTINCT FROM 1 THEN failures := failures || ('7b: rows after replay = ' || n); END IF;
 
         -- charge_status / display_text surface from metadata on replay
         UPDATE public.wallet_payments
         SET metadata = metadata || '{"charge_status":"send_otp","display_text":"Enter OTP"}'
         WHERE reference = 'WAHT-' || v_tag || '-cp1';
         r2 := public.create_pending_wallet_payment(v_user, v_wallet, 10, 0.5, 10.5, 'WAHT-' || v_tag || '-cp3', 'cr-' || v_tag);
-        IF NOT (r2->>'charge_status' = 'send_otp' AND r2->>'display_text' = 'Enter OTP') THEN failures := failures || ('7c: ' || r2::text); END IF;
+        IF NOT coalesce(r2->>'charge_status' = 'send_otp' AND r2->>'display_text' = 'Enter OTP', false) THEN failures := failures || ('7c: ' || r2::text); END IF;
 
         -- Same id after the payment is completed -> still existing:true
         r := public.credit_wallet_topup('WAHT-' || v_tag || '-cp1', 1050, 'GHS', '{"amount":1050}');
         IF r->>'success' IS DISTINCT FROM 'true' THEN failures := failures || ('7d: credit ' || r::text); END IF;
         r2 := public.create_pending_wallet_payment(v_user, v_wallet, 10, 0.5, 10.5, 'WAHT-' || v_tag || '-cp4', 'cr-' || v_tag);
-        IF NOT (r2->>'existing' = 'true' AND r2->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r2->>'status' = 'completed') THEN
+        IF NOT coalesce(r2->>'existing' = 'true' AND r2->>'reference' = 'WAHT-' || v_tag || '-cp1' AND r2->>'status' = 'completed', false) THEN
             failures := failures || ('7d: replay after completion ' || r2::text);
         END IF;
 
@@ -226,7 +245,7 @@ BEGIN
         r := public.create_pending_wallet_payment(v_user, v_wallet, 1, 0, 1, 'WAHT-' || v_tag || '-cap6', 'cr-' || v_tag || '-6');
         IF r->>'error' IS DISTINCT FROM 'too_many_pending' THEN failures := failures || ('7f: 6th should be capped ' || r::text); END IF;
         SELECT count(*) INTO n FROM public.wallet_payments WHERE reference = 'WAHT-' || v_tag || '-cap6';
-        IF n <> 0 THEN failures := failures || '7f: capped call inserted a row'; END IF;
+        IF n IS DISTINCT FROM 0 THEN failures := failures || '7f: capped call inserted a row'; END IF;
         -- Replay of an existing request is still served while capped
         r := public.create_pending_wallet_payment(v_user, v_wallet, 1, 0, 1, 'WAHT-' || v_tag || '-cap7', 'cr-' || v_tag || '-5');
         IF r->>'existing' IS DISTINCT FROM 'true' THEN failures := failures || ('7g: replay while capped ' || r::text); END IF;
@@ -248,14 +267,14 @@ BEGIN
 
         FOR i IN 1..3 LOOP
             r := public.claim_rate_limit_check(v_user, '1111111111' || i);
-            IF NOT (r->>'allowed' = 'true' AND r ? 'attempt_id') THEN failures := failures || ('8a: call ' || i || ' ' || r::text); END IF;
+            IF NOT coalesce(r->>'allowed' = 'true' AND r ? 'attempt_id', false) THEN failures := failures || ('8a: call ' || i || ' ' || r::text); END IF;
         END LOOP;
         SELECT count(*) INTO n FROM public.momo_claim_attempts WHERE user_id = v_user AND result = 'attempt';
-        IF n <> 3 THEN failures := failures || ('8a: attempt rows = ' || n); END IF;
+        IF n IS DISTINCT FROM 3 THEN failures := failures || ('8a: attempt rows = ' || n); END IF;
         r := public.claim_rate_limit_check(v_user, '11111111114');
-        IF NOT (r->>'allowed' = 'false' AND r->>'reason' = 'burst') THEN failures := failures || ('8b: 4th ' || r::text); END IF;
+        IF NOT coalesce(r->>'allowed' = 'false' AND r->>'reason' = 'burst', false) THEN failures := failures || ('8b: 4th ' || r::text); END IF;
         SELECT count(*) INTO n FROM public.momo_claim_attempts WHERE user_id = v_user AND result = 'rate_limited';
-        IF n <> 1 THEN failures := failures || ('8b: rate_limited rows = ' || n); END IF;
+        IF n IS DISTINCT FROM 1 THEN failures := failures || ('8b: rate_limited rows = ' || n); END IF;
 
         -- 3 attempts older than 30 s do not trigger burst
         DELETE FROM public.momo_claim_attempts WHERE user_id = v_user;
@@ -280,7 +299,7 @@ BEGIN
         INSERT INTO public.momo_claim_attempts (user_id, transaction_id_input, result, created_at)
         VALUES (v_user, 'x', 'txn_not_found', now() - interval '10 minutes');
         r := public.claim_rate_limit_check(v_user, 'x');
-        IF NOT (r->>'allowed' = 'false' AND r->>'reason' = 'hourly') THEN failures := failures || ('8f: 10 failures ' || r::text); END IF;
+        IF NOT coalesce(r->>'allowed' = 'false' AND r->>'reason' = 'hourly', false) THEN failures := failures || ('8f: 10 failures ' || r::text); END IF;
 
         -- successes / attempts / failures older than an hour do not count toward hourly
         DELETE FROM public.momo_claim_attempts WHERE user_id = v_user;
@@ -301,7 +320,7 @@ BEGIN
     -- ===================================================================
     BEGIN
         INSERT INTO public.momo_transactions (transaction_id, amount, sender_name, sender_network, status)
-        VALUES ('99999999999', 10, 'Test Sender', 'MTN', 'pending');
+        VALUES ('99999999999', 1000, 'Test Sender', 'MTN', 'pending');
         SELECT balance INTO b0 FROM public.wallets WHERE id = v_wallet;
 
         UPDATE public.users SET status = 'suspended' WHERE id = v_user;
@@ -309,8 +328,8 @@ BEGIN
         SELECT status INTO s FROM public.momo_transactions WHERE transaction_id = '99999999999';
         SELECT balance INTO b1 FROM public.wallets WHERE id = v_wallet;
         IF r->>'error' IS DISTINCT FROM 'account_not_active' THEN failures := failures || ('9a: suspended ' || r::text); END IF;
-        IF s <> 'pending' THEN failures := failures || ('9a: txn status ' || s); END IF;
-        IF b1 <> b0 THEN failures := failures || '9a: balance changed'; END IF;
+        IF s IS DISTINCT FROM 'pending' THEN failures := failures || ('9a: txn status ' || s); END IF;
+        IF b1 IS DISTINCT FROM b0 THEN failures := failures || '9a: balance changed'; END IF;
 
         UPDATE public.users SET status = 'inactive' WHERE id = v_user;
         r := public.claim_momo_transaction('99999999999', v_user, false, NULL);
@@ -324,8 +343,8 @@ BEGIN
         SELECT status INTO s FROM public.momo_transactions WHERE transaction_id = '99999999999';
         SELECT balance INTO b1 FROM public.wallets WHERE id = v_wallet;
         IF r->>'success' IS DISTINCT FROM 'true' THEN failures := failures || ('9d: active claim ' || r::text); END IF;
-        IF s <> 'claimed' THEN failures := failures || ('9d: txn status ' || s); END IF;
-        IF b1 <> b0 + (r->>'net_amount')::numeric THEN failures := failures || '9d: balance delta <> net_amount'; END IF;
+        IF s IS DISTINCT FROM 'claimed' THEN failures := failures || ('9d: txn status ' || s); END IF;
+        IF b1 IS DISTINCT FROM b0 + (r->>'net_amount')::numeric THEN failures := failures || '9d: balance delta <> net_amount'; END IF;
 
         r := public.claim_momo_transaction('99999999999', v_user, false, NULL);
         IF r->>'error' IS DISTINCT FROM 'already_claimed' THEN failures := failures || ('9e: replay ' || r::text); END IF;
@@ -354,6 +373,6 @@ BEGIN
         failures := failures || ('10 raised: ' || SQLERRM);
     END;
 
-    RAISE EXCEPTION '%', 'RESULT: ' || coalesce(nullif(array_to_string(failures, '; '), ''), 'ALL PASSED');
+    RAISE EXCEPTION '%', 'RESULT: ' || coalesce(nullif(array_to_string(failures, '; ', '<NULL failure message>'), ''), 'ALL PASSED');
 END
 $test$;
