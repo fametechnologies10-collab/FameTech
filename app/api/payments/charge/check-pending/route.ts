@@ -138,14 +138,32 @@ export async function GET(request: NextRequest) {
             // `abandoned`, and a reversal may follow a success. The pending-payment cron
             // fails abandoned rows later. Conditional on status='pending' so a completed
             // row is never touched. Best-effort: errors are logged, never alter the response.
+            // PAYMENT-001: /charge/{ref} is a laggy endpoint, so a `failed` verdict from it
+            // alone is NOT enough for this irreversible write — it must be confirmed by the
+            // authoritative /transaction/verify/{ref}. Unreachable / non-JSON / anything other
+            // than an explicit verified `failed` → skip the write (the cron settles it later).
             if (chargeStatus === 'failed') {
                 try {
-                    const { error: failError } = await (supabaseAdmin.from('wallet_payments') as any)
-                        .update({ status: 'failed', updated_at: new Date().toISOString() })
-                        .eq('reference', reference)
-                        .eq('status', 'pending')
-                    if (failError) {
-                        console.error('[ChargePending] Failed to mark payment failed:', reference, failError.message)
+                    let verifiedFailed = false
+                    try {
+                        const confirmRes = await fetch(
+                            `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+                            { headers: { 'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } },
+                        )
+                        const confirmBody = await confirmRes.json()
+                        verifiedFailed = confirmBody?.status === true && confirmBody?.data?.status === 'failed'
+                    } catch (confirmError) {
+                        console.error('[ChargePending] Failure confirmation via verify failed:', reference, confirmError)
+                    }
+
+                    if (verifiedFailed) {
+                        const { error: failError } = await (supabaseAdmin.from('wallet_payments') as any)
+                            .update({ status: 'failed', updated_at: new Date().toISOString() })
+                            .eq('reference', reference)
+                            .eq('status', 'pending')
+                        if (failError) {
+                            console.error('[ChargePending] Failed to mark payment failed:', reference, failError.message)
+                        }
                     }
                 } catch (failError) {
                     console.error('[ChargePending] Failed to mark payment failed:', reference, failError)
