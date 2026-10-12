@@ -2,152 +2,66 @@ import { createServerClient } from './supabase'
 import { sendWalletTopupSuccessEmail, sendPermanentAgentUpgradeSuccessEmail } from './email-service'
 import { sendWalletTopupSuccessSMS, sendAgentUpgradeSuccessSMS, sendAgentExtensionSuccessSMS, sendPermanentAgentUpgradeSuccessSMS } from './sms-service'
 import { waitUntil } from '@vercel/functions'
+import { mapCreditResult } from './wallet-credit'
 
 export { processCompletedDealerUpgradePayment } from './dealer-payments'
 
 /**
- * Processes a completed payment by updating the status, 
- * crediting the wallet, logging the transaction, and notifying the user.
- * This is designed to be idempotent.
+ * Processes a completed wallet top-up payment. All money-moving work (row lock,
+ * amount verification, status flip, wallet credit, total_credited, ledger row)
+ * happens atomically inside the `credit_wallet_topup` RPC, which is idempotent
+ * per reference. This function only maps the result and sends notifications on
+ * a first-time credit.
  */
 export async function processCompletedWalletPayment(reference: string, providerMetadata?: any) {
     const supabase = createServerClient()
 
-    // 1. Get payment record
-    const { data: paymentData, error: paymentError } = await supabase
-        .from('wallet_payments')
-        .select('*')
-        .eq('reference', reference)
-        .single()
+    // 1. Atomic credit (lock + verify + credit + ledger inside one DB transaction)
+    const providerAmountKobo =
+        typeof providerMetadata?.amount === 'number' && Number.isFinite(providerMetadata.amount)
+            ? providerMetadata.amount
+            : null
 
-    const payment = paymentData as any
+    const { data, error: rpcError } = await (supabase as any).rpc('credit_wallet_topup', {
+        p_reference: reference,
+        p_provider_amount_kobo: providerAmountKobo,
+        p_currency: typeof providerMetadata?.currency === 'string' ? providerMetadata.currency : null,
+        p_provider_metadata: providerMetadata ?? null,
+    })
 
-    if (paymentError || !payment) {
-        console.error('[PaymentProcess] Payment not found:', reference)
-        return { success: false, error: 'Payment not found' }
-    }
-
-    // 1b. Amount verification (defense-in-depth).
-    // The Paystack webhook cross-checks the paid amount before calling us, but
-    // the synchronous verify/check-pending paths do not — so we re-check here to
-    // guarantee NO path can credit a wallet for more than was actually paid.
-    // Paystack always reports `amount` in the minor unit (pesewas/kobo).
-    const providerAmountKobo = providerMetadata?.amount
-    const expectedTotal = Number((payment as any).total_amount)
-    if (
-        typeof providerAmountKobo === 'number' &&
-        Number.isFinite(providerAmountKobo) &&
-        Number.isFinite(expectedTotal) &&
-        expectedTotal > 0
-    ) {
-        const expectedKobo = Math.round(expectedTotal * 100)
-        if (providerAmountKobo !== expectedKobo) {
-            console.error(
-                `[PaymentProcess] AMOUNT MISMATCH for ${reference}: expected ${expectedKobo} kobo, got ${providerAmountKobo} kobo`
-            )
-            // Mark failed (only if still pending) so it can never be credited later.
-            await (supabase.from('wallet_payments') as any)
-                .update({
-                    status: 'failed',
-                    metadata: {
-                        ...((payment as any).metadata || {}),
-                        mismatch_reason: `Amount mismatch: expected ${expectedKobo} kobo, received ${providerAmountKobo} kobo`,
-                        mismatch_detected_at: new Date().toISOString(),
-                    },
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', payment.id)
-                .eq('status', 'pending')
-            return { success: false, error: 'Amount mismatch' }
-        }
-    }
-
-    // 2. Atomic Update (Idempotency Check)
-    // We attempt to update the status to 'completed' ONLY if it is currently 'pending'.
-    // If the record exists but status is not 'pending', this will return 0 rows
-    // (or empty data), meaning it was already processed.
-    const { data: updatedPayment, error: updatePaymentError } = await (supabase
-        .from('wallet_payments') as any)
-        .update({
-            status: 'completed',
-            metadata: providerMetadata || payment.metadata,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('id', payment.id)
-        .eq('status', 'pending')
-        .select()
-        .single()
-
-    if (updatePaymentError) {
-        // If error is just "no rows returned", it means condition failed (already completed)
-        // But .single() might throw if 0 rows. Use MaybeSingle if available or handle error code.
-        // Actually, Supabase .single() returns error code PGRST116 for no rows.
-        if (updatePaymentError.code === 'PGRST116') {
-            return { success: true, alreadyProcessed: true }
-        }
-        console.error('[PaymentProcess] Update payment error:', updatePaymentError)
-        return { success: false, error: 'Failed to update payment status' }
-    }
-
-    if (!updatedPayment) {
-        // Fallback if no error was thrown but no data returned (dependent on client version)
-        return { success: true, alreadyProcessed: true }
-    }
-
-    // 3. Credit wallet (atomic — prevents read-modify-write race)
-    const { data: creditData, error: walletError } = await (supabase as any)
-        .rpc('credit_wallet_balance', {
-            p_user_id: payment.user_id,
-            p_amount: payment.amount,
-        })
-        .single()
-
-    if (walletError || !creditData) {
-        console.error('[PaymentProcess] Wallet credit error:', walletError)
-        // Compensate: reset status to pending so the next webhook/cron call can retry
-        await (supabase
-            .from('wallet_payments') as any)
-            .update({ status: 'pending', updated_at: new Date().toISOString() })
-            .eq('id', payment.id)
-            .eq('status', 'completed')  // Only reset if it's still in the completed state we just set
+    if (rpcError) {
+        console.error('[PaymentProcess] credit_wallet_topup RPC error:', reference, rpcError)
         return { success: false, error: 'Failed to credit wallet' }
     }
 
-    const newBalance: number = (creditData as any).new_balance
+    const outcome = mapCreditResult(data)
 
-    // Atomically increment total_credited (separate reporting field not covered by the RPC)
-    const { error: totalCreditedError } = await (supabase as any)
-        .rpc('increment_wallet_total_credited', {
-            p_user_id: payment.user_id,
-            p_amount: payment.amount,
-        })
-
-    if (totalCreditedError && totalCreditedError.code !== 'PGRST202') {
-        // PGRST202 = function not found — tolerate until migration is applied
-        console.warn('[PaymentProcess] total_credited increment error (non-fatal):', totalCreditedError)
+    if (!outcome.success) {
+        const rawError = (data as any)?.error
+        if (outcome.transient && (rawError === 'amount_unverified' || rawError === 'wallet_not_found')) {
+            console.warn(`[PaymentProcess] Transient credit failure for ${reference}: ${rawError}`)
+        } else {
+            console.error(`[PaymentProcess] Credit failed for ${reference}: ${rawError ?? 'unknown'}`)
+        }
+        return { success: false, error: outcome.error ?? 'Failed to credit wallet' }
     }
 
-    // 4. Create transaction record
-    const { error: txnError } = await (supabase.from('wallet_transactions') as any).insert({
-        wallet_id: payment.wallet_id,
-        user_id: payment.user_id,
-        type: 'credit',
-        amount: payment.amount,
-        description: 'Wallet top-up via Paystack',
-        reference: reference,
-        source: 'payment',
-        status: 'completed',
-    })
-
-    if (txnError) {
-        console.error('[PaymentProcess] Transaction log error:', txnError)
+    if (outcome.alreadyProcessed) {
+        return { success: true, alreadyProcessed: true }
     }
 
-    // 5. Create notification
+    // First-time success: the money is already credited. Notify.
+    const { userId, amount, newBalance } = outcome
+    if (!userId || amount === undefined || newBalance === undefined || !Number.isFinite(amount) || !Number.isFinite(newBalance)) {
+        console.error('[PaymentProcess] Credit succeeded but RPC result incomplete; skipping notifications:', reference, data)
+        return { success: true }
+    }
+
+    // 2. Create notification
     const { error: notifyError } = await (supabase.from('notifications') as any).insert({
-        user_id: payment.user_id,
+        user_id: userId,
         title: 'Wallet Topped Up',
-        message: `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}`,
+        message: `Your wallet has been credited with GHS ${amount.toFixed(2)}`,
         type: 'payment_success',
         action_url: '/dashboard/wallet',
     })
@@ -156,13 +70,13 @@ export async function processCompletedWalletPayment(reference: string, providerM
         console.error('[PaymentProcess] Notification error:', notifyError)
     }
 
-    // 6. Send push, email and SMS notification in background
+    // 3. Send push, email and SMS notification in background
     waitUntil((async () => {
         try {
             const { sendPushNotification } = await import('@/lib/push-service')
-            await sendPushNotification(payment.user_id, {
+            await sendPushNotification(userId, {
                 title: 'Wallet Topped Up',
-                body: `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}`,
+                body: `Your wallet has been credited with GHS ${amount.toFixed(2)}`,
                 url: '/dashboard/wallet'
             }).catch(err => console.error('[PaymentProcess] Push error:', err))
 
@@ -170,7 +84,7 @@ export async function processCompletedWalletPayment(reference: string, providerM
             const { data: userData } = await supabase
                 .from('users')
                 .select('email, first_name, phone_number')
-                .eq('id', payment.user_id)
+                .eq('id', userId)
                 .single()
 
             if (userData) {
@@ -178,7 +92,7 @@ export async function processCompletedWalletPayment(reference: string, providerM
                 await sendWalletTopupSuccessEmail(
                     (userData as any).email,
                     (userData as any).first_name || 'Customer',
-                    payment.amount,
+                    amount,
                     reference,
                     newBalance
                 ).catch(err => console.error('[PaymentProcess] Email error:', err))
@@ -189,13 +103,13 @@ export async function processCompletedWalletPayment(reference: string, providerM
                     await sendWalletTopupSuccessSMS(
                         (userData as any).phone_number,
                         {
-                            amount: payment.amount,
+                            amount,
                             newBalance
                         }
                     ).then(res => console.log('[PaymentProcess] SMS Result:', res))
                         .catch(err => console.error('[PaymentProcess] SMS error:', err))
                 } else {
-                    console.warn('[PaymentProcess] No phone number found for user:', payment.user_id)
+                    console.warn('[PaymentProcess] No phone number found for user:', userId)
                 }
 
             }
