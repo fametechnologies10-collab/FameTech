@@ -4,6 +4,7 @@ import { consumeRateLimit } from '@/lib/simple-rate-limit'
 import { waitUntil } from '@vercel/functions'
 import { quoteAirtimeCommission } from '@/lib/airtime-pricing'
 import { resolveSubAgentContext } from '@/lib/sub-agent-account'
+import { recordAirtimeDebitLedger } from '@/lib/airtime-ledger'
 
 // ============================================================================
 // POST /api/v2/airtime/purchase
@@ -192,11 +193,13 @@ export async function POST(request: NextRequest) {
 
         // waitUntil so a lambda freeze immediately after the response cannot drop the ledger row
         // — the wallet has already been debited, so losing this leaves an audit gap.
-        waitUntil((supabase.from('wallet_transactions') as any).insert({
-            wallet_id: walletId, user_id: userId, type: 'debit', amount: totalPaid,
+        // recordAirtimeDebitLedger checks the `{ error }` result the old `.then().catch()` could
+        // never see (supabase-js resolves with an error, it does not reject) and retries once.
+        waitUntil(recordAirtimeDebitLedger(supabase, {
+            wallet_id: walletId, user_id: userId, amount: totalPaid,
             description: `API Airtime: GHS ${airtimeAmount.toFixed(2)} for ${cleanPhone} (${network})`,
-            reference: referenceCode, source: 'airtime', status: 'completed',
-        }).then(() => {}).catch((e: any) => console.error('[API v2 Airtime Purchase] Tx insert error:', e)))
+            reference: referenceCode,
+        }))
 
         waitUntil((async () => {
             try {

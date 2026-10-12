@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
                 continue
             }
             const guardStatus = ['not_found', 'completed', 'processing', 'skipped'].includes(r.status)
-            const guardMessage = /already completed|already refunded|airtime only|Exceeds Hubtel|not in a refulfillable state|not refundable|refund via the shop order|still in-flight|not configured|no reference/i.test(String(r.message || ''))
+            const guardMessage = /already completed|already refunded|airtime only|Exceeds Hubtel|not in a refulfillable state|not refundable|not eligible|status changed while updating|in flight at the provider|refund via the shop order|still in-flight|not configured|no reference/i.test(String(r.message || ''))
             const guardVerdict = action === 'sync' && ['pending', 'unknown'].includes(r.verdict)
             if (guardStatus || guardMessage || guardVerdict) {
                 summary.skipped++

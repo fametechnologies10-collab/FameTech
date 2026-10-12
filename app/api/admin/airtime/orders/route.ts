@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
-import { sendAirtimeCompletedSMS, sendMashupCompletedSMS } from '@/lib/sms-service'
-import { resolveOwnConfirmationSender } from '@/lib/sms-confirmation-sender'
-import { syncAirtimeShopMirror } from '@/lib/airtime-fulfillment'
+import { applyAdminAirtimeStatus } from '@/lib/airtime-fulfillment'
+import { isAdminTargetStatus } from '@/lib/airtime-transitions'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_PAGE_SIZE = 200
+const MAX_METADATA_BYTES = 8 * 1024
 
 async function verifyAdmin(supabaseUserClient: any) {
     const { data: { user: authUser }, error: authError } = await supabaseUserClient.auth.getUser()
@@ -13,6 +16,13 @@ async function verifyAdmin(supabaseUserClient: any) {
     const role = (user as any)?.role
     if (!['admin', 'sub-admin'].includes(role)) return null
     return { userId: authUser.id, role }
+}
+
+/** parseInt that cannot return NaN / negatives / absurd sizes (used for page + page size). */
+function clampInt(raw: string | null, fallback: number, min: number, max: number): number {
+    const n = parseInt(raw || '', 10)
+    if (!Number.isFinite(n)) return fallback
+    return Math.min(max, Math.max(min, n))
 }
 
 // GET — list all airtime orders (admin)
@@ -27,9 +37,11 @@ export async function GET(request: NextRequest) {
         const status  = searchParams.get('status')
         const network = searchParams.get('network')
         const type    = searchParams.get('type')   // 'airtime' | 'mashup'
-        const search  = searchParams.get('search')
-        const page    = parseInt(searchParams.get('page')  || '1')
-        const limit   = parseInt(searchParams.get('limit') || '30')
+        // The term is interpolated into a PostgREST `.or()` filter string, where `,` `(` `)` start
+        // new conditions. Keep only characters a reference or phone number can contain.
+        const search  = (searchParams.get('search') || '').replace(/[^A-Za-z0-9 _@.+-]/g, '').trim().slice(0, 40)
+        const page    = clampInt(searchParams.get('page'), 1, 1, 100000)
+        const limit   = clampInt(searchParams.get('limit'), 30, 1, MAX_PAGE_SIZE)
         const offset  = (page - 1) * limit
 
         let query = (supabase.from('airtime_orders') as any)
@@ -52,7 +64,7 @@ export async function GET(request: NextRequest) {
 
         if (error) {
             console.error('[Admin Airtime] List error:', error)
-            return NextResponse.json({ error: error.message }, { status: 500 })
+            return NextResponse.json({ error: 'Failed to load orders' }, { status: 500 })
         }
 
         return NextResponse.json({
@@ -75,7 +87,6 @@ export async function PATCH(request: NextRequest) {
         const admin = await verifyAdmin(supabaseUserClient)
         if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const supabase = createServerClient()
         let body: any
         try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 
@@ -86,71 +97,48 @@ export async function PATCH(request: NextRequest) {
             fulfillmentService,
             fulfillmentRequestId,
             fulfillmentMetadata,
-        } = body
+        } = body || {}
 
         if (!orderId || !status) return NextResponse.json({ error: 'orderId and status are required' }, { status: 400 })
-        if (!['processing', 'completed', 'failed'].includes(status)) {
+        if (typeof orderId !== 'string' || !UUID_RE.test(orderId)) {
+            return NextResponse.json({ error: 'Invalid orderId' }, { status: 400 })
+        }
+        if (!isAdminTargetStatus(status)) {
             return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
         }
         if (status === 'failed' && !fulfillmentNote) {
             return NextResponse.json({ error: 'A reason note is required when marking as failed' }, { status: 400 })
         }
-
-        // Fetch existing order
-        const { data: existing, error: fetchError } = await (supabase.from('airtime_orders') as any)
-            .select('*').eq('id', orderId).single()
-
-        if (fetchError || !existing) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-
-        const updatePayload: any = {
-            status,
-            fulfilled_by: admin.userId,
-            fulfilled_at: new Date().toISOString(),
-            updated_at:   new Date().toISOString(),
+        for (const [label, v, max] of [
+            ['fulfillmentNote', fulfillmentNote, 500],
+            ['fulfillmentService', fulfillmentService, 100],
+            ['fulfillmentRequestId', fulfillmentRequestId, 200],
+        ] as const) {
+            if (v !== undefined && v !== null && (typeof v !== 'string' || v.length > max)) {
+                return NextResponse.json({ error: `${label} must be a string of at most ${max} characters` }, { status: 400 })
+            }
         }
-        if (fulfillmentNote)      updatePayload.fulfillment_note       = fulfillmentNote
-        if (fulfillmentService)   updatePayload.fulfillment_service    = fulfillmentService
-        if (fulfillmentRequestId) updatePayload.fulfillment_request_id = fulfillmentRequestId
-        if (fulfillmentMetadata)  updatePayload.fulfillment_metadata   = fulfillmentMetadata
-
-        const { error: updateError } = await (supabase.from('airtime_orders') as any)
-            .update(updatePayload).eq('id', orderId)
-
-        if (updateError) {
-            console.error('[Admin Airtime] Update error:', updateError)
-            return NextResponse.json({ error: updateError.message }, { status: 500 })
+        if (fulfillmentMetadata !== undefined && fulfillmentMetadata !== null) {
+            const isObject = typeof fulfillmentMetadata === 'object' && !Array.isArray(fulfillmentMetadata)
+            if (!isObject || JSON.stringify(fulfillmentMetadata).length > MAX_METADATA_BYTES) {
+                return NextResponse.json({ error: 'fulfillmentMetadata must be a small JSON object' }, { status: 400 })
+            }
         }
 
-        // SYNC: If this is a shop order, sync the status downward (shared with the other
-        // airtime finalize paths — see lib/airtime-fulfillment.ts).
-        await syncAirtimeShopMirror(supabase, existing.reference_code, status)
+        const result = await applyAdminAirtimeStatus(orderId, {
+            to: status,
+            adminUserId: admin.userId,
+            note: fulfillmentNote || null,
+            service: fulfillmentService || null,
+            requestId: fulfillmentRequestId || null,
+            metadata: fulfillmentMetadata || null,
+        })
 
-        // In-app notification
-        const orderTypeLabel = existing.type === 'mashup' ? 'Mashup Bundle' : 'Airtime'
-        ;(supabase.from('notifications') as any).insert({
-            user_id: existing.user_id,
-            title: status === 'completed' ? `${orderTypeLabel} Sent ✅` : `${orderTypeLabel} Order Failed`,
-            message: status === 'completed'
-                ? `GHS ${existing.airtime_amount.toFixed(2)} ${orderTypeLabel.toLowerCase()} for ${existing.beneficiary_phone} has been sent successfully. Ref: ${existing.reference_code}`
-                : `Your ${orderTypeLabel.toLowerCase()} order ${existing.reference_code} could not be completed. Please contact support.`,
-            type: 'order_update',
-            action_url: '/dashboard/airtime',
-        }).then(() => {}).catch((e: any) => console.error('[Admin Airtime] Notification error:', e))
-
-        // Completed SMS
-        if (status === 'completed') {
-            const smsFn = existing.type === 'mashup' ? sendMashupCompletedSMS : sendAirtimeCompletedSMS
-            // KFT SMS v2: resolve the order owner's OWN approved sender for THEIR OWN
-            // completion confirmation. USSD and shop-customer confirmations stay on
-            // the platform sender — out of scope here (resolution never throws).
-            resolveOwnConfirmationSender(supabase, existing.user_id)
-                .then((ownSender) =>
-                    smsFn(existing.beneficiary_phone, { amount: existing.airtime_amount, sender: ownSender ?? undefined })
-                )
-                .catch((err: any) => console.error('[Admin Airtime] Completed SMS failed:', err))
+        if (!result.ok) {
+            const httpStatus = result.code === 'not_found' ? 404 : result.code === 'conflict' ? 409 : 500
+            return NextResponse.json({ error: result.message }, { status: httpStatus })
         }
-
-        return NextResponse.json({ success: true, status })
+        return NextResponse.json({ success: true, status: result.status })
     } catch (error) {
         console.error('[Admin Airtime] Unexpected PATCH error:', error)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

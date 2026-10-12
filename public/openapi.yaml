@@ -495,7 +495,7 @@ paths:
               properties:
                 network: { type: string, enum: [MTN, Telecel, AT] }
                 beneficiary_phone: { type: string, example: "0551617309" }
-                amount: { type: number, example: 10, description: "What the beneficiary receives — you pay exactly this amount, no fee." }
+                amount: { type: number, example: 10, description: "What the beneficiary receives — you pay exactly this amount, no fee. Maximum 2 decimal places; more returns 400." }
                 reference: { type: string, minLength: 3, maxLength: 100 }
       responses:
         "200":

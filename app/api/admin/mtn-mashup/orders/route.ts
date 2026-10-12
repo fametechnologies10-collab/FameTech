@@ -46,103 +46,88 @@ export async function GET(request: NextRequest) {
 type ProcessResult = { ok: boolean; refunded?: boolean; error?: string }
 
 /**
- * Update ONE mashup order's status. For 'failed', performs the ATOMIC refund-once:
- * only the paid -> refunded transition matches a row, so the wallet is credited at
- * most once even if this runs repeatedly or concurrently (single or bulk path).
+ * Update ONE mashup order's status. For 'failed', performs the ATOMIC refund-once through the
+ * refund_mashup_order RPC (order row locked FOR UPDATE; status flip, wallet credit and ledger row
+ * commit together), so the wallet is credited at most once even if this runs repeatedly or
+ * concurrently (single or bulk path).
+ *
+ * Previously the route flipped the order to refunded FIRST and credited the wallet SECOND in a
+ * separate call. When the credit failed the order was already marked refunded, so a retry hit the
+ * "already refunded" branch, reported success, and the customer was never paid back.
+ *
  * Always scoped to category='mtn_mashup' — never touches a non-mashup order.
  */
 async function processOrderStatus(orderId: string, status: Status, note: string | null): Promise<ProcessResult> {
     const now = new Date().toISOString()
 
     if (status === 'failed') {
-        const { data: refundRow, error: refundErr } = await (supabaseAdmin.from('orders') as any)
-            .update({ status: 'failed', payment_status: 'refunded', fulfillment_note: note, updated_at: now })
-            .eq('id', orderId)
-            .eq('category', MASHUP_CATEGORY)
-            .eq('payment_status', 'paid')
-            .select('id, user_id, price, reference_code')
-            .maybeSingle()
+        const { data: refund, error: refundErr } = await (supabaseAdmin as any).rpc('refund_mashup_order', {
+            p_order_id: orderId,
+            p_note: note,
+        })
         if (refundErr) {
-            console.error('[Mashup] Refund update error:', refundErr)
-            return { ok: false, error: refundErr.message }
+            console.error(`[Mashup] CRITICAL: refund RPC failed for order ${orderId}:`, refundErr)
+            return { ok: false, error: 'Refund failed — nothing was changed, safe to retry' }
+        }
+        if (!refund?.ok) {
+            if (refund?.error === 'order_not_found') return { ok: false, error: 'Order not found' }
+            return { ok: false, error: 'Order is not in a refundable state' }
+        }
+        // Already refunded earlier (the RPC only re-stamped the note) — nothing more to do.
+        if (refund.already_refunded) return { ok: true, refunded: false }
+
+        // The buyer is refunded and the ledger row written (inside the RPC). The remaining steps are
+        // follow-ups on a refund that has ALREADY committed, so none of them may fail the request.
+
+        // If this was a SUB-agent's wallet-mode mashup purchase, the upline Lead was credited their
+        // margin at buy time (credit_lead_margin, keyed by reference_code). A refund must reverse that
+        // credit or the Lead keeps money on a voided sale (wallet pump). reverse_lead_margin is
+        // idempotent and a no-op for non-sub orders (no matching credit row).
+        const { error: revErr } = await (supabaseAdmin as any).rpc('reverse_lead_margin', {
+            p_order_reference: refund.reference_code,
+        })
+        if (revErr) {
+            console.error(`[Mashup] CRITICAL: lead-margin reversal failed for order ${orderId} (ref ${refund.reference_code}):`, revErr)
+            // Page admins so the Lead over-credit is reconciled manually rather than lost silently.
+            await sendAdminPushNotification({
+                title: 'Mashup refund: Lead-margin reversal failed',
+                body: `Order ${orderId} (ref ${refund.reference_code}) refunded to buyer, but reversing the upline Lead's margin failed — reconcile manually.`,
+                url: '/admin/mtn-mashup',
+            }).catch(e => console.error('[Mashup] reversal-alert push error:', e))
         }
 
-        if (refundRow) {
-            const { error: creditErr } = await (supabaseAdmin as any).rpc('credit_wallet_balance', {
-                p_user_id: refundRow.user_id,
-                p_amount: refundRow.price,
-            })
-            if (creditErr) {
-                console.error(`[Mashup] CRITICAL: refund credit failed for order ${orderId}:`, creditErr)
-                return { ok: false, error: 'Refund failed — needs manual reconciliation' }
-            }
-
-            // If this was a SUB-agent's wallet-mode mashup purchase, the upline Lead
-            // was credited their margin at buy time (credit_lead_margin, keyed by
-            // reference_code). A refund must reverse that credit or the Lead keeps
-            // money on a voided sale (wallet pump). reverse_lead_margin is idempotent
-            // and a no-op for non-sub orders (no matching credit row), so it is safe
-            // to call unconditionally. Runs at most once — the atomic paid->refunded
-            // guard above means this block executes only on the first refund.
-            const { error: revErr } = await (supabaseAdmin as any).rpc('reverse_lead_margin', {
-                p_order_reference: refundRow.reference_code,
-            })
-            if (revErr) {
-                console.error(`[Mashup] CRITICAL: lead-margin reversal failed for order ${orderId} (ref ${refundRow.reference_code}):`, revErr)
-                // Buyer is already refunded; do not fail the request. Page admins so the
-                // Lead over-credit is reconciled manually rather than lost silently.
-                await sendAdminPushNotification({
-                    title: 'Mashup refund: Lead-margin reversal failed',
-                    body: `Order ${orderId} (ref ${refundRow.reference_code}) refunded to buyer, but reversing the upline Lead's margin failed — reconcile manually.`,
-                    url: '/admin/mtn-mashup',
-                }).catch(e => console.error('[Mashup] reversal-alert push error:', e))
-            }
-            // Ledger entry (best-effort): record the refund transaction.
-            const { data: wallet } = await supabaseAdmin.from('wallets').select('id').eq('user_id', refundRow.user_id).single()
-            if (wallet) {
-                await (supabaseAdmin.from('wallet_transactions') as any).insert({
-                    wallet_id: (wallet as any).id,
-                    user_id: refundRow.user_id,
-                    type: 'credit',
-                    amount: refundRow.price,
-                    description: `Refund: Special MTN Mashup order ${orderId}`,
-                    reference: `mashup-refund-${orderId}`,
-                    source: 'refund',
-                    status: 'completed',
-                }).then(() => {}).catch((e: any) => console.error('[Mashup] Refund tx insert error:', e))
-            }
-            await (supabaseAdmin.from('notifications') as any).insert({
-                user_id: refundRow.user_id,
-                title: 'Order Refunded',
-                message: `Your Special MTN Mashup order could not be completed and has been refunded to your wallet.`,
-                type: 'order_update',
-                action_url: '/dashboard/my-orders',
-            }).then(() => {}).catch((e: any) => console.error('[Mashup] Refund notification error:', e))
-            return { ok: true, refunded: true }
-        }
-
-        // Already refunded — re-stamp the note on the (already failed) order without re-crediting.
-        // Guarded to status='failed' so this branch can never demote a non-failed order.
-        const { data: terminal } = await (supabaseAdmin.from('orders') as any)
-            .update({ fulfillment_note: note, updated_at: now })
-            .eq('id', orderId)
-            .eq('category', MASHUP_CATEGORY)
-            .eq('status', 'failed')
-            .select('id')
-            .maybeSingle()
-        if (!terminal) return { ok: false, error: 'Order not found or not in a refundable state' }
-        return { ok: true, refunded: false }
+        const { error: notifErr } = await (supabaseAdmin.from('notifications') as any).insert({
+            user_id: refund.user_id,
+            title: 'Order Refunded',
+            message: `Your Special MTN Mashup order could not be completed and has been refunded to your wallet.`,
+            type: 'order_update',
+            action_url: '/dashboard/my-orders',
+        })
+        if (notifErr) console.error('[Mashup] Refund notification error:', notifErr.message)
+        return { ok: true, refunded: true }
     }
 
-    // Non-failed transitions: plain status update.
+    // Non-failed transitions: plain status update, but only on a PAID order that has not already
+    // been failed/refunded. Without these filters an admin could reopen a refunded order as
+    // 'completed' (customer keeps the refund AND a "delivered" order) or complete an unpaid one.
     const { data, error } = await (supabaseAdmin.from('orders') as any)
         .update({ status, fulfillment_note: note, updated_at: now })
         .eq('id', orderId)
         .eq('category', MASHUP_CATEGORY)
+        .eq('payment_status', 'paid')
+        .in('status', ['pending', 'processing', 'completed'])
         .select('id, status')
         .maybeSingle()
     if (error) return { ok: false, error: error.message }
-    if (!data) return { ok: false, error: 'Order not found' }
+    if (!data) {
+        const { data: existing } = await (supabaseAdmin.from('orders') as any)
+            .select('status, payment_status')
+            .eq('id', orderId)
+            .eq('category', MASHUP_CATEGORY)
+            .maybeSingle()
+        if (!existing) return { ok: false, error: 'Order not found' }
+        return { ok: false, error: `Order cannot be set to ${status} (status: ${existing.status}, payment: ${existing.payment_status})` }
+    }
     return { ok: true, refunded: false }
 }
 

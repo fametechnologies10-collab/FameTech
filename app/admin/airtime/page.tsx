@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { cn, normalizeWhatsAppNumber } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { csvSafeText } from '@/lib/csv-safe'
 import {
     format,
     startOfDay,
@@ -1071,7 +1072,7 @@ export default function AdminAirtimePage() {
                 body: JSON.stringify(settings),
             })
             if (res.ok) { toast.success('Settings saved successfully!'); loadSettings() }
-            else { const d = await res.json(); toast.error(d.error || 'Failed to save') }
+            else { const d = await res.json(); toast.error(d.details?.[0] ? `${d.error}: ${d.details[0]}` : (d.error || 'Failed to save')) }
         } catch { toast.error('An error occurred') }
         setSavingSettings(false)
     }
@@ -1106,7 +1107,8 @@ export default function AdminAirtimePage() {
             })
             const d = await res.json()
             if (!res.ok) { toast.error(d.error || 'Failed to create batch'); return }
-            toast.success(`Batch created — ${pendingIds.length} orders marked as processing`)
+            const claimed = d.batch?.order_count ?? pendingIds.length
+            toast.success(`Batch created — ${claimed} orders marked as processing${d.skipped > 0 ? ` (${d.skipped} skipped — no longer pending)` : ''}`)
             loadBatches()
             loadOrders()
         } catch { toast.error('An error occurred') }
@@ -1122,7 +1124,7 @@ export default function AdminAirtimePage() {
             })
             const d = await res.json()
             if (!res.ok) { toast.error(d.error || 'Failed to update batch'); return }
-            toast.success(`Batch completed — ${d.completedCount} orders fulfilled`)
+            toast.success(`Batch completed — ${d.completedCount} orders fulfilled${d.skipped?.length ? ` (${d.skipped.length} skipped — status had changed)` : ''}`)
             loadBatches()
             loadOrders()
         } catch { toast.error('An error occurred') }
@@ -1222,21 +1224,24 @@ export default function AdminAirtimePage() {
         const headers = ['Reference', 'Type', 'Network', 'Status', 'Beneficiary', 'Customer', 'Amount (GHS)', 'Admin Profit (GHS)', 'Shop Profit (GHS)', 'Total Paid (GHS)', 'Provider', 'Commission (GHS)', 'Attempts', 'Role', 'Date']
         const rows = filteredOrders.map(o => {
             const commission = commissionOf(o)
+            // Text columns go through csvSafeText: names/references are customer-controlled, and a
+            // cell starting with = + - @ would run as a spreadsheet formula when an admin opens the
+            // file. Numeric columns are left alone (they legitimately start with '-').
             return [
-                o.reference_code,
-                o.type,
-                o.network,
-                o.status,
-                o.beneficiary_phone,
-                `${o.users?.first_name || ''} ${o.users?.last_name || ''}`.trim(),
+                csvSafeText(o.reference_code),
+                csvSafeText(o.type),
+                csvSafeText(o.network),
+                csvSafeText(o.status),
+                csvSafeText(o.beneficiary_phone),
+                csvSafeText(`${o.users?.first_name || ''} ${o.users?.last_name || ''}`.trim()),
                 o.airtime_amount.toFixed(2),
                 earningsOf(o).adminMarkup.toFixed(2),
                 earningsOf(o).shop.toFixed(2),
                 o.total_paid.toFixed(2),
-                o.fulfillment_service || '',
+                csvSafeText(o.fulfillment_service || ''),
                 commission !== undefined ? commission.toFixed(2) : '',
                 String(o.airtime_fulfillment_attempts ?? 0),
-                o.user_role,
+                csvSafeText(o.user_role),
                 format(parseISO(o.created_at), 'yyyy-MM-dd HH:mm'),
             ]
         })

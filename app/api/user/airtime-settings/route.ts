@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
+import { effectiveRoleFromExpiry } from '@/lib/effective-role'
 
 // Read-only mirror of app/api/admin/airtime/settings's key list, for any
 // AUTHENTICATED user (not just admin/sub-admin).
@@ -47,17 +48,28 @@ export async function GET(request: NextRequest) {
         // Service-role read — bypasses RLS on admin_settings, same as the admin
         // route. Auth above already establishes a real session is required.
         const supabase = createServerClient()
-        const { data, error } = await (supabase.from('admin_settings') as any)
-            .select('key, value')
-            .in('key', AIRTIME_SETTING_KEYS)
+        const [settingsResult, userResult] = await Promise.all([
+            (supabase.from('admin_settings') as any).select('key, value').in('key', AIRTIME_SETTING_KEYS),
+            (supabase.from('users') as any).select('role, agent_expires_at, dealer_expires_at').eq('id', authUser.id).maybeSingle(),
+        ])
+        const { data, error } = settingsResult
 
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        if (error) {
+            console.error('[User Airtime Settings] settings read error:', error)
+            return NextResponse.json({ error: 'Failed to load settings' }, { status: 500 })
+        }
 
         const settings: Record<string, string> = {}
         for (const row of (data || [])) settings[row.key] = String(row.value)
 
+        // The role the SERVER prices this account at (expiry-aware). The page used to guess from the
+        // raw users.role — it showed dealers the agent fee and lapsed dealers/agents their old
+        // discount, so the confirm screen could disagree with what /api/airtime/create charged.
+        const u = userResult?.data as any
+        const role = effectiveRoleFromExpiry(u?.role, u?.agent_expires_at ?? null, u?.dealer_expires_at ?? null)
+
         return NextResponse.json(
-            { settings },
+            { settings, role },
             { headers: { 'Cache-Control': 'private, no-store' } },
         )
     } catch (error) {
