@@ -602,68 +602,74 @@ function WalletContent() {
             {/* ── Tabs: Top Up / Send & Claim ── */}
             <Tabs defaultValue="topup" className="w-full">
                 <TabsList className="w-full grid grid-cols-2 mb-4 h-12 p-1 bg-muted border border-border rounded-xl">
-                    <TabsTrigger value="topup" className="h-full text-sm font-semibold rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">Top Up Wallet</TabsTrigger>
+                    <TabsTrigger value="topup" className="h-full text-sm font-semibold rounded-lg data-[state=active]:bg-[#006F8F] data-[state=active]:text-white data-[state=active]:shadow-md">Add money</TabsTrigger>
                     <TabsTrigger value="claim" className="h-full text-sm font-semibold rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md">Send &amp; Claim</TabsTrigger>
                 </TabsList>
 
-                {/* ── Top Up Tab ── */}
+                {/* ── Top Up Tab — "charge" identity: cyan accent, distinct from the blue Send & Claim flow ── */}
                 <TabsContent value="topup">
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <Plus className="w-4 h-4 text-blue-600" />
-                                Top Up Wallet
+                    <Card className="overflow-hidden border-[#80E4FF]/60 dark:border-[#006F8F]/40">
+                        <CardHeader className="pb-3 bg-[#E6FAFF] dark:bg-[#002A39]/40 border-b border-[#80E4FF]/50 dark:border-[#006F8F]/30">
+                            <CardTitle className="font-display text-base font-bold flex items-center gap-2 text-foreground">
+                                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#00C8FF]/20 text-[#006F8F] dark:text-[#40D6FF] shrink-0">
+                                    <Zap className="w-4 h-4" />
+                                </span>
+                                Add money to your wallet
                                 {(dbUser?.role === 'agent' || dbUser?.role === 'dealer') && (
                                     <span className="text-xs font-normal text-red-500 ml-1">· Paystack fee applies</span>
                                 )}
                             </CardTitle>
-                            <CardDescription className="text-xs text-foreground/70">Pay with mobile money — funds arrive instantly</CardDescription>
+                            <CardDescription className="text-xs text-foreground/70">Charge it from mobile money — it lands in your wallet right away</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-6 pt-5">
 
                             {/* Prominent top-up limits */}
                             <div className="flex items-center gap-2.5 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
                                 <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
                                 <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                                    Top up between {formatCurrency(minTopup)} and {formatCurrency(maxTopup)}
+                                    Add between {formatCurrency(minTopup)} and {formatCurrency(maxTopup)}
                                 </p>
                             </div>
 
                             {chargeStep === 'idle' && (
                                 <>
-                                    {/* Quick Amounts */}
+                                    {/* Quick Amounts — chips, not boxy buttons */}
                                     <div>
-                                        <Label className="text-sm font-medium text-foreground mb-3 block">Quick Select</Label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {QUICK_AMOUNTS.filter(amt => amt >= minTopup && amt <= maxTopup).map(amt => (
-                                                <Button key={amt} type="button"
-                                                    variant={topUpAmount === amt.toString() ? 'default' : 'outline'}
-                                                    onClick={() => setTopUpAmount(amt.toString())}
-                                                    className="h-12">
-                                                    {formatCurrency(amt)}
-                                                </Button>
-                                            ))}
+                                        <Label className="text-sm font-medium text-foreground mb-3 block">How much do you want to add?</Label>
+                                        <div className="flex flex-wrap gap-2.5">
+                                            {QUICK_AMOUNTS.filter(amt => amt >= minTopup && amt <= maxTopup).map(amt => {
+                                                const active = topUpAmount === amt.toString()
+                                                return (
+                                                    <button key={amt} type="button"
+                                                        onClick={() => setTopUpAmount(amt.toString())}
+                                                        className={`h-11 px-5 rounded-full text-sm font-semibold border transition-colors ${active
+                                                            ? 'bg-[#006F8F] border-[#006F8F] text-white shadow-sm'
+                                                            : 'bg-card border-border text-foreground hover:border-[#00C8FF] hover:text-[#006F8F] dark:hover:text-[#40D6FF]'}`}>
+                                                        {formatCurrency(amt)}
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
                                     </div>
 
                                     {/* Custom Amount */}
                                     <div>
-                                        <Label htmlFor="charge-amount">Custom Amount (GHS)</Label>
+                                        <Label htmlFor="charge-amount">Or type your own amount</Label>
                                         <div className="relative mt-2">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-foreground/70">GHS</span>
                                             <Input id="charge-amount" type="number" placeholder="Enter amount"
                                                 value={topUpAmount}
                                                 onChange={e => setTopUpAmount(e.target.value)}
-                                                className="pl-12 h-12 text-lg text-foreground" min={minTopup} max={maxTopup} />
+                                                className="pl-12 h-12 text-lg text-foreground focus-visible:ring-[#00C8FF]" min={minTopup} max={maxTopup} />
                                         </div>
-                                        <p className="text-xs text-foreground/70 mt-1">Enter between {formatCurrency(minTopup)} and {formatCurrency(maxTopup)}</p>
+                                        <p className="text-xs text-foreground/70 mt-1">Between {formatCurrency(minTopup)} and {formatCurrency(maxTopup)}</p>
                                     </div>
 
                                     {/* Phone input + network badge */}
                                     <div className="grid grid-cols-2 gap-3">
                                         {/* Phone number */}
                                         <div>
-                                            <Label htmlFor="momo-phone">Mobile Number</Label>
+                                            <Label htmlFor="momo-phone">Mobile money number</Label>
                                             <Input id="momo-phone" type="tel" placeholder="0241234567"
                                                 value={momoPhone}
                                                 onChange={e => setMomoPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
@@ -675,7 +681,7 @@ function WalletContent() {
                                             <Label>
                                                 Network
                                                 {autoDetected && selectedNetwork && (
-                                                    <span className="ml-2 text-xs font-medium text-green-600 dark:text-green-400">Auto-detected</span>
+                                                    <span className="ml-2 text-xs font-medium text-[#006F8F] dark:text-[#40D6FF]">Detected automatically</span>
                                                 )}
                                             </Label>
                                             <Select value={selectedNetwork} onValueChange={v => { setSelectedNetwork(v); setAutoDetected(false) }}>
@@ -708,29 +714,31 @@ function WalletContent() {
 
                                     {/* Fee summary */}
                                     {topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup && (
-                                        <div className="p-4 rounded-xl bg-muted/50 border border-border space-y-2">
+                                        <div className="p-4 rounded-xl bg-[#E6FAFF]/60 dark:bg-[#002A39]/30 border border-[#80E4FF]/60 dark:border-[#006F8F]/30 space-y-2">
                                             <div className="flex justify-between text-sm">
-                                                <span className="text-foreground/70">Top-up amount</span>
+                                                <span className="text-foreground/70">You're adding</span>
                                                 <span className="font-medium text-foreground">{formatCurrency(parseFloat(topUpAmount))}</span>
                                             </div>
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-foreground/70">Transaction fee ({paystackFeePercent}%)</span>
                                                 <span className="font-medium text-foreground">{formatCurrency(fee)}</span>
                                             </div>
-                                            <Separator />
-                                            <div className="flex justify-between font-semibold text-foreground">
-                                                <span>Total to pay</span>
-                                                <span className="text-primary">{formatCurrency(totalAmount)}</span>
+                                            <Separator className="bg-[#80E4FF]/60 dark:bg-[#006F8F]/30" />
+                                            <div className="flex justify-between items-baseline font-semibold text-foreground">
+                                                <span>You'll pay</span>
+                                                <span className="font-display text-lg text-[#006F8F] dark:text-[#40D6FF]">{formatCurrency(totalAmount)}</span>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Pay button */}
                                     <Button onClick={handleCharge}
-                                        className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                                        className="w-full h-12 text-lg [--ft-c1:#006F8F]"
                                         disabled={!topUpAmount || parseFloat(topUpAmount) < minTopup || parseFloat(topUpAmount) > maxTopup || !momoPhone}>
-                                        <Smartphone className="w-5 h-5 mr-2" />
-                                        Pay {topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup && formatCurrency(totalAmount)} via MoMo
+                                        <Zap className="w-5 h-5 mr-2" />
+                                        {topUpAmount && parseFloat(topUpAmount) >= minTopup && parseFloat(topUpAmount) <= maxTopup
+                                            ? `Add ${formatCurrency(totalAmount)} now`
+                                            : 'Add money now'}
                                     </Button>
                                 </>
                             )}
@@ -934,8 +942,8 @@ function WalletContent() {
 
                     {chargeStep === 'charging' && (
                         <div className="flex flex-col items-center py-10 gap-4">
-                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                            <p className="font-semibold">Initiating payment...</p>
+                            <Loader2 className="w-10 h-10 animate-spin text-[#006F8F] dark:text-[#40D6FF]" />
+                            <p className="font-semibold">Sending the request to your phone…</p>
                         </div>
                     )}
 
@@ -959,16 +967,16 @@ function WalletContent() {
 
                     {chargeStep === 'pending' && (
                         <div className="flex flex-col items-center py-10 gap-4 text-center">
-                            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                                <Smartphone className="w-8 h-8 text-green-600" />
+                            <div className="w-16 h-16 rounded-full bg-[#00C8FF]/15 flex items-center justify-center">
+                                <Smartphone className="w-8 h-8 text-[#006F8F] dark:text-[#40D6FF]" />
                             </div>
                             <div className="space-y-1">
-                                <p className="font-bold text-lg text-foreground">Payment request sent!</p>
+                                <p className="font-bold text-lg text-foreground">Check your phone</p>
                                 <p className="text-sm text-foreground/70">
-                                    A prompt has been sent to <span className="font-semibold text-foreground">{momoPhone}</span>.
+                                    We've sent a payment prompt to <span className="font-semibold text-foreground">{momoPhone}</span>.
                                 </p>
                                 <p className="text-sm text-foreground/70">
-                                    Enter your MoMo PIN on your phone to approve, then tap below.
+                                    Enter your mobile money PIN to approve it, then tap below.
                                 </p>
                             </div>
 
@@ -976,12 +984,12 @@ function WalletContent() {
                             <Button
                                 onClick={handleIHavePaid}
                                 disabled={checkingPaid}
-                                className="w-full h-12 text-base"
+                                className="w-full h-12 text-base [--ft-c1:#006F8F]"
                             >
                                 {checkingPaid ? (
                                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Checking…</>
                                 ) : (
-                                    <><CheckCircle2 className="w-5 h-5 mr-2" /> I&apos;ve Paid — Check Now</>
+                                    <><CheckCircle2 className="w-5 h-5 mr-2" /> I&apos;ve paid — check now</>
                                 )}
                             </Button>
 
@@ -989,7 +997,7 @@ function WalletContent() {
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 <span>
                                     {pollCount >= PATIENT_POLLS
-                                        ? 'Taking longer than usual — once you approve, you’ll be credited automatically and notified.'
+                                        ? 'Taking longer than usual — once you approve, your wallet is credited automatically and we’ll let you know.'
                                         : 'Waiting for your approval…'}
                                 </span>
                             </div>
@@ -1003,8 +1011,8 @@ function WalletContent() {
 
                     {chargeStep === 'verifying' && (
                         <div className="flex flex-col items-center py-10 gap-4">
-                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                            <p className="font-semibold">Confirming payment...</p>
+                            <Loader2 className="w-10 h-10 animate-spin text-[#006F8F] dark:text-[#40D6FF]" />
+                            <p className="font-semibold">Confirming your payment…</p>
                         </div>
                     )}
 
