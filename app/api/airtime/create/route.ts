@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { generateReferenceCode } from '@/lib/utils'
-import { cookies } from 'next/headers'
 import { sendAirtimeBeneficiarySMS, sendAdminAirtimeAlertSMS } from '@/lib/sms-service'
 import { sendAdminAirtimeOrderEmail } from '@/lib/email-service'
 import { waitUntil } from '@vercel/functions'
 import { effectiveRoleFromExpiry } from '@/lib/effective-role'
 import { quoteAirtime } from '@/lib/airtime-pricing'
+import { recordAirtimeDebitLedger } from '@/lib/airtime-ledger'
+import { resolveSubAgentContext } from '@/lib/sub-agent-account'
 
 const NETWORK_KEY_MAP: Record<string, string> = {
     MTN: 'mtn',
@@ -15,9 +16,26 @@ const NETWORK_KEY_MAP: Record<string, string> = {
     AT: 'at',
 }
 
+// The client sends one random UUID per purchase attempt (see app/dashboard/airtime/page.tsx).
+const IDEMPOTENCY_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Server-owned reference derived from the client's idempotency key.
+ *
+ * The route used to accept a client-chosen `referenceCode` and store it verbatim. That reference is
+ * later used to (a) look up "existing" orders without scoping to the owner, (b) route status
+ * writes onto OTHER tables by prefix (SHOP-/USSD-AIR-/USSD-MASH- in syncAirtimeShopMirror), and
+ * (c) land in the admin CSV export. A caller could therefore read someone else's order, rewrite a
+ * victim's shop order status, or plant a spreadsheet formula. The reference is now always
+ * `GHD-<20 hex>`: it can never collide with another product's prefix, and it only ever comes
+ * from a key we validated.
+ */
+function referenceFromKey(key: string): string {
+    return `GHD-${key.replace(/-/g, '').slice(0, 20).toUpperCase()}`
+}
+
 export async function POST(request: NextRequest) {
     try {
-        const cookieStore = await cookies()
         const supabaseUserClient = await createRouteClient()
         const { data: { user: authUser }, error: authError } = await supabaseUserClient.auth.getUser()
 
@@ -35,12 +53,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
         }
 
-        const { beneficiaryPhone, network, amount, useExactAmount, referenceCode: clientReferenceCode, type, bundle_preference } = body
+        const { beneficiaryPhone, network, amount, useExactAmount, idempotencyKey, type, bundle_preference } = body || {}
 
         // Derive the order type and validate
         const orderType: 'airtime' | 'mashup' = type === 'mashup' ? 'mashup' : 'airtime'
-        const bundlePreference: 'balanced' | 'data' | 'voice' | null = 
-            orderType === 'mashup' 
+        const bundlePreference: 'balanced' | 'data' | 'voice' | null =
+            orderType === 'mashup'
                 ? (['balanced', 'data', 'voice'].includes(bundle_preference) ? bundle_preference : 'balanced')
                 : null
 
@@ -55,6 +73,10 @@ export async function POST(request: NextRequest) {
         if (orderType === 'mashup' && network !== 'MTN') {
             return NextResponse.json({ error: 'MTN Mashup is only available for MTN numbers' }, { status: 400 })
         }
+        if (idempotencyKey !== undefined && idempotencyKey !== null
+            && (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY_RE.test(idempotencyKey))) {
+            return NextResponse.json({ error: 'Invalid idempotency key' }, { status: 400 })
+        }
 
         // ── Tier 1 phone validation (hard) ────────────────────────────────────
         const cleanPhone = String(beneficiaryPhone).replace(/\s+/g, '')
@@ -64,9 +86,41 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
-        // ── Fetch user role + check idempotency ────────────────────────────────
+        // Number(), not parseFloat(): parseFloat("12abc") === 12 would accept a malformed value.
+        const parsedAmount = typeof amount === 'number' ? amount : Number(String(amount).trim())
+        if (!Number.isFinite(parsedAmount)) {
+            return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+        }
+
+        // ── Client idempotency (replay of the SAME purchase attempt) ───────────
+        // Scoped to the caller. Checked before anything is debited, so a retry after a dropped
+        // response returns the original order instead of charging twice.
+        const clientReference = typeof idempotencyKey === 'string' ? referenceFromKey(idempotencyKey) : null
+        const replayOf = async () => {
+            if (!clientReference) return null
+            const { data } = await (supabase.from('airtime_orders') as any)
+                .select('id, reference_code, status, network, beneficiary_phone, airtime_amount, fee_amount, total_paid, type, bundle_preference')
+                .eq('reference_code', clientReference)
+                .eq('user_id', userId)
+                .maybeSingle()
+            return data as any | null
+        }
+        const replayResponse = (o: any) => NextResponse.json({
+            success: true,
+            isDuplicate: true,
+            order: {
+                id: o.id, reference_code: o.reference_code, status: o.status, network: o.network,
+                beneficiary_phone: o.beneficiary_phone, airtime_amount: Number(o.airtime_amount),
+                fee_amount: Number(o.fee_amount), total_paid: Number(o.total_paid),
+                type: o.type, bundle_preference: o.bundle_preference,
+            },
+        })
+        const existing = await replayOf()
+        if (existing) return replayResponse(existing)
+
+        // ── Fetch user role + settings ─────────────────────────────────────────
         const [userResult, settingsResult] = await Promise.all([
-            (supabase.from('users') as any).select('role, first_name, last_name, email, phone_number, dealer_expires_at, agent_expires_at').eq('id', userId).single(),
+            (supabase.from('users') as any).select('role, status, first_name, last_name, email, phone_number, dealer_expires_at, agent_expires_at').eq('id', userId).single(),
             (supabase.from('admin_settings') as any).select('key, value').in('key', [
                 `airtime_enabled_${NETWORK_KEY_MAP[network]}`,
                 `mashup_enabled_${NETWORK_KEY_MAP[network]}`,
@@ -84,14 +138,26 @@ export async function POST(request: NextRequest) {
         }
 
         const userData = userResult.data as any
+
+        // Same account gates as /api/orders/purchase. This route had neither, so a SUSPENDED
+        // (e.g. fraud-flagged) account, or a sub-agent whose own status or recruiter is no longer
+        // eligible, could still spend its whole wallet on airtime/mashup.
+        if (userData.status === 'suspended') {
+            return NextResponse.json({ error: 'Your account is currently suspended. Please contact support.' }, { status: 403 })
+        }
+        const subCtx = await resolveSubAgentContext(supabase, userId)
+        if (subCtx.isSub && !subCtx.effectiveActive) {
+            return NextResponse.json({ error: subCtx.inactiveReason || 'Your account is not currently active' }, { status: 403 })
+        }
+
         // Expiry-aware. This route previously priced off the raw users.role, so a lapsed
         // dealer/agent kept their discount on airtime indefinitely — while data/purchase,
         // the storefront and USSD all already treated them as a customer. Same account,
         // different price depending on the surface. See lib/effective-role.ts.
         const userRole = effectiveRoleFromExpiry(
             userData.role,
-            (userData as any).agent_expires_at ?? null,
-            (userData as any).dealer_expires_at ?? null,
+            userData.agent_expires_at ?? null,
+            userData.dealer_expires_at ?? null,
         )
 
         const settingsMap: Record<string, string> = {}
@@ -121,11 +187,6 @@ export async function POST(request: NextRequest) {
         // the dashboard and the developer API cannot drift apart on fee maths or
         // fallback constants (review finding I6). orderType is passed through
         // because mashup uses its own settings keys and its own GHS 5 minimum.
-        const parsedAmount = parseFloat(amount)
-        if (isNaN(parsedAmount)) {
-            return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
-        }
-
         const quoted = quoteAirtime({
             settings: settingsMap,
             network,
@@ -139,36 +200,25 @@ export async function POST(request: NextRequest) {
         }
         const { airtimeAmount, feeAmount, totalPaid, feeRate } = quoted.quote
 
-        // ── 30-second idempotency guard ───────────────────────────────────────
-        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
-        const { data: recentOrder } = await (supabase.from('airtime_orders') as any)
-            .select('id, reference_code')
-            .eq('user_id', userId)
-            .eq('beneficiary_phone', cleanPhone)
-            .eq('total_paid', totalPaid)
-            .gte('created_at', thirtySecondsAgo)
-            .maybeSingle()
+        // ── 30-second duplicate guard (legacy clients with no idempotency key) ──
+        // Check-then-act, so it is only best effort: two simultaneous requests can both pass. Clients
+        // that send an idempotencyKey are protected atomically by the UNIQUE reference_code instead.
+        if (!clientReference) {
+            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
+            const { data: recentOrders } = await (supabase.from('airtime_orders') as any)
+                .select('id')
+                .eq('user_id', userId)
+                .eq('beneficiary_phone', cleanPhone)
+                .eq('total_paid', totalPaid)
+                .gte('created_at', thirtySecondsAgo)
+                .limit(1)
 
-        if (recentOrder) {
-            return NextResponse.json({
-                error: 'Duplicate order detected. Please wait 30 seconds before placing the same order again.',
-                isDuplicate: true
-            }, { status: 409 })
-        }
-
-        // ── Client-side idempotency (referenceCode) ───────────────────────────
-        if (clientReferenceCode) {
-            const { data: existingOrder } = await (supabase.from('airtime_orders') as any)
-                .select('id, reference_code, status')
-                .eq('reference_code', clientReferenceCode)
-                .maybeSingle()
-
-            if (existingOrder) {
+            // `.maybeSingle()` here errored (and so let a duplicate through) whenever 2+ rows matched.
+            if (recentOrders && recentOrders.length > 0) {
                 return NextResponse.json({
-                    success: true,
-                    isDuplicate: true,
-                    order: { id: existingOrder.id, reference_code: existingOrder.reference_code, status: existingOrder.status }
-                })
+                    error: 'Duplicate order detected. Please wait 30 seconds before placing the same order again.',
+                    isDuplicate: true
+                }, { status: 409 })
             }
         }
 
@@ -207,7 +257,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 })
         }
 
-        const referenceCode = clientReferenceCode || generateReferenceCode()
+        const referenceCode = clientReference || generateReferenceCode()
 
         // ── Create airtime/mashup order ────────────────────────────────────────
         const { data: order, error: orderError } = await (supabase.from('airtime_orders') as any)
@@ -246,33 +296,41 @@ export async function POST(request: NextRequest) {
             if (refundError) {
                 console.error('[Airtime] CRITICAL: refund failed after order-insert failure; manual reconciliation required:', refundError)
             }
+            // Two simultaneous requests carrying the same key: the loser's insert hits the UNIQUE
+            // reference_code. It has just been refunded above — hand back the winner's order.
+            if (clientReference && (orderError.code === '23505' || orderError.message?.includes('duplicate key'))) {
+                const winner = await replayOf()
+                if (winner) return replayResponse(winner)
+            }
             return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
         }
 
-        // ── Wallet transaction record (fire-and-forget) ───────────────────────
-        ;(supabase.from('wallet_transactions') as any).insert({
+        // ── Wallet transaction record ──────────────────────────────────────────
+        // waitUntil so a lambda freeze right after the response cannot drop it; the helper checks
+        // the `{ error }` result (the old `.catch` could never fire) and retries once.
+        waitUntil(recordAirtimeDebitLedger(supabase, {
             wallet_id: walletId,
             user_id: userId,
-            type: 'debit',
             amount: totalPaid,
             description: orderType === 'mashup'
                 ? `Mashup: GHS ${airtimeAmount.toFixed(2)} bundle for ${cleanPhone} (MTN)`
                 : `Airtime: GHS ${airtimeAmount.toFixed(2)} for ${cleanPhone} (${network})`,
             reference: referenceCode,
-            source: 'airtime',
-            status: 'completed',
-        }).then(() => {}).catch((e: any) => console.error('[Airtime] Tx insert error:', e))
+        }))
 
         // ── In-app notification (fire-and-forget) ─────────────────────────────
-        ;(supabase.from('notifications') as any).insert({
-            user_id: userId,
-            title: orderType === 'mashup' ? 'Mashup Bundle Order Placed' : 'Airtime Order Placed',
-            message: orderType === 'mashup'
-                ? `GHS ${airtimeAmount.toFixed(2)} Mashup bundle for ${cleanPhone} (MTN) is pending. Ref: ${referenceCode}`
-                : `GHS ${airtimeAmount.toFixed(2)} airtime for ${cleanPhone} (${network}) is pending. Ref: ${referenceCode}`,
-            type: 'order_update',
-            action_url: '/dashboard/airtime',
-        }).then(() => {}).catch((e: any) => console.error('[Airtime] Notification error:', e))
+        waitUntil((async () => {
+            const { error } = await (supabase.from('notifications') as any).insert({
+                user_id: userId,
+                title: orderType === 'mashup' ? 'Mashup Bundle Order Placed' : 'Airtime Order Placed',
+                message: orderType === 'mashup'
+                    ? `GHS ${airtimeAmount.toFixed(2)} Mashup bundle for ${cleanPhone} (MTN) is pending. Ref: ${referenceCode}`
+                    : `GHS ${airtimeAmount.toFixed(2)} airtime for ${cleanPhone} (${network}) is pending. Ref: ${referenceCode}`,
+                type: 'order_update',
+                action_url: '/dashboard/airtime',
+            })
+            if (error) console.error('[Airtime] Notification error:', error.message)
+        })())
 
         // ── Auto-fulfill via Hubtel Commission Services (no-op if kill-switch off) ──
         waitUntil((async () => {
@@ -349,6 +407,10 @@ export async function POST(request: NextRequest) {
                 fee_amount: feeAmount,
                 total_paid: totalPaid,
                 new_balance: newBalance,
+                // The success modal branches on these; the response used to omit them, so a mashup
+                // purchase was shown as a plain airtime order.
+                type: orderType,
+                bundle_preference: bundlePreference,
             }
         })
     } catch (error) {

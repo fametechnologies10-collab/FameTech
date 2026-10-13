@@ -47,7 +47,9 @@ export async function GET(request: NextRequest) {
             .in('status', ['pending', 'processing'])
             .order('created_at', { ascending: false })
             .limit(50),
-        (supabase.from('airtime_orders') as any)
+        // Service-role read, scoped to the authenticated caller by user_id: airtime_orders is no
+        // longer SELECT-able by the `authenticated` role (20261013_airtime_mashup_audit_fixes.sql).
+        admin.from('airtime_orders')
             .select('id, network, airtime_amount, status, created_at')
             .eq('user_id', user.id)
             .eq('source', 'api')

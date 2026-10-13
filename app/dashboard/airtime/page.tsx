@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Phone, CheckCircle, Copy, Wallet, AlertTriangle, Loader2, ChevronRight, Info, History, X, ArrowRight, RefreshCw, Search, Calendar, TrendingUp, Coins, Clock, CalendarRange, Zap, Wifi, Mic2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { quoteAirtime, resolveAirtimeLimits } from '@/lib/airtime-pricing'
 import { format, endOfDay, subDays, startOfWeek, startOfMonth, isWithinInterval, startOfDay, parseISO, isSameDay } from 'date-fns'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -81,14 +82,21 @@ const NetworkLogo = ({ id, className }: { id: string; className?: string }) => {
     return <ATLogo className={className} />
 }
 
+// Fees and min/max are NOT mirrored here any more: the quote is computed by the same
+// quoteAirtime() the server runs (see below), from the raw settings map, so the confirm screen
+// cannot disagree with what /api/airtime/create charges.
 interface AirtimeSettings {
-    fee_mtn_customer: number; fee_mtn_agent: number; fee_mtn_dealer: number
-    fee_telecel_customer: number; fee_telecel_agent: number; fee_telecel_dealer: number
-    fee_at_customer: number; fee_at_agent: number; fee_at_dealer: number
-    min_amount: number; max_amount: number
-    mashup_fee: number; mashup_min: number; mashup_max: number
     enabled_mtn: boolean; enabled_telecel: boolean; enabled_at: boolean
     mashup_dashboard_enabled: boolean
+}
+
+/** crypto.randomUUID() is unavailable on insecure origins / very old browsers. */
+function newIdempotencyKey(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+    })
 }
 
 interface AirtimeOrder {
@@ -293,6 +301,7 @@ export default function AirtimePage() {
 
     // Settings & wallet
     const [settings, setSettings] = useState<AirtimeSettings | null>(null)
+    const [rawSettings, setRawSettings] = useState<Record<string, string> | null>(null)
     const [walletBalance, setWalletBalance] = useState<number | null>(null)
     const [userRole, setUserRole] = useState<'customer' | 'agent' | 'dealer'>('customer')
     const [settingsLoading, setSettingsLoading] = useState(true)
@@ -306,6 +315,8 @@ export default function AirtimePage() {
 
     // UI state
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const submitLockRef = useRef(false)
+    const attemptRef = useRef<{ signature: string; key: string } | null>(null)
     const [showConfirm, setShowConfirm] = useState(false)
     const [successOrder, setSuccessOrder] = useState<AirtimeOrder | null>(null)
 
@@ -336,25 +347,12 @@ export default function AirtimePage() {
                 // rendered. This mirror requires only a session, not a role.
                 const settingsRes = await fetch('/api/user/airtime-settings')
                 if (settingsRes.ok) {
-                    const { settings: raw } = await settingsRes.json()
-                    const lr = ['customer', 'agent', 'dealer'].includes(dbUser.role as string) ? (dbUser.role as string) : 'customer'
-                    const limDef: Record<string, { min: string; max: string }> = { customer: { min: '1', max: '500' }, agent: { min: '1', max: '1000' }, dealer: { min: '1', max: '2000' } }
-                    const feeDef: Record<string, string> = { customer: '5', agent: '3', dealer: '2' }
+                    const { settings: raw, role } = await settingsRes.json()
+                    setRawSettings(raw || {})
+                    // The role the SERVER prices this account at (expiry-aware). Guessing from
+                    // dbUser.role showed dealers the agent fee and lapsed dealers their old discount.
+                    if (role === 'agent' || role === 'dealer' || role === 'customer') setUserRole(role)
                     setSettings({
-                        fee_mtn_customer: parseFloat(raw.airtime_fee_mtn_customer || '5'),
-                        fee_mtn_agent: parseFloat(raw.airtime_fee_mtn_agent || '3'),
-                        fee_mtn_dealer: parseFloat(raw.airtime_fee_mtn_dealer || '2'),
-                        fee_telecel_customer: parseFloat(raw.airtime_fee_telecel_customer || '5'),
-                        fee_telecel_agent: parseFloat(raw.airtime_fee_telecel_agent || '3'),
-                        fee_telecel_dealer: parseFloat(raw.airtime_fee_telecel_dealer || '2'),
-                        fee_at_customer: parseFloat(raw.airtime_fee_at_customer || '5'),
-                        fee_at_agent: parseFloat(raw.airtime_fee_at_agent || '3'),
-                        fee_at_dealer: parseFloat(raw.airtime_fee_at_dealer || '2'),
-                        min_amount: parseFloat(raw[`airtime_min_amount_${lr}`] || limDef[lr].min),
-                        max_amount: parseFloat(raw[`airtime_max_amount_${lr}`] || limDef[lr].max),
-                        mashup_fee: parseFloat(raw[`mashup_fee_mtn_${lr}`] || feeDef[lr]),
-                        mashup_min: parseFloat(raw[`mashup_min_amount_${lr}`] || '5'),
-                        mashup_max: parseFloat(raw[`mashup_max_amount_${lr}`] || limDef[lr].max),
                         enabled_mtn: raw.airtime_enabled_mtn !== 'false',
                         enabled_telecel: raw.airtime_enabled_telecel !== 'false',
                         enabled_at: raw.airtime_enabled_at !== 'false',
@@ -370,7 +368,6 @@ export default function AirtimePage() {
 
                 if (walletData) {
                     setWalletBalance((walletData as any).balance || 0)
-                    setUserRole((dbUser.role === 'agent' || dbUser.role === 'dealer') ? 'agent' : 'customer')
                 }
             } catch (e) {
                 console.error('[Airtime] Error loading initial data:', e)
@@ -405,37 +402,28 @@ export default function AirtimePage() {
         if (activeTab === 'history') loadHistory()
     }, [activeTab, loadHistory])
 
-    // Fee calculation
-    const getFeeRate = useCallback(() => {
-        if (!settings) return 5
-        if (purchaseMode === 'mashup') return settings.mashup_fee || 5
-        if (!selectedNetwork) return 5
-        const key = `fee_${selectedNetwork.toLowerCase()}_${userRole}` as keyof AirtimeSettings
-        return (settings[key] as number) || 5
-    }, [settings, selectedNetwork, userRole, purchaseMode])
+    // Quote — the SAME function the server runs (lib/airtime-pricing.ts), fed the same settings and
+    // the server-resolved role, so what is shown here is what /api/airtime/create will charge. This
+    // used to be a hand-copied formula that treated a configured 0% fee as 5%, showed dealers the
+    // agent fee, and gave lapsed dealers/agents their old discount on screen.
+    const parsedAmount = Number(amount) || 0
+    const quoteNetwork = purchaseMode === 'mashup' ? 'MTN' : selectedNetwork
+    const pricingSettings = rawSettings ?? {}
+    const { minAmount: activeMin, maxAmount: activeMax } = resolveAirtimeLimits(pricingSettings, userRole, purchaseMode)
+    const quoteResult = parsedAmount > 0 && quoteNetwork
+        ? quoteAirtime({ settings: pricingSettings, network: quoteNetwork, role: userRole, amount: parsedAmount, useExactAmount: useExact, orderType: purchaseMode })
+        : null
+    const quote = quoteResult && quoteResult.ok ? quoteResult.quote : null
+    const quoteError = quoteResult && !quoteResult.ok ? quoteResult.message : null
 
-    const parsedAmount = parseFloat(amount) || 0
-    const feeRate = getFeeRate()
-    const activeMin = (purchaseMode === 'mashup' ? settings?.mashup_min : settings?.min_amount) || (purchaseMode === 'mashup' ? 5 : 1)
-    const activeMax = (purchaseMode === 'mashup' ? settings?.mashup_max : settings?.max_amount) || 500
-
-    let airtimeAmount = 0, feeAmount = 0, totalPaid = 0
-    if (parsedAmount > 0) {
-        const round2 = (n: number) => Math.round(n * 100) / 100
-        if (useExact) {
-            airtimeAmount = parsedAmount
-            feeAmount = round2(parsedAmount * (feeRate / 100))
-            totalPaid = round2(parsedAmount + feeAmount)
-        } else {
-            totalPaid = parsedAmount
-            feeAmount = round2(parsedAmount * (feeRate / 100))
-            airtimeAmount = round2(parsedAmount - feeAmount)
-        }
-    }
+    const feeRate = quote?.feeRate ?? 0
+    const airtimeAmount = quote?.airtimeAmount ?? 0
+    const feeAmount = quote?.feeAmount ?? 0
+    const totalPaid = quote?.totalPaid ?? 0
 
     const phoneWarning = phone.length >= 3 ? getNetworkWarning(phone, purchaseMode === 'mashup' ? 'MTN' : selectedNetwork) : null
     const isPhoneValid = /^0\d{9}$/.test(phone)
-    const isAmountValid = parsedAmount >= activeMin && parsedAmount <= activeMax
+    const isAmountValid = quote !== null
     const hasEnoughBalance = walletBalance !== null && totalPaid > 0 && walletBalance >= totalPaid
     const canProceed = (purchaseMode === 'mashup' || selectedNetwork) && isPhoneValid && isAmountValid && hasEnoughBalance && !isSubmitting
 
@@ -460,33 +448,57 @@ export default function AirtimePage() {
 
     const handleSubmit = async () => {
         if (!canProceed) return
+        // `isSubmitting` is React state: it only flips after the next render, so a fast double tap
+        // can run this handler twice. A ref flips synchronously.
+        if (submitLockRef.current) return
+        submitLockRef.current = true
         setIsSubmitting(true)
         setShowConfirm(false)
+
+        // One idempotency key per purchase attempt. The server derives the order reference from it
+        // and the reference is UNIQUE, so a duplicate request (double tap, retry after a dropped
+        // response) cannot create or charge a second order. The key is tied to the exact content, so
+        // editing the form after a network error starts a genuinely new attempt.
+        const network = purchaseMode === 'mashup' ? 'MTN' : selectedNetwork
+        const signature = [phone, network, parsedAmount, useExact, purchaseMode, purchaseMode === 'mashup' ? bundlePreference : ''].join('|')
+        if (!attemptRef.current || attemptRef.current.signature !== signature) {
+            attemptRef.current = { signature, key: newIdempotencyKey() }
+        }
+        const idempotencyKey = attemptRef.current.key
+
         try {
             const res = await fetch('/api/airtime/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     beneficiaryPhone: phone,
-                    network: purchaseMode === 'mashup' ? 'MTN' : selectedNetwork,
+                    network,
                     amount: parsedAmount,
                     useExactAmount: useExact,
                     type: purchaseMode,
                     bundle_preference: purchaseMode === 'mashup' ? bundlePreference : undefined,
+                    idempotencyKey,
                 }),
             })
             const data = await res.json()
             if (!res.ok) {
+                // The server answered, so this attempt is settled (nothing was charged) — the next
+                // tap is a new purchase and needs a new key.
+                attemptRef.current = null
                 toast.error(data.error || 'Failed to place order')
                 return
             }
+            attemptRef.current = null
             if (data.walletBalance !== undefined) setWalletBalance(data.walletBalance)
             else if (data.order?.new_balance !== undefined) setWalletBalance(data.order.new_balance)
             setSuccessOrder(data.order)
             setPhone(''); setAmount(''); setSelectedNetwork(null); setUseExact(false); setIsManualSelection(false)
         } catch {
-            toast.error('An unexpected error occurred. Please try again.')
+            // Network/parse failure: the order MAY have been created. Keep the key so retrying the
+            // same purchase returns that order instead of charging again.
+            toast.error('Connection problem. Please check your order history before trying again.')
         } finally {
+            submitLockRef.current = false
             setIsSubmitting(false)
         }
     }
@@ -807,7 +819,7 @@ export default function AirtimePage() {
                         </div>
                     </div>
 
-                    {parsedAmount > 0 && (purchaseMode === 'mashup' || selectedNetwork) && (
+                    {quote && (
                         <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
                             <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{purchaseMode === 'mashup' ? 'Estimated bundle value' : 'Fee breakdown'}</p>
@@ -871,7 +883,11 @@ export default function AirtimePage() {
                         </div>
                     )}
 
-                    {parsedAmount > 0 && !hasEnoughBalance && walletBalance !== null ? (
+                    {quoteError && (
+                        <p className="text-xs text-red-500 dark:text-red-400/80 px-1" role="alert">{quoteError}</p>
+                    )}
+
+                    {quote && !hasEnoughBalance && walletBalance !== null ? (
                         <div className="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-4 flex items-center gap-3">
                             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
                             <div className="min-w-0">

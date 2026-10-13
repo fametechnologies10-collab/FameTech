@@ -51,7 +51,65 @@ export interface AirtimeQuote {
 
 export type AirtimeQuoteResult =
     | { ok: true; quote: AirtimeQuote }
-    | { ok: false; reason: 'below_min' | 'above_max' | 'too_low_after_fees'; message: string }
+    | { ok: false; reason: 'invalid_amount' | 'below_min' | 'above_max' | 'too_low_after_fees'; message: string }
+
+/**
+ * Rounds a customer-typed amount to whole pesewas, or returns null when the input is not a
+ * positive, finite amount with at most 2 decimal places.
+ *
+ * WHY: `totalPaid = amount` used to be written verbatim. A 3-decimal amount (10.005) was debited
+ * from the wallet at one precision and stored on the order at another (both columns are
+ * numeric(12,2)), so the wallet debit, the order row and the airtime actually sent could disagree
+ * by a pesewa. Rejecting >2dp up front keeps all three identical.
+ */
+export function normaliseAmount(amount: number): number | null {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return null
+    const cents = Math.round(amount * 100)
+    if (Math.abs(amount * 100 - cents) > 1e-6) return null
+    return cents / 100
+}
+
+// parseFloat of a missing key yields NaN, which would make every comparison below false and
+// silently disable the limit. Fall back explicitly instead.
+const num = (raw: string | undefined, fallback: number) => {
+    const parsed = parseFloat(raw ?? '')
+    return Number.isFinite(parsed) ? parsed : fallback
+}
+
+/**
+ * Min/max for one product + role. A stored value that is negative (min) or non-positive (max)
+ * is treated as misconfiguration and replaced by the default rather than honoured.
+ */
+export function resolveAirtimeLimits(
+    settings: Record<string, string>,
+    role: string,
+    orderType: 'airtime' | 'mashup' = 'airtime',
+): { minAmount: number; maxAmount: number } {
+    const minDefault = orderType === 'mashup' ? 5 : MIN_DEFAULT
+    const maxDefault = MAX_DEFAULTS[role] ?? MAX_DEFAULTS.customer
+    let minAmount = num(settings[`${orderType}_min_amount_${role}`], minDefault)
+    let maxAmount = num(settings[`${orderType}_max_amount_${role}`], maxDefault)
+    if (minAmount < 0) minAmount = minDefault
+    if (maxAmount <= 0) maxAmount = maxDefault
+    return { minAmount, maxAmount }
+}
+
+/**
+ * Percentage fee for one product + network + role. Anything outside [0, 100] is a
+ * misconfiguration: a NEGATIVE fee would hand the beneficiary more airtime than the customer paid
+ * for, so it falls back to the default instead of being applied. A configured 0 is honoured.
+ */
+export function resolveFeeRate(
+    settings: Record<string, string>,
+    network: string,
+    role: string,
+    orderType: 'airtime' | 'mashup' = 'airtime',
+): number {
+    const networkKey = AIRTIME_NETWORK_KEY_MAP[network]
+    const fallback = FEE_DEFAULTS[role] ?? FEE_DEFAULTS.customer
+    const rate = num(settings[`${orderType}_fee_${networkKey}_${role}`], fallback)
+    return rate >= 0 && rate <= 100 ? rate : fallback
+}
 
 /**
  * Resolve limits + fees for one airtime purchase.
@@ -73,19 +131,15 @@ export function quoteAirtime(params: {
     useExactAmount: boolean
     orderType?: 'airtime' | 'mashup'
 }): AirtimeQuoteResult {
-    const { settings, network, role, amount, useExactAmount } = params
+    const { settings, network, role, useExactAmount } = params
     const orderType = params.orderType ?? 'airtime'
-    const networkKey = AIRTIME_NETWORK_KEY_MAP[network]
 
-    // parseFloat of a missing key yields NaN, which would make every comparison
-    // below false and silently disable the limit. Fall back explicitly instead.
-    const num = (raw: string | undefined, fallback: number) => {
-        const parsed = parseFloat(raw ?? '')
-        return Number.isFinite(parsed) ? parsed : fallback
+    const amount = normaliseAmount(params.amount)
+    if (amount === null) {
+        return { ok: false, reason: 'invalid_amount', message: 'Enter a valid amount (at most 2 decimal places)' }
     }
 
-    const minAmount = num(settings[`${orderType}_min_amount_${role}`], orderType === 'mashup' ? 5 : MIN_DEFAULT)
-    const maxAmount = num(settings[`${orderType}_max_amount_${role}`], MAX_DEFAULTS[role] ?? MAX_DEFAULTS.customer)
+    const { minAmount, maxAmount } = resolveAirtimeLimits(settings, role, orderType)
 
     if (amount < minAmount) {
         return { ok: false, reason: 'below_min', message: `Minimum airtime amount is GHS ${minAmount.toFixed(2)}` }
@@ -94,10 +148,7 @@ export function quoteAirtime(params: {
         return { ok: false, reason: 'above_max', message: `Maximum airtime amount is GHS ${maxAmount.toFixed(2)}` }
     }
 
-    const feeRate = num(
-        settings[`${orderType}_fee_${networkKey}_${role}`],
-        FEE_DEFAULTS[role] ?? FEE_DEFAULTS.customer
-    )
+    const feeRate = resolveFeeRate(settings, network, role, orderType)
 
     // Two modes, and the difference is who absorbs the fee:
     //   useExactAmount — the beneficiary receives `amount` exactly and the
@@ -143,15 +194,14 @@ export function quoteAirtimeCommission(params: {
     role: string
     amount: number
 }): AirtimeQuoteResult {
-    const { settings, role, amount } = params
+    const { settings, role } = params
 
-    const num = (raw: string | undefined, fallback: number) => {
-        const parsed = parseFloat(raw ?? '')
-        return Number.isFinite(parsed) ? parsed : fallback
+    const amount = normaliseAmount(params.amount)
+    if (amount === null) {
+        return { ok: false, reason: 'invalid_amount', message: 'amount must be a positive number with at most 2 decimal places' }
     }
 
-    const minAmount = num(settings[`airtime_min_amount_${role}`], MIN_DEFAULT)
-    const maxAmount = num(settings[`airtime_max_amount_${role}`], MAX_DEFAULTS[role] ?? MAX_DEFAULTS.customer)
+    const { minAmount, maxAmount } = resolveAirtimeLimits(settings, role, 'airtime')
 
     if (amount < minAmount) {
         return { ok: false, reason: 'below_min', message: `Minimum airtime amount is GHS ${minAmount.toFixed(2)}` }
@@ -171,4 +221,89 @@ export function quoteAirtimeCommission(params: {
             maxAmount,
         },
     }
+}
+
+// ── Admin settings validation ───────────────────────────────────────────────
+//
+// app/api/admin/airtime/settings used to upsert any string for any whitelisted key. A fee of -50
+// or a max of 0 was stored as-is and (before resolveFeeRate/resolveAirtimeLimits clamped it) priced
+// orders at a loss. Validate at the write boundary so bad values never reach admin_settings, and
+// keep the clamp in the resolvers as the second line of defence.
+
+const FEE_KEY = /^(airtime|mashup)_fee_(mtn|telecel|at)_(customer|agent|dealer)$/
+const MIN_KEY = /^(airtime|mashup)_min_amount_(customer|agent|dealer)$/
+const MAX_KEY = /^(airtime|mashup)_max_amount_(customer|agent|dealer)$/
+const TOGGLE_KEYS = new Set([
+    'airtime_enabled_mtn', 'airtime_enabled_telecel', 'airtime_enabled_at',
+    'mashup_enabled_mtn', 'mashup_enabled_telecel', 'mashup_enabled_at',
+    'dashboard_airtime_enabled', 'dashboard_mashup_enabled',
+    'storefront_airtime_enabled', 'storefront_mashup_enabled',
+    'airtime_auto_fulfillment_enabled', 'hubtel_commission_paused',
+])
+const NETWORK_FLAG_KEY = 'hubtel_airtime_networks'
+const AMOUNT_CEILING = 100000
+
+/** True for keys that change what customers are charged (fees and min/max limits). */
+export function isAirtimePriceKey(key: string): boolean {
+    return FEE_KEY.test(key) || MIN_KEY.test(key) || MAX_KEY.test(key)
+}
+
+export type AirtimeSettingsValidation =
+    | { ok: true; values: Record<string, string> }
+    | { ok: false; errors: string[] }
+
+/**
+ * Validates + normalises an admin settings payload (already filtered to known keys).
+ * Blank strings are skipped (never written), so an untouched empty field in the admin form cannot
+ * fail an unrelated save or overwrite a stored value.
+ */
+export function validateAirtimeSettings(input: Record<string, unknown>): AirtimeSettingsValidation {
+    const values: Record<string, string> = {}
+    const errors: string[] = []
+
+    for (const [key, raw] of Object.entries(input)) {
+        if (raw === null || raw === undefined) continue
+        if (typeof raw === 'string' && raw.trim() === '') continue
+
+        if (FEE_KEY.test(key)) {
+            const n = typeof raw === 'number' ? raw : Number(String(raw).trim())
+            if (!Number.isFinite(n) || n < 0 || n >= 100) { errors.push(`${key}: must be a number from 0 to under 100`); continue }
+            values[key] = String(n)
+        } else if (MIN_KEY.test(key) || MAX_KEY.test(key)) {
+            const n = typeof raw === 'number' ? raw : Number(String(raw).trim())
+            const isMax = MAX_KEY.test(key)
+            if (!Number.isFinite(n) || n > AMOUNT_CEILING || (isMax ? n <= 0 : n < 0)) {
+                errors.push(`${key}: must be ${isMax ? 'greater than 0' : '0 or more'} and at most ${AMOUNT_CEILING}`)
+                continue
+            }
+            values[key] = String(n)
+        } else if (TOGGLE_KEYS.has(key)) {
+            const v = typeof raw === 'boolean' ? String(raw) : String(raw).trim().toLowerCase()
+            if (v !== 'true' && v !== 'false') { errors.push(`${key}: must be true or false`); continue }
+            values[key] = v
+        } else if (key === NETWORK_FLAG_KEY) {
+            let obj: unknown = raw
+            if (typeof raw === 'string') {
+                try { obj = JSON.parse(raw) } catch { errors.push(`${key}: must be valid JSON`); continue }
+            }
+            const ok = !!obj && typeof obj === 'object' && !Array.isArray(obj)
+                && Object.entries(obj as Record<string, unknown>).every(([k, v]) => AIRTIME_NETWORK_KEY_MAP[k] !== undefined && typeof v === 'boolean')
+            if (!ok) { errors.push(`${key}: must map MTN / Telecel / AT to true or false`); continue }
+            values[key] = JSON.stringify(obj)
+        } else {
+            errors.push(`${key}: unknown setting`)
+        }
+    }
+
+    // A min above its own max would make every order for that role impossible.
+    for (const key of Object.keys(values)) {
+        const m = /^(airtime|mashup)_min_amount_(customer|agent|dealer)$/.exec(key)
+        if (!m) continue
+        const maxKey = `${m[1]}_max_amount_${m[2]}`
+        if (maxKey in values && Number(values[key]) > Number(values[maxKey])) {
+            errors.push(`${key}: minimum cannot exceed ${maxKey}`)
+        }
+    }
+
+    return errors.length > 0 ? { ok: false, errors } : { ok: true, values }
 }

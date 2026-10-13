@@ -5,6 +5,7 @@ import { checkCommissionStatus } from '@/lib/hubtel-commission-status'
 import { fulfillAirtimeKingFlexy, checkAirtimeOrderStatus, kfKeyForOrder } from '@/lib/kingflexy-commission-service'
 import { finalizeKfAirtime } from '@/lib/kingflexy-finalize'
 import { categorizeFailure, autoRefundApiOrderOnFailure } from '@/lib/api-order-failure'
+import { allowedSourceStatuses, type AdminTargetStatus, type AirtimeStatus } from '@/lib/airtime-transitions'
 
 const MAX_ATTEMPTS = 5
 
@@ -31,12 +32,19 @@ async function priorAttemptVerdict(meta: any): Promise<{ verdict: string; delive
  */
 export async function syncAirtimeShopMirror(supabase: any, referenceCode: string | null | undefined, status: string): Promise<void> {
     if (!referenceCode) return
+    // Defence in depth: these prefixes are what routes a status write onto ANOTHER table's rows, so
+    // only a strictly-shaped server-issued reference may take that path. (The dashboard route used
+    // to accept a client-chosen reference — a caller could pick "SHOP-<someone else's ref>" and have
+    // their own order's completion/failure rewrite a victim's shop order.)
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(referenceCode)) return
     try {
         if (referenceCode.startsWith('SHOP-')) {
             const refSuffix = referenceCode.replace('SHOP-', '')
+            // `%` and `_` are LIKE wildcards; a reference containing them must match literally.
+            const likeSuffix = refSuffix.replace(/[\\%_]/g, '\\$&')
             await (supabase.from('orders') as any).update({ status }).eq('reference_code', referenceCode)
             const { data: sOrder } = await (supabase.from('shop_orders') as any)
-                .select('id').ilike('paystack_reference', `%${refSuffix}`).single()
+                .select('id').ilike('paystack_reference', `%${likeSuffix}`).single()
             if (sOrder?.id) {
                 await (supabase.from('shop_orders') as any)
                     .update({ status, updated_at: new Date().toISOString() }).eq('id', sOrder.id)
@@ -560,55 +568,163 @@ export async function manualRefundAirtime(
     if (data?.error === 'not_refundable') {
         return { ok: false, status: data?.status || 'skipped', message: `Not refundable (status: ${data?.status})` }
     }
+    if (data?.error === 'in_flight_at_provider') {
+        // The supplier may already have delivered; refunding now would pay the customer twice.
+        return { ok: false, status: 'processing', message: 'Order is still in flight at the provider — run Sync first, then refund only if it shows failed' }
+    }
     return { ok: false, status: 'error', message: data?.error || 'Refund failed' }
 }
 
 /**
+ * Single guarded implementation of every ADMIN-driven status change on an airtime/mashup order
+ * (single PATCH, bulk "complete", fulfillment batches). It exists because those three paths each
+ * wrote `status` with `.eq('id', …)` only and each remembered a DIFFERENT subset of the side
+ * effects: the batch route skipped the shop mirror, the notification/SMS, the commission credit and
+ * the developer webhook (shop customers stayed "processing" forever, API developers never got
+ * order.completed), and none of them stopped an admin turning a REFUNDED order into "completed".
+ *
+ * The UPDATE is filtered on the allowed SOURCE statuses (lib/airtime-transitions.ts), so a status
+ * that changed between our read and our write (a provider webhook, a concurrent refund) makes the
+ * write match zero rows instead of silently overwriting it, and side effects fire only for the
+ * caller whose UPDATE actually transitioned the row.
+ *
+ * No wallet movement here for web/shop orders — the buyer was debited at order creation; refunds
+ * go through manualRefundAirtime. API-sourced orders are auto-refunded on failure exactly like every
+ * other failure path (autoRefundApiOrderOnFailure no-ops for non-API sources).
+ */
+export interface AdminAirtimeStatusOptions {
+    to: AdminTargetStatus
+    adminUserId: string
+    note?: string | null
+    service?: string | null
+    requestId?: string | null
+    metadata?: Record<string, unknown> | null
+    /** Narrow (never widen) the allowed source statuses, e.g. bulk "complete" excludes 'failed'. */
+    onlyFrom?: AirtimeStatus[]
+}
+
+export interface AdminAirtimeStatusResult {
+    ok: boolean
+    status: string
+    message: string
+    code?: 'not_found' | 'conflict' | 'error'
+}
+
+export async function applyAdminAirtimeStatus(
+    orderId: string, opts: AdminAirtimeStatusOptions,
+): Promise<AdminAirtimeStatusResult> {
+    const supabase = createServerClient()
+    const { to } = opts
+    const { data: order, error: fetchError } = await (supabase.from('airtime_orders') as any)
+        .select('*').eq('id', orderId).maybeSingle()
+    if (fetchError) return { ok: false, status: 'error', message: fetchError.message, code: 'error' }
+    if (!order) return { ok: false, status: 'not_found', message: 'Order not found', code: 'not_found' }
+
+    // Idempotent repeat: no second notification / SMS / webhook.
+    if (order.status === to) return { ok: true, status: to, message: `Already ${to}` }
+
+    const sources = opts.onlyFrom
+        ? allowedSourceStatuses(to).filter(s => opts.onlyFrom!.includes(s))
+        : allowedSourceStatuses(to)
+    if (!sources.includes(order.status)) {
+        return {
+            ok: false, status: order.status, code: 'conflict',
+            message: `Not eligible (status: ${order.status}) — cannot move to ${to}`,
+        }
+    }
+
+    const now = new Date().toISOString()
+    const payload: Record<string, unknown> = { status: to, fulfilled_by: opts.adminUserId, updated_at: now }
+    if (to !== 'processing') payload.fulfilled_at = now
+    if (opts.note) payload.fulfillment_note = opts.note
+    if (opts.service) payload.fulfillment_service = opts.service
+    if (opts.requestId) payload.fulfillment_request_id = opts.requestId
+    if (opts.metadata) payload.fulfillment_metadata = opts.metadata
+
+    const { data: updated, error: updateError } = await (supabase.from('airtime_orders') as any)
+        .update(payload).eq('id', orderId).in('status', sources).select('id')
+    if (updateError) return { ok: false, status: 'error', message: updateError.message, code: 'error' }
+    if (!updated || updated.length === 0) {
+        return { ok: false, status: order.status, code: 'conflict', message: 'Order status changed while updating — refresh and retry' }
+    }
+
+    if (to === 'processing') return { ok: true, status: to, message: 'Marked processing' }
+
+    await syncAirtimeShopMirror(supabase, order.reference_code, to)
+
+    const orderTypeLabel = order.type === 'mashup' ? 'Mashup Bundle' : 'Airtime'
+    const amountText = Number(order.airtime_amount).toFixed(2)
+
+    if (to === 'completed') {
+        // Idempotent (claim keyed on commission_credited_at IS NULL) and a no-op for non-API sources.
+        try {
+            const { error: creditError } = await (supabase as any).rpc('credit_airtime_commission', { p_airtime_order_id: orderId })
+            if (creditError) console.error('[AirtimeFulfillment] credit_airtime_commission failed:', creditError.message, 'order:', orderId)
+        } catch (e) { console.error('[AirtimeFulfillment] credit_airtime_commission failed:', e) }
+
+        if (order.api_key_id) {
+            const { dispatchApiWebhook } = await import('@/lib/api-webhook')
+            waitUntil(dispatchApiWebhook(supabase, {
+                apiKeyId: order.api_key_id, event: 'order.completed', product: 'airtime',
+                reference: String(order.reference_code).replace(/^API-/, ''), status: 'completed',
+                detail: { network: order.network, airtime_amount: Number(order.airtime_amount) },
+            }))
+        }
+    } else if (order.api_key_id || order.source === 'api') {
+        const { code: reasonCode, message: reasonMessage } = categorizeFailure('permanent_failure')
+        const refund = await autoRefundApiOrderOnFailure(supabase, {
+            product: 'airtime', orderId, source: order.source, reasonCode, reasonMessage,
+        })
+        if (order.api_key_id) {
+            const { dispatchApiWebhook } = await import('@/lib/api-webhook')
+            waitUntil(dispatchApiWebhook(supabase, {
+                apiKeyId: order.api_key_id, event: 'order.failed', product: 'airtime',
+                reference: String(order.reference_code).replace(/^API-/, ''), status: refund.refunded ? 'refunded' : 'failed',
+                detail: {
+                    network: order.network, airtime_amount: Number(order.airtime_amount),
+                    reason_code: reasonCode, reason: reasonMessage,
+                    ...(refund.refunded ? { refunded: true, refund_amount: refund.amount, new_balance: refund.newBalance } : {}),
+                },
+            }))
+        }
+    }
+
+    try {
+        const { error: notifError } = await (supabase.from('notifications') as any).insert({
+            user_id: order.user_id,
+            title: to === 'completed' ? `${orderTypeLabel} Sent ✅` : `${orderTypeLabel} Order Failed`,
+            message: to === 'completed'
+                ? `GHS ${amountText} ${orderTypeLabel.toLowerCase()} for ${order.beneficiary_phone} has been sent successfully. Ref: ${order.reference_code}`
+                : `Your ${orderTypeLabel.toLowerCase()} order ${order.reference_code} could not be completed. Please contact support.`,
+            type: 'order_update',
+            action_url: '/dashboard/airtime',
+        })
+        if (notifError) console.error('[AirtimeFulfillment] admin status notification error:', notifError.message)
+    } catch (e) { console.error('[AirtimeFulfillment] admin status notification threw:', e) }
+
+    if (to === 'completed') {
+        import('@/lib/sms-service').then(async ({ sendAirtimeCompletedSMS, sendMashupCompletedSMS }) => {
+            const { resolveOwnConfirmationSender } = await import('@/lib/sms-confirmation-sender')
+            const smsFn = order.type === 'mashup' ? sendMashupCompletedSMS : sendAirtimeCompletedSMS
+            // KFT SMS v2: the order owner's OWN approved sender for THEIR OWN confirmation; USSD and
+            // shop-customer confirmations stay on the platform sender (resolution never throws).
+            const ownSender = await resolveOwnConfirmationSender(supabase, order.user_id).catch(() => null)
+            await smsFn(order.beneficiary_phone, { amount: order.airtime_amount, sender: ownSender ?? undefined })
+        }).catch((e: any) => console.error('[AirtimeFulfillment] admin completed SMS error:', e))
+    }
+
+    return { ok: true, status: to, message: to === 'completed' ? 'Marked completed' : 'Marked failed' }
+}
+
+/**
  * MANUAL admin "mark completed" for a pending/processing airtime or mashup order — the shared
- * bulk-select counterpart to the single-order PATCH in app/api/admin/airtime/orders/route.ts
- * (kept in sync with it: status update, shop-mirror sync, in-app notification, completion SMS).
- * No wallet movement here — the buyer's wallet was already debited at order creation; this just
- * finalizes fulfillment state for orders completed manually (mashup) or confirmed out-of-band.
+ * bulk-select counterpart to the single-order PATCH in app/api/admin/airtime/orders/route.ts. Both
+ * now go through applyAdminAirtimeStatus, so the two can no longer drift apart. Bulk is deliberately
+ * narrower than the single PATCH: it will not resurrect a FAILED order (do that one at a time).
  */
 export async function manualCompleteAirtime(
     orderId: string, adminUserId: string,
 ): Promise<{ ok: boolean; status: string; message: string }> {
-    const supabase = createServerClient()
-    const { data: order, error: fetchError } = await (supabase.from('airtime_orders') as any)
-        .select('*').eq('id', orderId).single()
-    if (fetchError || !order) return { ok: false, status: 'not_found', message: 'Order not found' }
-    if (order.status === 'completed') return { ok: true, status: 'completed', message: 'Already completed' }
-    if (!['pending', 'processing'].includes(order.status)) {
-        return { ok: false, status: order.status, message: `Not eligible (status: ${order.status})` }
-    }
-
-    const { error: updateError } = await (supabase.from('airtime_orders') as any)
-        .update({
-            status: 'completed',
-            fulfilled_by: adminUserId,
-            fulfilled_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId)
-    if (updateError) return { ok: false, status: 'error', message: updateError.message }
-
-    await syncAirtimeShopMirror(supabase, order.reference_code, 'completed')
-
-    const orderTypeLabel = order.type === 'mashup' ? 'Mashup Bundle' : 'Airtime'
-    ;(supabase.from('notifications') as any).insert({
-        user_id: order.user_id,
-        title: `${orderTypeLabel} Sent ✅`,
-        message: `GHS ${order.airtime_amount.toFixed(2)} ${orderTypeLabel.toLowerCase()} for ${order.beneficiary_phone} has been sent successfully. Ref: ${order.reference_code}`,
-        type: 'order_update',
-        action_url: '/dashboard/airtime',
-    }).then(() => {}).catch((e: any) => console.error('[AirtimeFulfillment] manualCompleteAirtime notification error:', e))
-
-    import('@/lib/sms-service').then(async ({ sendAirtimeCompletedSMS, sendMashupCompletedSMS }) => {
-        const { resolveOwnConfirmationSender } = await import('@/lib/sms-confirmation-sender')
-        const smsFn = order.type === 'mashup' ? sendMashupCompletedSMS : sendAirtimeCompletedSMS
-        const ownSender = await resolveOwnConfirmationSender(supabase, order.user_id).catch(() => null)
-        await smsFn(order.beneficiary_phone, { amount: order.airtime_amount, sender: ownSender ?? undefined })
-    }).catch((e: any) => console.error('[AirtimeFulfillment] manualCompleteAirtime SMS error:', e))
-
-    return { ok: true, status: 'completed', message: 'Marked completed' }
+    const r = await applyAdminAirtimeStatus(orderId, { to: 'completed', adminUserId, onlyFrom: ['pending', 'processing'] })
+    return { ok: r.ok, status: r.status, message: r.message }
 }

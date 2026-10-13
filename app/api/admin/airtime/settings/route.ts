@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
+import { validateAirtimeSettings, isAirtimePriceKey } from '@/lib/airtime-pricing'
 
 const AIRTIME_SETTING_KEYS = [
     // Airtime fees — customer / agent / dealer per network
@@ -36,7 +37,7 @@ async function verifyAdmin(supabaseUserClient: any) {
     const { data: user } = await supabase.from('users').select('role').eq('id', authUser.id).single()
     const role = (user as any)?.role
     if (!['admin', 'sub-admin'].includes(role)) return null
-    return { userId: authUser.id }
+    return { userId: authUser.id, role: role as string }
 }
 
 export async function GET(request: NextRequest) {
@@ -72,10 +73,43 @@ export async function POST(request: NextRequest) {
         let body: any
         try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 
-        const updates = Object.entries(body)
-            .filter(([key]) => AIRTIME_SETTING_KEYS.includes(key))
-            .map(([key, value]) => ({ key, value: (typeof value === 'object' && value !== null) ? JSON.stringify(value) : String(value) }))
+        const known = Object.fromEntries(
+            Object.entries(body || {}).filter(([key]) => AIRTIME_SETTING_KEYS.includes(key)),
+        )
+        if (Object.keys(known).length === 0) return NextResponse.json({ error: 'No valid settings provided' }, { status: 400 })
 
+        // admin_settings is admin-only to write per its RLS policy; this route uses the service role,
+        // which bypassed that boundary for sub-admins. Fees and min/max limits decide what every
+        // customer is charged, so they stay admin-only; sub-admins keep the operational switches
+        // (enable/disable a network, pause or resume auto-fulfillment).
+        // A negative fee, a zero max or a min above its max used to be saved as-is and then priced
+        // real orders (negative fee => beneficiary receives more airtime than the customer paid for).
+        const validation = validateAirtimeSettings(known)
+        if (!validation.ok) {
+            return NextResponse.json({ error: 'Invalid settings', details: validation.errors }, { status: 400 })
+        }
+        const values = { ...validation.values }
+
+        if (admin.role !== 'admin') {
+            // The settings form posts EVERY field back, so a sub-admin saving a toggle also sends
+            // the (unchanged) price fields. Only a price value that actually differs is refused.
+            const priceKeys = Object.keys(values).filter(isAirtimePriceKey)
+            if (priceKeys.length > 0) {
+                const { data: current } = await (supabase.from('admin_settings') as any)
+                    .select('key, value').in('key', priceKeys)
+                const stored: Record<string, string> = {}
+                for (const row of (current || [])) stored[row.key] = String(row.value)
+                const changed = priceKeys.filter(k => {
+                    const prev = parseFloat(stored[k])
+                    return !(Number.isFinite(prev) && prev === Number(values[k]))
+                })
+                if (changed.length > 0) {
+                    return NextResponse.json({ error: 'Only an admin can change airtime fees and limits' }, { status: 403 })
+                }
+                for (const k of priceKeys) delete values[k]
+            }
+        }
+        const updates = Object.entries(values).map(([key, value]) => ({ key, value }))
         if (updates.length === 0) return NextResponse.json({ error: 'No valid settings provided' }, { status: 400 })
 
         const { error } = await (supabase.from('admin_settings') as any)
