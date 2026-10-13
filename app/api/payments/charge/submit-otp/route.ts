@@ -89,9 +89,27 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({ reference, otp }),
         })
 
-        const data = await res.json()
+        // Unparseable body (e.g. an HTML 502 page) falls through to the generic 500 below.
+        const data = await res.json().catch(() => null)
 
-        if (!data.status || !data.data) {
+        // A Paystack 4xx with status:false (or no data) is a client-side problem — most
+        // commonly a wrong/expired OTP. The charge is still live on Paystack's side, so
+        // let the user retry. The payment row stays 'pending' (no DB write) and the
+        // per-reference attempt cap above still bounds brute-forcing. Only Paystack's
+        // short message is forwarded (trimmed, capped) — never any other field.
+        // 401/403 mean our own Paystack credentials/permissions are wrong, never a bad
+        // OTP — they fall through to the generic 500 below (logged server-side).
+        const isAuthError = res.status === 401 || res.status === 403
+        if (res.status >= 400 && res.status < 500 && !isAuthError && data && (data.status === false || !data.data)) {
+            const rawMessage = typeof data.message === 'string' ? data.message.trim().slice(0, 200) : ''
+            console.warn('[ChargeOTP] Paystack rejected OTP:', res.status, rawMessage)
+            return NextResponse.json(
+                { error: rawMessage || 'Invalid OTP. Please try again.', retryable: true },
+                { status: 400 }
+            )
+        }
+
+        if (!data || !data.status || !data.data) {
             console.error('[ChargeOTP] OTP submission failed:', data)
             return NextResponse.json({ error: 'OTP submission failed' }, { status: 500 })
         }

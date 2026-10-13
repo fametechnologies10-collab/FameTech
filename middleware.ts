@@ -109,6 +109,8 @@ const fallbackCriticalLimits: Record<string, InMemoryLimitConfig> = {
     '/api/payments/initialize': { maxRequests: 10, windowMs: 60 * 1000 },
     '/api/payments/verify': { maxRequests: 30, windowMs: 60 * 1000 },
     '/api/airtime/create': { maxRequests: 5, windowMs: 60 * 1000 },
+    // Wallet-funded role upgrade — real money; keep a cap during a Redis outage.
+    '/api/user/upgrade/wallet': { maxRequests: 10, windowMs: 10 * 60 * 1000 },
     // Shop payout request — real money out. 3/hour matches the primary limiter.
     '/api/shop/withdraw': { maxRequests: 3, windowMs: 60 * 60 * 1000 },
     // KFG SMS: send debits credits + hits Hubtel; purchase debits the main
@@ -274,6 +276,10 @@ const rateLimiters = REDIS_CONFIGURED ? {
     // ── User actions ──────────────────────────────────────────
     user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 m'), prefix: 'ft:user' }),
     userUpgrade: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, '1 h'), prefix: 'ft:userUpgrade' }),
+    // Wallet-funded role upgrades move real money. Per-user (never IP-only) so rotating
+    // x-forwarded-for can't lift the cap; generous enough for honest retries/top-up round-trips.
+    userUpgradeWallet: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '10 m'), prefix: 'ft:userUpgradeWallet' }),
+    userUpgradeToggle: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '10 m'), prefix: 'ft:userUpgradeToggle' }),
     afaRegistration: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(2, '1 h'), prefix: 'ft:afaRegistration' }),
     agentDowngrade: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(2, '1 h'), prefix: 'ft:agentDowngrade' }),
     updateProfile: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '10 m'), prefix: 'ft:updateProfile' }),
@@ -954,12 +960,20 @@ export async function middleware(request: NextRequest) {
         } else if (pathname === '/api/user/upgrade/initialize') {
             limiter = rateLimiters.userUpgrade
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
+        } else if (pathname === '/api/user/upgrade/wallet') {
+            limiter = rateLimiters.userUpgradeWallet
+            identifier = authUser?.id ?? ip
+        } else if (pathname === '/api/user/upgrade/toggle-auto-upgrade') {
+            limiter = rateLimiters.userUpgradeToggle
+            identifier = authUser?.id ?? ip
         } else if (pathname === '/api/shop/pricing') {
             limiter = rateLimiters.shopPricing
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
         } else if (pathname === '/api/shop/withdraw') {
             limiter = rateLimiters.shopWithdraw
-            identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
+            // Per USER only. Keying on user+IP let a session holder get a fresh 3/hour
+            // bucket by switching IP (mobile data / proxy), defeating the money-out cap.
+            identifier = authUser?.id ?? ip
         } else if (pathname === '/api/shop/invites') {
             limiter = rateLimiters.shopInvites
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip

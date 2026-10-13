@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from '@/lib/toast'
@@ -31,6 +31,8 @@ interface WalletUpgradeModalProps {
     currentAutoUpgradePlan: string | null
     onClose: () => void
     onSuccess: () => void
+    /** Called when the server reports the price changed since this modal opened. */
+    onPriceChanged?: () => void
 }
 
 export default function WalletUpgradeModal({
@@ -43,6 +45,7 @@ export default function WalletUpgradeModal({
     currentAutoUpgradePlan,
     onClose,
     onSuccess,
+    onPriceChanged,
 }: WalletUpgradeModalProps) {
     const router = useRouter()
     const [isProcessing, setIsProcessing] = useState(false)
@@ -50,8 +53,18 @@ export default function WalletUpgradeModal({
     const isDealer = upgradeType === 'dealer'
     const isPermanent = plan === 'permanent'
 
-    // Default ON for all timed plans; permanent is a one-time purchase so no auto-renewal
-    const [autoUpgrade, setAutoUpgrade] = useState(!isPermanent)
+    // Recurring wallet debits must be an explicit opt-in — never pre-ticked.
+    const [autoUpgrade, setAutoUpgrade] = useState(false)
+
+    // One key per modal instance: retries of the same confirmation are idempotent server-side.
+    const [idempotencyKey] = useState(() => {
+        try {
+            return crypto.randomUUID()
+        } catch {
+            return undefined // insecure context — server generates a key instead
+        }
+    })
+    const submittingRef = useRef(false)
 
     const hasFunds = walletBalance >= price
     const shortfall = price - walletBalance
@@ -66,40 +79,66 @@ export default function WalletUpgradeModal({
     const UpgradeIcon = isDealer ? Gem : Crown
 
     const handleConfirm = async () => {
+        // Synchronous guard: state updates are async, so a fast double-click/tap would otherwise
+        // fire two requests before `isProcessing` re-renders the button as disabled.
+        if (submittingRef.current) return
+        submittingRef.current = true
         setIsProcessing(true)
         try {
-            // 1. Process wallet upgrade
+            // 1. Process wallet upgrade. The idempotency key is fixed for this modal, so a retry
+            //    after a dropped connection can never charge twice; expected_price makes the server
+            //    refuse if the price changed since the user agreed to it.
             const res = await fetch('/api/user/upgrade/wallet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan, upgrade_type: upgradeType }),
+                body: JSON.stringify({
+                    plan,
+                    upgrade_type: upgradeType,
+                    expected_price: price,
+                    idempotency_key: idempotencyKey,
+                }),
             })
 
-            const data = await res.json()
+            const data = await res.json().catch(() => ({}))
 
             if (!res.ok) {
+                if (data.priceChanged) {
+                    toast.error(data.error || 'The price changed. Please review and confirm again.')
+                    onPriceChanged?.()
+                    return
+                }
                 if (data.insufficientBalance) {
                     toast.error(`Insufficient balance. You need GHS ${data.shortfall?.toFixed(2)} more.`)
                 } else {
                     toast.error(data.error || 'Upgrade failed. Please try again.')
                 }
-                setIsProcessing(false)
                 return
             }
 
-            // 2. Save auto-upgrade preference if toggled on
+            // 2. Save auto-upgrade preference only if the user explicitly turned it on
+            let autoUpgradeSaved = true
             if (autoUpgrade && !isPermanent) {
-                await fetch('/api/user/upgrade/toggle-auto-upgrade', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled: true, plan }),
-                }).catch(() => null) // non-critical — don't fail upgrade if this fails
+                try {
+                    const toggleRes = await fetch('/api/user/upgrade/toggle-auto-upgrade', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: true, plan }),
+                    })
+                    autoUpgradeSaved = toggleRes.ok
+                } catch {
+                    autoUpgradeSaved = false
+                }
             }
 
             toast.success(`${planLabel} activated!`)
+            if (!autoUpgradeSaved) {
+                toast.warning("Your upgrade is active, but auto-renewal couldn't be turned on. You can enable it from your dashboard.")
+            }
             onSuccess()
         } catch {
-            toast.error('Something went wrong. Please try again.')
+            toast.error('Something went wrong. Please check your wallet before trying again.')
+        } finally {
+            submittingRef.current = false
             setIsProcessing(false)
         }
     }
@@ -216,7 +255,7 @@ export default function WalletUpgradeModal({
                                         </span>
                                     </div>
                                     <p className={cn('text-xs leading-relaxed', isDealer ? 'text-violet-300' : 'text-gray-500 dark:text-gray-400')}>
-                                        Automatically renews this plan from your wallet when it's about to expire. Keep enough balance to avoid interruption.
+                                        Off by default. Turn it on to automatically renew this plan from your wallet when it's about to expire. You can switch it off any time.
                                     </p>
                                 </div>
                                 <button

@@ -24,24 +24,12 @@ import { createServerAnonClient, createServerClient } from '@/lib/supabase'
  */
 
 import crypto from 'crypto'
-
-function hashPin(pin: string, salt: string): string {
-    // Enterprise-grade PBKDF2 hashing for the 6-digit PIN
-    // Uses 100,000 iterations of SHA-512 to prevent brute-force attacks
-    return crypto.pbkdf2Sync(pin, salt, 100000, 64, 'sha512').toString('hex')
-}
+import { hashPin, pinMatches } from '@/lib/pin-verify'
 
 // 16 random bytes → 32-char hex string. Stored on the user row in `pin_salt`.
 // Makes each user's PIN hash unique even if two users pick the same PIN.
 function generatePinSalt(): string {
     return crypto.randomBytes(16).toString('hex')
-}
-
-// Constant-time compare of a candidate PIN against a stored hash.
-function pinMatches(candidate: string, salt: string, storedHash: string): boolean {
-    const inputBuf = Buffer.from(hashPin(candidate, salt), 'hex')
-    const storedBuf = Buffer.from(storedHash, 'hex')
-    return inputBuf.length === storedBuf.length && crypto.timingSafeEqual(inputBuf, storedBuf)
 }
 
 // Verifies the account password WITHOUT touching the caller's cookie session.

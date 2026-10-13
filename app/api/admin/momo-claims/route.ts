@@ -57,6 +57,10 @@ export async function GET() {
             .from('momo_claim_attempts') as any)
             .select('user_id')
             .gte('created_at', since)
+            // The limiter logs EVERY attempt ('attempt', then updated to the outcome), so
+            // benign rows must not count toward the suspicious threshold. result is NOT NULL,
+            // so `not in` is null-safe; 'rate_limited' and failure rows stay counted.
+            .not('result', 'in', '(attempt,claimed_successfully)')
 
         // Fetch current MoMo settings for the Settings tab
         const { data: settingsRows } = await (supabase

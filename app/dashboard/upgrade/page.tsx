@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
 import { getCachedPricing, clearPricingCache } from '@/lib/pricing-cache'
+import type { PricingData } from '@/lib/pricing-cache'
 import { Button } from '@/components/ui/button'
 import { Crown, Sparkles, Zap, Star, CheckCircle, Gem, Code2, Rocket, HeadphonesIcon, TrendingDown, Shield } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -55,6 +56,25 @@ function UpgradePageInner() {
     const [showStrikethrough, setShowStrikethrough] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
 
+    const applyPricing = useCallback((data: PricingData) => {
+        setPrices({
+            '3d': data.prices?.['3d'] ?? 9.99,
+            '14d': data.prices?.['14d'] ?? 49.99,
+            '30d': data.prices?.['30d'] ?? 99.99,
+            'permanent': data.prices?.['permanent'] ?? 149.99,
+        })
+        setOldPrices({
+            '3d': data.oldPrices?.['3d'] ?? 0,
+            '14d': data.oldPrices?.['14d'] ?? 0,
+            '30d': data.oldPrices?.['30d'] ?? 0,
+            'permanent': data.oldPrices?.['permanent'] ?? 0,
+        })
+        setShowStrikethrough(data.showStrikethrough || false)
+        if (data.dealerPrice != null) setDealerPrice(data.dealerPrice)
+        if (data.dealerPrice1m != null) setDealerPrice1m(data.dealerPrice1m)
+        if (data.dealerPrice3m != null) setDealerPrice3m(data.dealerPrice3m)
+    }, [])
+
     useEffect(() => {
         let retryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -69,22 +89,7 @@ function UpgradePageInner() {
                     return
                 }
 
-                setPrices({
-                    '3d': data.prices?.['3d'] ?? 9.99,
-                    '14d': data.prices?.['14d'] ?? 49.99,
-                    '30d': data.prices?.['30d'] ?? 99.99,
-                    'permanent': data.prices?.['permanent'] ?? 149.99,
-                })
-                setOldPrices({
-                    '3d': data.oldPrices?.['3d'] ?? 0,
-                    '14d': data.oldPrices?.['14d'] ?? 0,
-                    '30d': data.oldPrices?.['30d'] ?? 0,
-                    'permanent': data.oldPrices?.['permanent'] ?? 0,
-                })
-                setShowStrikethrough(data.showStrikethrough || false)
-                if (data.dealerPrice != null) setDealerPrice(data.dealerPrice)
-                if (data.dealerPrice1m != null) setDealerPrice1m(data.dealerPrice1m)
-                if (data.dealerPrice3m != null) setDealerPrice3m(data.dealerPrice3m)
+                applyPricing(data)
                 setIsLoading(false)
             } catch (err) {
                 console.error('Failed to fetch upgrade prices:', err)
@@ -95,25 +100,41 @@ function UpgradePageInner() {
 
         fetchPrices()
         return () => { if (retryTimer) clearTimeout(retryTimer) }
-    }, [])
+    }, [applyPricing])
 
-    const fetchWalletBalance = async () => {
+    /** Returns false (and tells the user) when the balance can't be read — never shows a fake GHS 0. */
+    const fetchWalletBalance = async (): Promise<boolean> => {
         setWalletLoading(true)
         try {
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            if (!user) throw new Error('not signed in')
 
-            const { data: wallet } = await supabase
+            const { data: wallet, error } = await supabase
                 .from('wallets')
                 .select('balance')
                 .eq('user_id', user.id)
                 .single()
+            if (error || !wallet) throw error ?? new Error('no wallet')
 
-            setWalletBalance((wallet as any)?.balance ?? 0)
+            setWalletBalance(Number((wallet as any).balance) || 0)
+            return true
         } catch {
-            // Non-critical — modal still shows with 0 balance and user sees shortfall
+            toast.error("Couldn't load your wallet balance. Please try again.")
+            return false
         } finally {
             setWalletLoading(false)
+        }
+    }
+
+    // The server refused the charge because the price changed after the modal opened: reload the
+    // current prices so the user re-confirms the real amount.
+    const handlePriceChanged = async () => {
+        setWalletModal(null)
+        clearPricingCache()
+        try {
+            applyPricing(await getCachedPricing())
+        } catch {
+            toast.error('Failed to refresh prices. Please reload the page.')
         }
     }
 
@@ -124,7 +145,7 @@ function UpgradePageInner() {
             '30d': '30 Days Agent Pass',
             'permanent': 'Permanent Agent Pass',
         }
-        await fetchWalletBalance()
+        if (!(await fetchWalletBalance())) return
         setWalletModal({
             plan,
             planLabel: planLabelMap[plan] ?? 'Agent Pass',
@@ -140,7 +161,7 @@ function UpgradePageInner() {
     }
 
     const handleDealerUpgrade = async (plan: '1m' | '3m' | '6m') => {
-        await fetchWalletBalance()
+        if (!(await fetchWalletBalance())) return
         const config = dealerPlanConfig[plan]
         setWalletModal({
             plan,
@@ -255,6 +276,10 @@ function UpgradePageInner() {
 
     const isPermanentAgent = dbUser?.role === 'agent' && dbUser?.agent_expires_at === null
     const isActiveDealer = dbUser?.role === 'dealer'
+    // The role stays 'agent' until the downgrade cron runs, so an expired pass must not be shown
+    // as an active membership.
+    const isActiveAgent = dbUser?.role === 'agent'
+        && !(dbUser?.agent_expires_at && new Date(dbUser.agent_expires_at) <= new Date())
     const autoUpgradeEnabled = (dbUser as any)?.auto_upgrade_enabled ?? false
     const autoUpgradePlan = (dbUser as any)?.auto_upgrade_plan ?? null
 
@@ -278,6 +303,7 @@ function UpgradePageInner() {
                     currentAutoUpgradePlan={autoUpgradePlan}
                     onClose={() => setWalletModal(null)}
                     onSuccess={handleUpgradeSuccess}
+                    onPriceChanged={handlePriceChanged}
                 />
             )}
 
@@ -302,7 +328,7 @@ function UpgradePageInner() {
                                     </span>
                                     EALER STATUS
                                 </span>
-                            ) : dbUser?.role === 'agent' ? (
+                            ) : isActiveAgent ? (
                                 <span className="relative inline-block">
                                     <span className="relative">
                                         A
@@ -322,7 +348,7 @@ function UpgradePageInner() {
                         </h1>
 
                         {/* Premium Badge */}
-                        {(dbUser?.role === 'agent' || isActiveDealer) && (
+                        {(isActiveAgent || isActiveDealer) && (
                             <div className={cn(
                                 "inline-block px-4 py-1.5 rounded-full backdrop-blur-sm shadow-sm group border",
                                 isActiveDealer

@@ -68,8 +68,9 @@ export async function POST(request: Request) {
                 )
             }
 
-            // Permanent plan cannot be auto-renewed (it's a one-time purchase)
-            if (plan === 'permanent' && isLifetimeAgent) {
+            // A Lifetime Agent can never buy an Agent pass again (it would erase lifetime status);
+            // the only thing they can auto-renew into is a Dealer plan.
+            if (isLifetimeAgent && !DEALER_PLANS.includes(plan)) {
                 return NextResponse.json(
                     { error: 'You already have permanent access — no auto-upgrade needed' },
                     { status: 400 }
