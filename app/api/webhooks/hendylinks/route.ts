@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
         // writes shop_orders.status unconditionally — could flip a manually-refunded shop order
         // back to 'completed', masking the refund.
         // NOTE: deliberately does NOT write orders.error_message. That column is CUSTOMER-
-        // FACING — components/dashboard/RecentOrdersWidget.tsx renders it to the buyer under
-        // a "Failure Reason" heading — so a raw supplier string like "API request failed",
+        // FACING — the (since removed) RecentOrdersWidget rendered it to the buyer under
+        // a "Failure Reason" heading, and any surface that renders it again would too — so a raw supplier string like "API request failed",
         // or anything naming HendyLinks or their upstream provider, must never land there.
         // The reason is recorded in mtn_fulfillment_tracking below, which is admin-only.
         const { data: updatedRows, error: updateError } = await (supabase

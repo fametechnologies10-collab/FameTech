@@ -105,8 +105,8 @@ export async function GET(request: NextRequest) {
                         console.log(`[CronSyncAtiShareConsole] Order ${order.id} -> ${mapped}`)
 
                         // Supplier reason is INTERNAL ONLY — never orders.error_message, which is
-                        // rendered to the customer as "Failure Reason" in
-                        // components/dashboard/RecentOrdersWidget.tsx.
+                        // previously rendered to the customer as "Failure Reason" by the
+                        // (since removed) RecentOrdersWidget; still treat it as customer-facing.
                         // sanitizeForStorage(value, maxLen=500) strips control characters, so a
                         // supplier string cannot forge log lines or bloat the audit trail.
                         if (mapped === 'failed') {
