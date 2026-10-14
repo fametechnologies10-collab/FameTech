@@ -157,6 +157,61 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
 - **Login route is `/auth`, not `/login`.** Its `next` continuation query param is only read by the Google OAuth and magic-link handlers in `app/auth/page.tsx` — the default email/password login path ignores it and always redirects to `/dashboard`.
 - **User-submitted "lead intake" tables** (support tickets, website requests, etc.): RLS grants the owner `SELECT` only, never `INSERT`/`UPDATE` for `authenticated`; every write goes through a service-role client after validation. A per-user rate cap uses a `BEFORE INSERT` trigger with `pg_advisory_xact_lock` + `RAISE EXCEPTION '<LITERAL>'`, caught in the API route via `error.message.includes('<LITERAL>')` → friendly error.
 
+## Cron Jobs on cron-job.org (setup tracker)
+
+Audited 2026-10-13 against `app/api/cron/**` (34 routes, all `GET`, all call `validateCronAuth`; every table/RPC they use exists in the live Supabase project; all 34 are deployed — probed `https://fametechgh.com/api/cron/<name>` → 401, never 404). Production host is the apex `fametechgh.com`; `www` 308-redirects to it. `vercel.json` has **no** `crons` and `.github/workflows/cron.yml` is legacy — cron-job.org is the only scheduler. Status below is what's been configured on cron-job.org; update the checkbox as each job is created.
+
+**Job recipe (identical for every job):** URL `https://fametechgh.com/api/cron/<name> (NO www — the www host redirects and a redirect drops the Authorization header → 401)` · method `GET` · header `Authorization: Bearer <CRON_SECRET>` · account timezone **UTC** · request timeout 30s (cron-job.org's cap; routes with `maxDuration=60` may still finish server-side) · enable "notify on failure". `CRON_SECRET` must be set in Vercel **Production** (and redeployed), same value as in the header. Missing secret → route returns 500; wrong header → 401.
+
+**Rate-limit trap:** `middleware.ts` limits `/api/cron/*` to **10 requests/min per IP** (only `sync-moolre-withdrawals` is exempt). cron-job.org calls come from a few shared IPs, so never let >10 jobs fire in the same minute — use the minute offsets below, not "every N minutes" defaults.
+
+### Tier A — core money/ops (needed at launch)
+| Done | Route | Schedule (UTC, minutes) |
+|---|---|---|
+| [ ] | sms-dispatch | every minute |
+| [ ] | verify-pending-payments | every 5 min: 0,5,10… |
+| [ ] | publish-scheduled-announcements | every 5 min: 4,9,14… |
+| [ ] | auto-complete-data | every 10 min: 1,11,21,31,41,51 |
+| [ ] | sms-status-reconcile | every 10 min: 3,13,23,33,43,53 |
+| [ ] | kingflexy-commission-reconcile | every 10 min: 6,16,26,36,46,56 |
+| [ ] | sync-paystack-withdrawals | every 10 min: 8,18,28,38,48,58 |
+| [ ] | refulfill-pending-orders | every 15 min: 4,19,34,49 |
+| [ ] | auto-unsuspend | hourly at :12 |
+| [ ] | escalate-sub-withdrawals | hourly at :14 |
+| [ ] | auto-upgrade | every 6h at :30 (0:30, 6:30, 12:30, 18:30) |
+| [ ] | downgrade-expired-dealers | every 6h at :00 (2,8,14,20) |
+| [ ] | downgrade-expired-agents | daily 02:15 |
+
+### Tier B — housekeeping / engagement
+| Done | Route | Schedule (UTC) |
+|---|---|---|
+| [ ] | delete-old-notifications | daily 00:00 |
+| [ ] | delete-old-orders | Sundays 01:00 |
+| [ ] | delete-old-complaints | Sundays 01:05 |
+| [ ] | purge-afa-staging | daily 03:00 (KYC retention — don't skip) |
+| [ ] | sms-purge | daily 03:10 |
+| [ ] | reconcile-shop-pricing | daily 03:20 |
+| [ ] | agent-renewal-reminder | daily 07:00 |
+| [ ] | daily-greeting | daily 08:00 |
+| [ ] | shop-sales-report | URL needs `?type=weekly` — Mondays 06:00 (also supports `daily`/`monthly`) |
+
+### Deferred until the feature has data (verified 2026-10-13: `results_checker_types`=0, `sms_campaigns`=0)
+- fulfill-pending-rc-vouchers (every 5 min, minutes 2,7,12…) and release-rc-reservations (every 15 min, minutes 9,24,39,54) — create when the first results-checker type/inventory is stocked.
+- `sms-dispatch` only dispatches *scheduled bulk SMS campaigns* (`claim_sms_campaigns`); campaign UI exists but 0 campaigns so far — harmless every minute, kept in Tier A.
+- Tier B `delete-old-*` jobs have nothing to delete for 30–90 days — create them last.
+
+### ⚠️ URGENT — `sync-agentportal-status` (promoted out of Tier C 2026-10-14)
+`auto_fulfillment_enabled` flipped to `true` sometime after the 2026-10-13 snapshot below — AgentPortal is now live and dispatching real orders, but this cron was never created (it was still gated behind "only when the supplier carries orders"). Found via a live stuck order (`GHD-MV6DK2TY-CYAXKY`, stuck in `processing` since 2026-10-13 22:11 UTC) — AgentPortal's webhook is documented to sometimes never fire at all, and this cron (`reconcileAgentPortalDeliveries()`) is the ONLY recovery path for that case, plus the only path that can resolve a *retry* order's outcome (see `lib/agentportal-reconcile.ts` / `lib/agentportal-status.ts` header comments). **Create this job on cron-job.org NOW** — every 10 min, e.g. minutes 7,17,27,37,47,57 — using the standard Job recipe above. Also verify `AGENTPORTAL_API_KEY` is set in Vercel Production (reconcile can't poll at all without it) and `AGENTPORTAL_WEBHOOK_SECRET` is set (webhook fails closed to 503 without it). Until the cron exists, use the admin Fulfillment Center's AgentPortal "Sync" button to manually trigger `reconcileAgentPortalDeliveries()` for any stuck order.
+
+### Tier C — supplier safety-nets (create ONLY when that supplier actually carries orders; live DB had `auto_fulfillment_enabled=false` and ~no orders as of 2026-10-13 — re-verify per-supplier before deferring, see AgentPortal note above)
+sync-codecraft-status, sync-xpress-status, sync-ghdata-status, sync-hendylinks-status (10 min — must stay ≤ auto-complete-data's cadence, see route comment), sync-spfastit-status, sync-atishare-console-status, alert-bundleportal-stuck (15 min). Give each a free minute offset (5,12,17,… ) so no minute exceeds 10 hits.
+
+### Do NOT create
+- `sync-moolre-withdrawals` — owner has no Moolre account (see memory `shop-withdraw-momo-only-paystack`); create only after Moolre goes live.
+- `hubtel-commission-reconcile` — owner has no Hubtel commission account; airtime/utilities run on KingFlexyGH. Only for legacy in-flight Hubtel rows (none exist on the new DB).
+
+**Left to do:** everything above is unchecked — 0 of 22 Tier A+B jobs created (13 Tier A + 9 Tier B), Tier C pending supplier go-live. Set a fresh `CRON_SECRET` in Vercel Production first.
+
 ## Supabase Egress & Media
 
 - **Diagnose egress by BYTES, never request count.** 2026-08-16: 165 image requests outweighed 117,312 REST requests. Measure first, via the `query_logs` MCP tool:
