@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * KFT SMS — admin console for the user SMS platform.
+ * FameTech SMS — admin console for the user SMS platform.
  *
  * Single endpoint: /api/admin/sms-platform
  *   GET  → review queues, sender requests, flagged campaigns, accounts,
@@ -366,7 +366,7 @@ export default function SmsPlatformAdminClient() {
         switch (dialog.kind) {
             case 'toggle_feature':
                 payload = { action: 'update_settings', enabled: dialog.next }
-                okMsg = dialog.next ? 'KFT SMS platform enabled' : 'KFT SMS platform disabled'
+                okMsg = dialog.next ? 'FameTech SMS platform enabled' : 'FameTech SMS platform disabled'
                 break
             case 'review_business':
                 if ((dialog.decision === 'rejected' || dialog.decision === 'revoked') && !dNotes.trim()) {
@@ -725,7 +725,7 @@ export default function SmsPlatformAdminClient() {
                 <div>
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-600" />
-                        KFT SMS Platform
+                        FameTech SMS Platform
                         <Badge variant={featureEnabled ? 'success' : 'failed'} className="text-[10px]">
                             {featureEnabled ? 'LIVE' : 'OFF'}
                         </Badge>
@@ -1350,12 +1350,12 @@ export default function SmsPlatformAdminClient() {
                     )}
                 </TabsContent>
 
-                {/* ══ TAB 5 — Bundles (KFT credit tiers, mode-aware) ═════════ */}
+                {/* ══ TAB 5 — Bundles (FameTech credit tiers, mode-aware) ═════════ */}
                 <TabsContent value="bundles" className="space-y-4 mt-4">
                     <div className="grid lg:grid-cols-[1fr_360px] gap-4 items-start">
                         <div className="space-y-4">
                             {data.bundles.length === 0 ? (
-                                <EmptyState icon={Package} text="No KFT bundles yet — add the first one." />
+                                <EmptyState icon={Package} text="No FameTech bundles yet — add the first one." />
                             ) : (
                                 BUNDLE_MODES.map(mode => {
                                     const group = bundlesByMode[mode]
@@ -1426,7 +1426,7 @@ export default function SmsPlatformAdminClient() {
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-sm font-bold flex items-center gap-1.5">
                                         <Package className="w-4 h-4 text-emerald-600" />
-                                        {bundleForm.id ? 'Edit KFT Bundle' : 'New KFT Bundle'}
+                                        {bundleForm.id ? 'Edit FameTech Bundle' : 'New FameTech Bundle'}
                                     </h2>
                                     {bundleForm.id && (
                                         <button
@@ -1465,7 +1465,7 @@ export default function SmsPlatformAdminClient() {
                                 <div>
                                     <label className="text-xs font-semibold text-muted-foreground">Name</label>
                                     <Input
-                                        placeholder="e.g. KFT Starter Pack"
+                                        placeholder="e.g. FameTech Starter Pack"
                                         value={bundleForm.name}
                                         maxLength={50}
                                         onChange={e => setBundleForm(prev => ({ ...prev, name: e.target.value }))}
@@ -1601,7 +1601,7 @@ export default function SmsPlatformAdminClient() {
                                 </div>
                                 {allowedRoles.length === 0 && (
                                     <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                        <AlertTriangle className="w-3 h-3" /> Nobody will be able to use KFT SMS.
+                                        <AlertTriangle className="w-3 h-3" /> Nobody will be able to use FameTech SMS.
                                     </p>
                                 )}
                                 <SaveButton
@@ -1740,7 +1740,7 @@ export default function SmsPlatformAdminClient() {
                         <CardContent className="p-5 space-y-4">
                             <div>
                                 <h2 className="text-sm font-bold flex items-center gap-1.5">
-                                    <ShieldAlert className="w-4 h-4 text-purple-500" /> Business mode (KFT SMS)
+                                    <ShieldAlert className="w-4 h-4 text-purple-500" /> Business mode (FameTech SMS)
                                 </h2>
                                 <p className="text-[11px] text-muted-foreground mt-1">
                                     Platform mode above is a strict list — any match blocks the message. Business mode is looser: the blocked list still
@@ -1806,7 +1806,7 @@ export default function SmsPlatformAdminClient() {
                     {dialog?.kind === 'toggle_feature' && (
                         <>
                             <DialogHeader>
-                                <DialogTitle>{dialog.next ? 'Enable KFT SMS platform?' : 'Disable KFT SMS platform?'}</DialogTitle>
+                                <DialogTitle>{dialog.next ? 'Enable FameTech SMS platform?' : 'Disable FameTech SMS platform?'}</DialogTitle>
                                 <DialogDescription>
                                     {dialog.next
                                         ? 'Users in allowed roles will immediately be able to buy credits and send campaigns.'
