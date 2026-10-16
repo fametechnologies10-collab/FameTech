@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
             return NextResponse.json({ error: result.error }, { status: result.status })
         }
-        return NextResponse.json({ success: true, verified: true })
+        return NextResponse.json({ success: true, verified: true, claimToken: result.claimToken })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

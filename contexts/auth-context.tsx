@@ -52,6 +52,10 @@ interface SignUpData {
     firstName: string
     lastName: string
     phoneNumber: string
+    // Single-use token proving this browser solved the phone OTP — see
+    // supabase/migrations/20261016_add_signup_claim_token_to_phone_otp.sql.
+    // Omitted when phone verification is switched off (no OTP ran).
+    phoneVerificationToken?: string
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)

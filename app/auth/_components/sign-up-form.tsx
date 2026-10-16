@@ -54,6 +54,10 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
     const [otpError, setOtpError] = useState('')
     const [resendCooldown, setResendCooldown] = useState(0)
     const pendingPhone = useRef('')
+    // Single-use token proving THIS browser solved the OTP — required by
+    // /api/auth/signup to actually claim phone_verified=true (see
+    // supabase/migrations/20261016_add_signup_claim_token_to_phone_otp.sql).
+    const pendingClaimToken = useRef<string | undefined>(undefined)
     const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +146,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
             })
             const data = await res.json()
             if (!res.ok) { setOtpError(data.error || 'Verification failed.'); return }
+            pendingClaimToken.current = data.claimToken
             await doSignUp(pendingPhone.current)
         } catch {
             setOtpError('An unexpected error occurred.')
@@ -200,6 +205,7 @@ export function SignUpForm({ onGoogleLoading, googleLoading }: {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
                 phoneNumber: normalizedPhone,
+                phoneVerificationToken: pendingClaimToken.current,
             })
             if (signUpError) {
                 if (signUpError.details) {

@@ -25,6 +25,12 @@ export interface OtpResult {
     // cap — so the UI stops inviting a tap that the server will just reject,
     // and stops burning SMS budget on sends nobody can act on for an hour.
     cooldownSeconds?: number
+    // High-entropy, single-use token minted on successful verification —
+    // the client must pass this to /api/auth/signup to actually claim
+    // phone_verified=true. Binds the claim to whoever solved THIS code,
+    // not to whoever's request merely names the same phone number later
+    // (see supabase/migrations/20261016_add_signup_claim_token_to_phone_otp.sql).
+    claimToken?: string
 }
 
 // Extracted from app/api/auth/verify-phone/route.ts (2026-09-30) so the phone-verify-gate
@@ -106,7 +112,13 @@ export async function sendPhoneOtp(normalizedPhone: string, ip: string): Promise
     const { error: dbError } = await (supabase
         .from('phone_otp_verifications') as any)
         .upsert(
-            { phone: normalizedPhone, code: otpHash, expires_at: expiresAt, attempts: 0, used: false, created_at: new Date().toISOString() },
+            // signup_claim_token explicitly nulled — a resend otherwise leaves a
+            // prior verification's leftover token sitting in the row (upsert only
+            // touches listed columns). Inert today (the claim DELETE requires
+            // used=true, and this resend just set used=false), but nulling it here
+            // means that stays true even if that used=true guard is ever refactored
+            // (payments-security-reviewer, 2026-10-16).
+            { phone: normalizedPhone, code: otpHash, expires_at: expiresAt, attempts: 0, used: false, created_at: new Date().toISOString(), signup_claim_token: null },
             { onConflict: 'phone' }
         )
 
@@ -172,10 +184,13 @@ export async function verifyPhoneOtp(normalizedPhone: string, code: string, ip: 
 
     // Atomic mark-as-used: the extra .eq('used', false) means a concurrent
     // request that already flipped the flag will match 0 rows, preventing
-    // the same OTP from being accepted twice (TOCTOU fix).
+    // the same OTP from being accepted twice (TOCTOU fix). Minting the claim
+    // token in the SAME update means only the request that actually wins this
+    // race gets a token back — a loser gets zero rows and no token to hand out.
+    const claimToken = crypto.randomBytes(32).toString('hex')
     const { data: updated } = await (supabase
         .from('phone_otp_verifications') as any)
-        .update({ used: true })
+        .update({ used: true, signup_claim_token: claimToken })
         .eq('phone', normalizedPhone)
         .eq('used', false)
         .select('id')
@@ -184,5 +199,5 @@ export async function verifyPhoneOtp(normalizedPhone: string, code: string, ip: 
         return { ok: false, status: 400, error: 'Verification already used. Please request a new code.' }
     }
 
-    return { ok: true, status: 200 }
+    return { ok: true, status: 200, claimToken }
 }
