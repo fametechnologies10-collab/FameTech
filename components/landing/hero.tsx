@@ -1,8 +1,13 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { ClayButton, NeuCard, Orbit } from '@/components/ft'
 import { NetworkIcon } from '@/components/network-icon'
 import { isSafeHref, type PackagesByNetwork } from '@/components/landing/helpers'
+import { HERO_SLIDES } from '@/components/landing/hero-slides'
 
 interface HeroProps {
     customerCountLabel: string
@@ -17,6 +22,8 @@ const PREVIEW_NETWORKS = [
 ]
 
 const SAMPLE_SIZES = ['1GB', '5GB', '10GB']
+const ADVANCE_MS = 6000
+const RESUME_AFTER_MS = 5000
 
 export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroProps) {
     // Prices only appear when the admin supplied real ones; otherwise sizes only.
@@ -25,16 +32,77 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
         ? live.map(p => ({ size: p.volume, price: p.price }))
         : SAMPLE_SIZES.map(size => ({ size, price: '' }))
 
+    const [activeIndex, setActiveIndex] = useState(0)
+    const activeIndexRef = useRef(0)
+    const resumeAtRef = useRef(0)
+    const reducedMotionRef = useRef(false)
+    const sectionRef = useRef<HTMLDivElement>(null)
+    const isVisibleRef = useRef(true)
+
+    useEffect(() => {
+        const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+        reducedMotionRef.current = mql.matches
+        const onChange = (e: MediaQueryListEvent) => { reducedMotionRef.current = e.matches }
+        if (typeof mql.addEventListener === 'function') {
+            mql.addEventListener('change', onChange)
+            return () => mql.removeEventListener('change', onChange)
+        }
+        mql.addListener(onChange)
+        return () => mql.removeListener(onChange)
+    }, [])
+
+    useEffect(() => {
+        const node = sectionRef.current
+        if (!node) return
+        const observer = new IntersectionObserver(
+            ([entry]) => { isVisibleRef.current = entry.isIntersecting },
+            { threshold: 0.4 },
+        )
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [])
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            if (!isVisibleRef.current) return
+            if (Date.now() < resumeAtRef.current) return
+            const next = (activeIndexRef.current + 1) % HERO_SLIDES.length
+            activeIndexRef.current = next
+            setActiveIndex(next)
+        }, ADVANCE_MS)
+        return () => clearInterval(id)
+    }, [])
+
+    const goTo = useCallback((index: number) => {
+        const clamped = (index + HERO_SLIDES.length) % HERO_SLIDES.length
+        activeIndexRef.current = clamped
+        setActiveIndex(clamped)
+        resumeAtRef.current = Date.now() + RESUME_AFTER_MS
+    }, [])
+
+    const slide = HERO_SLIDES[activeIndex]
+
     return (
-        <section className="relative overflow-hidden px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 lg:px-8">
+        <section ref={sectionRef} className="relative overflow-hidden px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 lg:px-8">
             <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="min-w-0">
-                    <h1 className="ft-display break-words text-4xl font-extrabold leading-[1.08] tracking-tight text-ft-ink sm:text-5xl lg:text-6xl">
-                        Data that lands before you blink.
+                    <span className="ft-raised inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-[color:var(--ft-muted)]">
+                        {slide.badge}
+                    </span>
+
+                    <h1
+                        key={slide.id}
+                        className={cn(
+                            'ft-display mt-5 break-words text-4xl font-extrabold leading-[1.08] tracking-tight text-ft-ink sm:text-5xl lg:text-6xl',
+                            !reducedMotionRef.current && 'animate-ft-hero-in'
+                        )}
+                    >
+                        {slide.headline}
                     </h1>
                     <p className="mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--ft-muted)]">
-                        MTN, Telecel and AirtelTigo bundles, airtime, result checkers and bills. Paid from your wallet in seconds.
+                        {slide.body}
                     </p>
+
                     <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                         <ClayButton asChild>
                             <Link href="/auth?tab=signup">
@@ -48,6 +116,24 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
                             </ClayButton>
                         )}
                     </div>
+
+                    <div className="mt-6 flex items-center gap-1.5" role="tablist" aria-label="Hero highlights">
+                        {HERO_SLIDES.map((s, i) => (
+                            <button
+                                key={s.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={i === activeIndex}
+                                aria-label={s.headline}
+                                onClick={() => goTo(i)}
+                                className={cn(
+                                    'h-2 rounded-full transition-all duration-300',
+                                    i === activeIndex ? 'w-7 bg-[color:var(--ft-blue)]' : 'w-2 bg-[color:var(--ft-lo)] hover:bg-[color:var(--ft-field-edge)]'
+                                )}
+                            />
+                        ))}
+                    </div>
+
                     <p className="mt-6 text-sm font-semibold text-[color:var(--ft-muted)]">
                         Trusted by {customerCountLabel} customers across Ghana
                     </p>
