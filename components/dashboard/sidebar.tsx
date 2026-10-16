@@ -480,7 +480,13 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                                 <p className="text-lg font-bold tracking-tight text-foreground">{formatCurrency(walletBalance)}</p>
                             </div>
                             {!(process.env.NEXT_PUBLIC_PAYMENT_MAINTENANCE_MODE === 'true' && !isAdmin) && isPageAccessible('/dashboard/wallet') && (
-                                <Link href="/dashboard/wallet" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                <Link
+                                    href="/dashboard/wallet"
+                                    className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) closeSidebar()
+                                    }}
+                                >
                                     <Button
                                         size="sm"
                                         className="h-10 px-3 text-xs font-bold rounded-xl"
