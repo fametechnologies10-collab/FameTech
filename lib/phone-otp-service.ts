@@ -1,6 +1,8 @@
 import { createServerClient } from '@/lib/supabase'
 import { sendPhoneOTPSms } from '@/lib/sms-service'
 import { consumeRateLimit } from '@/lib/simple-rate-limit'
+import { getAdminSetting } from '@/lib/admin-settings-cache'
+import { isPhoneVerificationEnabled } from '@/lib/phone-verification-setting'
 import crypto from 'crypto'
 
 function generateOTP(): string {
@@ -51,24 +53,31 @@ export async function sendPhoneOtp(normalizedPhone: string, ip: string): Promise
     // out the real reset instead of the usual 60s.
     const cooldownSeconds = phoneLimit.remaining === 0 ? Math.ceil(phoneLimit.retryAfterMs / 1000) : 60
 
-    const { data: setting } = await (supabase
-        .from('admin_settings') as any)
-        .select('value')
-        .eq('key', 'phone_verification_enabled')
-        .single()
+    // Measured 2026-10-16: admin_settings averaged 314ms/call (p-max 5.4s) on
+    // a raw per-request query here — 1038 reqs/day, the single hottest REST
+    // endpoint in the app — because this read bypassed the shared cached
+    // reader (lib/admin-settings-cache.ts) that every other call site for
+    // this exact key already uses. That uncached round trip ran first,
+    // serialized in front of two more Supabase calls and the SMS send, on
+    // every OTP send. Switched to the cached reader (60s TTL — the same
+    // bound already accepted for this key in app/dashboard/layout.tsx) and
+    // run in parallel with the independent cooldown-row lookup below, since
+    // neither depends on the other's result.
+    const [settingValue, existingResult] = await Promise.all([
+        getAdminSetting('phone_verification_enabled'),
+        (supabase
+            .from('phone_otp_verifications') as any)
+            .select('created_at')
+            .eq('phone', normalizedPhone)
+            .eq('used', false)
+            .single(),
+    ])
 
-    const isEnabled = setting?.value === true || setting?.value === 'true'
-    if (!isEnabled) {
+    if (!isPhoneVerificationEnabled(settingValue)) {
         return { ok: true, status: 200, requiresOtp: false }
     }
 
-    const { data: existing } = await (supabase
-        .from('phone_otp_verifications') as any)
-        .select('created_at')
-        .eq('phone', normalizedPhone)
-        .eq('used', false)
-        .single()
-
+    const existing = existingResult.data
     if (existing) {
         const sinceCreated = Date.now() - new Date(existing.created_at).getTime()
         if (sinceCreated < 60 * 1000) {
