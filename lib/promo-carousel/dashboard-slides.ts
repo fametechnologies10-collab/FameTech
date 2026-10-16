@@ -1,6 +1,6 @@
 // lib/promo-carousel/dashboard-slides.ts
 import {
-    ShieldCheck, Smartphone, UserPlus, TrendingUp, Store,
+    ShieldCheck, UserPlus, TrendingUp, Store,
     Wifi, PhoneCall, IdCard, GraduationCap, Zap, Megaphone,
 } from 'lucide-react'
 import type { PromoSlide } from './types'
@@ -45,17 +45,6 @@ export function buildDashboardSlides(ctx: DashboardSlideContext): PromoSlide[] {
         body: 'MTN data only reaches registered numbers. Check yours now — numbers that are not registered are sent to MTN automatically.',
         icon: ShieldCheck,
         cta: { label: 'Check Number', onClick: ctx.onOpenWhitelistCheck },
-    })
-
-    slides.push({
-        id: 'ussd-quick-buy',
-        theme: 'violet',
-        eyebrowIcon: Smartphone,
-        eyebrow: 'USSD',
-        title: 'Buy on USSD — no app, no data',
-        body: `Dial ${ctx.ussdShortcode} from your registered number and pay your role price instantly.`,
-        icon: Smartphone,
-        cta: { label: 'Sell on USSD', href: '/dashboard/shop' },
     })
 
     if (ctx.role === 'agent' || ctx.role === 'dealer') {
