@@ -121,22 +121,6 @@
     }
 }
 
-/* Hero headline crossfade when the carousel advances to a new slide */
-.animate-ft-hero-in {
-    animation: ft-hero-in 420ms ease-out;
-}
-
-@keyframes ft-hero-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .animate-ft-hero-in {
-        animation: none;
-    }
-}
-
 .ft-lazy {
     content-visibility: auto;
     contain-intrinsic-size: 1px 600px;

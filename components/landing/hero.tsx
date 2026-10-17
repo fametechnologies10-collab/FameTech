@@ -35,14 +35,15 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
     const [activeIndex, setActiveIndex] = useState(0)
     const activeIndexRef = useRef(0)
     const resumeAtRef = useRef(0)
-    const reducedMotionRef = useRef(false)
+    const instantScrollRef = useRef(false)
     const sectionRef = useRef<HTMLDivElement>(null)
+    const trackRef = useRef<HTMLDivElement>(null)
     const isVisibleRef = useRef(true)
 
     useEffect(() => {
         const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
-        reducedMotionRef.current = mql.matches
-        const onChange = (e: MediaQueryListEvent) => { reducedMotionRef.current = e.matches }
+        instantScrollRef.current = mql.matches
+        const onChange = (e: MediaQueryListEvent) => { instantScrollRef.current = e.matches }
         if (typeof mql.addEventListener === 'function') {
             mql.addEventListener('change', onChange)
             return () => mql.removeEventListener('change', onChange)
@@ -62,46 +63,89 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
         return () => observer.disconnect()
     }, [])
 
+    const scrollToIndex = useCallback((index: number) => {
+        const track = trackRef.current
+        if (!track) return
+        track.scrollTo({
+            left: index * track.clientWidth,
+            behavior: instantScrollRef.current ? 'auto' : 'smooth',
+        })
+    }, [])
+
     useEffect(() => {
+        if (HERO_SLIDES.length < 2) return
         const id = setInterval(() => {
             if (!isVisibleRef.current) return
             if (Date.now() < resumeAtRef.current) return
             const next = (activeIndexRef.current + 1) % HERO_SLIDES.length
             activeIndexRef.current = next
             setActiveIndex(next)
+            scrollToIndex(next)
         }, ADVANCE_MS)
         return () => clearInterval(id)
-    }, [])
+    }, [scrollToIndex])
 
     const goTo = useCallback((index: number) => {
         const clamped = (index + HERO_SLIDES.length) % HERO_SLIDES.length
         activeIndexRef.current = clamped
         setActiveIndex(clamped)
+        scrollToIndex(clamped)
         resumeAtRef.current = Date.now() + RESUME_AFTER_MS
+    }, [scrollToIndex])
+
+    // Swipe/drag on the track fires native scroll events; sync the active index
+    // and pause autoplay while the finger/pointer is down, same as PromoCarousel.
+    const handleScroll = useCallback(() => {
+        const track = trackRef.current
+        if (!track || !track.clientWidth) return
+        const index = Math.round(track.scrollLeft / track.clientWidth)
+        activeIndexRef.current = index
+        setActiveIndex(prev => (prev === index ? prev : index))
     }, [])
 
-    const slide = HERO_SLIDES[activeIndex]
+    const handleInteractionStart = useCallback(() => {
+        resumeAtRef.current = Number.POSITIVE_INFINITY
+    }, [])
+    const handleInteractionEnd = useCallback(() => {
+        resumeAtRef.current = Date.now() + RESUME_AFTER_MS
+    }, [])
+    const handlePointerDown = useCallback(() => {
+        resumeAtRef.current = Number.POSITIVE_INFINITY
+        const release = () => {
+            window.removeEventListener('pointerup', release)
+            window.removeEventListener('pointercancel', release)
+            resumeAtRef.current = Date.now() + RESUME_AFTER_MS
+        }
+        window.addEventListener('pointerup', release)
+        window.addEventListener('pointercancel', release)
+    }, [])
 
     return (
         <section ref={sectionRef} className="relative overflow-hidden px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 lg:px-8">
             <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
                 <NeuCard className="min-w-0 p-6 sm:p-8">
-                    <span className="ft-inset inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-[color:var(--ft-muted)]">
-                        {slide.badge}
-                    </span>
-
-                    <h1
-                        key={slide.id}
-                        className={cn(
-                            'ft-display mt-5 break-words text-4xl font-extrabold leading-[1.08] tracking-tight text-ft-ink sm:text-5xl lg:text-6xl',
-                            !reducedMotionRef.current && 'animate-ft-hero-in'
-                        )}
+                    <div
+                        ref={trackRef}
+                        onScroll={handleScroll}
+                        onPointerDown={handlePointerDown}
+                        onTouchStart={handleInteractionStart}
+                        onTouchEnd={handleInteractionEnd}
+                        className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                     >
-                        {slide.headline}
-                    </h1>
-                    <p className="mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--ft-muted)]">
-                        {slide.body}
-                    </p>
+                        {HERO_SLIDES.map(s => (
+                            <div key={s.id} className="w-full shrink-0 snap-center">
+                                <span className="ft-inset inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-[color:var(--ft-muted)]">
+                                    {s.badge}
+                                </span>
+                                <h1 className="ft-display mt-5 break-words text-4xl font-extrabold leading-[1.08] tracking-tight text-ft-ink sm:text-5xl lg:text-6xl">
+                                    {s.headline}
+                                </h1>
+                                <p className="mt-5 max-w-xl text-lg leading-relaxed text-[color:var(--ft-muted)]">
+                                    {s.body}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
 
                     <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                         <ClayButton asChild>
