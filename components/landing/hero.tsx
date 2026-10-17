@@ -85,8 +85,8 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
     return (
         <section ref={sectionRef} className="relative overflow-hidden px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 lg:px-8">
             <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="min-w-0">
-                    <span className="ft-raised inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-[color:var(--ft-muted)]">
+                <NeuCard className="min-w-0 p-6 sm:p-8">
+                    <span className="ft-inset inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-[color:var(--ft-muted)]">
                         {slide.badge}
                     </span>
 
@@ -137,7 +137,7 @@ export function Hero({ customerCountLabel, guestUrl, packagesByNetwork }: HeroPr
                     <p className="mt-6 text-sm font-semibold text-[color:var(--ft-muted)]">
                         Trusted by {customerCountLabel} customers across Ghana
                     </p>
-                </div>
+                </NeuCard>
 
                 <div className="relative mx-auto w-full min-w-0 max-w-md">
                     <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 w-[140%] -translate-x-1/2 -translate-y-1/2">
