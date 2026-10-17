@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Moon, Sun } from "lucide-react"
+import { Moon, Sun, Laptop, Check } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
@@ -32,12 +32,11 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
         }
     }, [])
 
-    // One-time migration: users who previously picked a manual Light/Dark
-    // theme are stuck on it since next-themes persists the choice — reset
-    // them to "system" now that manual override has been removed.
-    React.useEffect(() => {
-        if (theme && theme !== "system") setTheme("system")
-    }, [theme, setTheme])
+    const themes = [
+        { id: "light", label: "Light", icon: Sun },
+        { id: "dark", label: "Dark", icon: Moon },
+        { id: "system", label: "System", icon: Laptop },
+    ]
 
     const perfModes: { id: PerfMode; label: string }[] = [
         { id: "auto", label: "Auto" },
@@ -68,20 +67,52 @@ export function ThemeToggle({ brandName }: { brandName?: string }) {
             </DialogTrigger>
             <DialogContent aria-describedby={undefined} className="sm:max-w-[400px] p-0 overflow-hidden">
                 <DialogHeader className="p-6 pb-2">
-                    <DialogTitle className="text-xl font-bold tracking-tight">Display Settings</DialogTitle>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Theme follows your device automatically</p>
+                    <DialogTitle className="text-xl font-bold tracking-tight">Select Theme</DialogTitle>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">System follows your device automatically — or pick one</p>
                 </DialogHeader>
-                <div className="p-4">
-                    <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-primary ft-field">
-                        <div className="relative p-2.5 rounded-lg bg-primary text-primary-foreground">
-                            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 absolute" />
-                            <Moon className="h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-sm tracking-tight text-foreground">System ({resolvedTheme === "dark" ? "Dark" : "Light"})</p>
-                            <p className="text-xs text-muted-foreground">Switches with your phone's light/dark setting</p>
-                        </div>
-                    </div>
+                <div className="p-4 grid gap-3">
+                    {themes.map((t) => {
+                        const Icon = t.icon
+                        const isActive = theme === t.id
+                        return (
+                            <button
+                                key={t.id}
+                                onClick={() => {
+                                    setTheme(t.id)
+                                    setOpen(false)
+                                }}
+                                className={cn(
+                                    "relative flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 group overflow-hidden",
+                                    isActive
+                                        ? "border-primary ft-field scale-[1.02]"
+                                        : "border-transparent bg-muted/30 hover:bg-muted/50 hover:border-muted-foreground/20 hover:scale-[1.01]"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={cn(
+                                        "p-2.5 rounded-lg transition-colors",
+                                        isActive ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground group-hover:text-primary"
+                                    )}>
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <span className={cn(
+                                        "font-bold text-sm tracking-tight transition-colors",
+                                        isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                                    )}>
+                                        {t.label}
+                                        {t.id === "system" && (
+                                            <span className="ml-2 font-normal text-muted-foreground">({resolvedTheme === "dark" ? "Dark" : "Light"} now)</span>
+                                        )}
+                                    </span>
+                                </div>
+                                {isActive && (
+                                    <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground shadow-sm animate-in zoom-in duration-300">
+                                        <Check className="h-3.5 w-3.5 stroke-[3px]" />
+                                    </div>
+                                )}
+                            </button>
+                        )
+                    })}
                 </div>
                 <div className="px-4 pb-4">
                     <p className="px-1 pb-2 text-sm font-semibold">Performance</p>
