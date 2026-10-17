@@ -116,7 +116,7 @@ export default function AdminLayoutClient({
     return (
         <div className="min-h-screen bg-[#E5E7EB] dark:bg-[#000000]">
             <TermsGate minVersion={adminSettings['terms_min_acceptable_version'] || ''} effectiveDate={adminSettings['terms_effective_date']} />
-            <DashboardSidebar />
+            <DashboardSidebar variant="glass" />
             <div className={cn(
                 "relative transition-[padding-left] duration-200 min-h-screen flex flex-col w-full max-w-[100vw] overflow-x-clip",
                 isCollapsed ? "lg:pl-20" : "lg:pl-80"

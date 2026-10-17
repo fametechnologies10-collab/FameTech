@@ -126,7 +126,11 @@ export const shopNavItems = [
 
 import { roleConfig, roleTheme } from '@/lib/roles'
 
-export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY8X8nUkNgYATUiOY5gXAb' }: { communityLink?: string }) {
+export function DashboardSidebar({
+    communityLink = 'https://chat.whatsapp.com/GY8X8nUkNgYATUiOY5gXAb',
+    variant = 'solid',
+}: { communityLink?: string; variant?: 'solid' | 'glass' }) {
+    const isGlass = variant === 'glass'
     const pathname = usePathname()
     const { dbUser, isAdmin, isSubAdmin, signOut, isSigningOut } = useAuth()
     const { isInternalSidebarOpen, closeSidebar, isCollapsed, toggleCollapse } = useUI()
@@ -261,7 +265,10 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
     const navRowClass = (active?: boolean) => cn(
         "relative flex items-center gap-2.5 px-3 py-2 min-h-10 rounded-xl text-sm transition-colors duration-200",
         active
-            ? "bg-primary/10 dark:bg-primary/15 font-semibold text-foreground before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-[var(--ft-blue)] dark:before:bg-[var(--ft-cyan)]"
+            ? cn(
+                "bg-primary/10 dark:bg-primary/15 font-semibold text-foreground before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-[var(--ft-blue)] dark:before:bg-[var(--ft-cyan)]",
+                isGlass && "shadow-[0_0_24px_-6px_rgba(0,200,255,0.45)]"
+              )
             : "font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
         isCollapsed && "justify-center px-2"
     )
@@ -283,12 +290,23 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out bg-[var(--ft-raised-bg)] border-r border-[var(--ft-edge)] text-foreground",
+                    "fixed left-0 top-0 z-50 h-full flex flex-col transition-all duration-300 ease-in-out text-foreground overflow-hidden",
+                    isGlass
+                        ? "dark bg-[#0A0F1C]/75 backdrop-blur-2xl backdrop-saturate-150 border-r border-white/10 shadow-[inset_1px_0_0_0_rgba(255,255,255,0.05)]"
+                        : "bg-[var(--ft-raised-bg)] border-r border-[var(--ft-edge)]",
                     isCollapsed ? "w-20" : "w-80",
                     "lg:transform-none",
                     isInternalSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
                 )}
             >
+                {/* Ambient glass glow — fixed blurred colour fields, no live backdrop cost */}
+                {isGlass && (
+                    <div aria-hidden className="pointer-events-none absolute inset-0">
+                        <div className="absolute -top-28 -left-20 w-72 h-72 rounded-full bg-[#0057FF]/35 blur-[90px]" />
+                        <div className="absolute top-1/3 -right-24 w-80 h-80 rounded-full bg-[#00C8FF]/20 blur-[100px]" />
+                        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-[#6C4CFF]/15 blur-[90px]" />
+                    </div>
+                )}
 
                 {/* Logo Header */}
                 <div className={cn(
@@ -341,17 +359,30 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
 
                 {/* Role crest + profile widget */}
                 {!isCollapsed && dbUser && (
-                    <div className="mx-4 mt-6 p-4 rounded-2xl bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)]">
+                    <div className={cn(
+                        "relative z-10 mx-4 mt-6 p-4 rounded-2xl",
+                        isGlass
+                            ? "bg-white/[0.06] border border-white/10 backdrop-blur-sm"
+                            : "bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)]"
+                    )}>
                         {/* User Info Row */}
                         <div className="flex items-center gap-3.5 mb-4">
                             {/* Avatar with role ring and role icon */}
                             <div
-                                className="relative w-12 h-12 rounded-full flex items-center justify-center bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)] ring-[3px] ring-offset-2 ring-offset-[var(--ft-raised-bg)] text-[var(--chip-fg)] dark:text-[var(--chip-fg-d)]"
+                                className={cn(
+                                    "relative w-12 h-12 rounded-full flex items-center justify-center ring-[3px] ring-offset-2 text-[var(--chip-fg)] dark:text-[var(--chip-fg-d)]",
+                                    isGlass
+                                        ? "bg-white/10 border border-white/15 ring-offset-[#0A0F1C]"
+                                        : "bg-[var(--ft-raised-bg)] border border-[var(--ft-edge)] ring-offset-[var(--ft-raised-bg)]"
+                                )}
                                 style={roleVars}
                             >
                                 <RoleIcon className="w-6 h-6" />
                                 <div
-                                    className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--ft-raised-bg)] bg-[var(--ft-raised-bg)]"
+                                    className={cn(
+                                        "absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2",
+                                        isGlass ? "border-[#0A0F1C] bg-[#0A0F1C]" : "border-[var(--ft-raised-bg)] bg-[var(--ft-raised-bg)]"
+                                    )}
                                 >
                                     <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
                                 </div>
@@ -405,7 +436,10 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                         {dbUser?.role === 'dealer' ? (
                             <div className="mt-3 space-y-2">
                                 {dealerDaysRemaining !== null && (
-                                    <div className="p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
+                                    <div className={cn(
+                                        "p-3 rounded-xl border",
+                                        isGlass ? "bg-white/[0.04] border-white/10" : "bg-foreground/[0.03] border-[var(--ft-edge)]"
+                                    )}>
                                         <p className="text-xs text-muted-foreground font-semibold mb-1">
                                             Dealer plan
                                         </p>
@@ -434,7 +468,10 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                             <div className="mt-3 space-y-2">
                                 {/* Days Remaining Display */}
                                 {daysRemaining !== null && (
-                                    <div className="p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
+                                    <div className={cn(
+                                        "p-3 rounded-xl border",
+                                        isGlass ? "bg-white/[0.04] border-white/10" : "bg-foreground/[0.03] border-[var(--ft-edge)]"
+                                    )}>
                                         <p className="text-xs text-muted-foreground font-semibold mb-1">
                                             Plan status
                                         </p>
@@ -474,7 +511,10 @@ export function DashboardSidebar({ communityLink = 'https://chat.whatsapp.com/GY
                         )}
 
                         {/* Wallet Section */}
-                        <div className="mt-3 flex items-center justify-between p-3 rounded-xl bg-foreground/[0.03] border border-[var(--ft-edge)]">
+                        <div className={cn(
+                            "mt-3 flex items-center justify-between p-3 rounded-xl border",
+                            isGlass ? "bg-white/[0.04] border-white/10" : "bg-foreground/[0.03] border-[var(--ft-edge)]"
+                        )}>
                             <div>
                                 <p className="text-xs font-semibold text-muted-foreground mb-0.5">Balance</p>
                                 <p className="text-lg font-bold tracking-tight text-foreground">{formatCurrency(walletBalance)}</p>
