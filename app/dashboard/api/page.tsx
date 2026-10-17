@@ -39,7 +39,6 @@ import {
     Globe,
     List,
     AlertCircle,
-    Package,
     Loader2,
     Webhook,
     Menu,
@@ -329,13 +328,6 @@ export default function ApiDashboardPage() {
                         <ExternalLink className="w-3.5 h-3.5" />
                         <span className="hidden xs:inline">API Docs</span>
                         <span className="xs:hidden">Docs</span>
-                    </a>
-                    <a href="https://documenter.getpostman.com/view/55615613/2sBYAuTBhF" target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 dark:border-orange-700/50 bg-orange-50 dark:bg-orange-900/20 text-xs font-semibold text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
-                    >
-                        <Package className="w-3.5 h-3.5" />
-                        <span className="hidden xs:inline">Postman</span>
-                        <span className="xs:hidden">PM</span>
                     </a>
                 </div>
             </div>
