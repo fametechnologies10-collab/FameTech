@@ -128,11 +128,13 @@ import { roleConfig, roleTheme } from '@/lib/roles'
 
 export function DashboardSidebar({
     communityLink = 'https://chat.whatsapp.com/GY8X8nUkNgYATUiOY5gXAb',
-    variant = 'solid',
-}: { communityLink?: string; variant?: 'solid' | 'glass' }) {
-    const isGlass = variant === 'glass'
+}: { communityLink?: string }) {
     const pathname = usePathname()
     const { dbUser, isAdmin, isSubAdmin, signOut, isSigningOut } = useAuth()
+    // Glass treatment is tied to the ROLE, not the route — admin/sub-admin see both
+    // nav sections merged into this one sidebar on every page (not just /admin/**),
+    // so gating the look by pathname left it looking unchanged outside /admin.
+    const isGlass = isAdmin || isSubAdmin
     const { isInternalSidebarOpen, closeSidebar, isCollapsed, toggleCollapse } = useUI()
     const { isPageAccessible, loading: pageAccessLoading } = usePageAccess()
     // Remove local state: const [isCollapsed, setIsCollapsed] = useState(false)
