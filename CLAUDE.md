@@ -29,7 +29,7 @@ Skill("superpowers:using-superpowers")   # then fametech-workflow
 
 The generic engineering lifecycle — brainstorming, planning, worktrees, subagent-driven execution, TDD, code review, finishing a branch — is owned by the `superpowers` plugin. Its skills trigger automatically; don't skip them and don't re-invent them locally.
 
-On top of that, invoke `fametech-workflow` for any Tier 2 feature/fix in this repo — it adds the three project-specific gates superpowers doesn't know about: a fintech security audit (`payments-security-reviewer`) before review/finishing, a `tsc`/`lint` QA gate before push, and a Postman docs sync when the public `app/api/v2/**` surface changes. See `.claude/skills/fametech-workflow/SKILL.md` for exactly where each fires.
+On top of that, invoke `fametech-workflow` for any Tier 2 feature/fix in this repo — it adds the two project-specific gates superpowers doesn't know about: a fintech security audit (`payments-security-reviewer`) before review/finishing, and a `tsc`/`lint` QA gate before push. See `.claude/skills/fametech-workflow/SKILL.md` for exactly where each fires. (Postman docs sync removed 2026-10-17 — the user maintains their own API documentation now.)
 
 **Gate rule:** Do not advance past a superpowers checkpoint (design approval, plan approval, etc.) without the user's explicit sign-off.
 
@@ -58,7 +58,7 @@ FameTech is a Next.js 15 e-commerce platform for Ghana digital services (data bu
 | `admin/` | 159 | No — internal only |
 | `shop/` | 48 | No |
 | `cron/` | 33 | No — secret-header auth |
-| **`v2/`** | **26** | **Yes — the public developer API (v1 was retired and removed 2026-09-18); the only group that gets published Postman docs** |
+| **`v2/`** | **26** | **Yes — the public developer API (v1 was retired and removed 2026-09-18); the only group that is externally documented** |
 | `user/` | 14 | No |
 | `auth/` | 13 | No |
 | `webhooks/` | 11 | Inbound only (Paystack HMAC) |
@@ -92,7 +92,7 @@ All skills come from installed plugins. Use the `Skill` tool with the namespaced
 - `fametech-supabase` — which DB client to use, idempotency, RLS, wallet operations
 - `fametech-fulfillment` — DataKazina API, circuit breaker, bundle mapping, Paystack webhooks
 - `fametech-cron` — all cron endpoints, schedules, re-enable process after Vercel Pro upgrade
-- `fametech-workflow` — project gates: fintech security audit, `tsc`/lint QA, Postman v2 docs sync
+- `fametech-workflow` — project gates: fintech security audit, `tsc`/lint QA
 - `new-api-route` — correct scaffold template for user/admin/cron/webhook routes
 
 ### Other Plugin Skills (verified installed — do not cite skills not on this list)
@@ -100,18 +100,18 @@ All skills come from installed plugins. Use the `Skill` tool with the namespaced
 - `security-review` — built-in security review skill (`/security-review`); not a plugin
 - `supabase:supabase` — Supabase best practices; `supabase:supabase-postgres-best-practices` — schema, RLS, indexes, migrations
 - `vercel:*` — deployment, env vars, Next.js, caching, functions, firewall, shadcn
-- `postman:api-engineer` — entry point for API engineering work; routes to `postman:api-documentation` (spec/collection authoring, pushed via the Postman MCP tools) and `postman:bootstrap` (first-time CLI/workspace setup). `postman:security` — OWASP API Top 10 audit. (Corrected 2026-09-29 — `postman:generate-spec`/`postman:sync`/`postman:docs` no longer exist under those names.)
 - `pr-review-toolkit:review-pr` — multi-agent PR review (silent failures, type design, test coverage)
 - `claude-md-management:claude-md-improver` — audit/improve CLAUDE.md files
 - `claude-md-management:revise-claude-md` — capture session learnings into CLAUDE.md
 - `code-review` — built-in diff/PR review (`/code-review`); not a plugin
 - `document-skills:xlsx` — spreadsheet work (this repo uses `xlsx` / `xlsx-js-style` for exports)
 
-**MCP servers connected:** `supabase`, `vercel`, `postman` — all remote HTTP, OAuth-authorized. Prefer their read tools (`list_tables`, `get_logs`, `get_advisors`, `list_deployments`, `get_runtime_errors`) over guessing at live state.
+**MCP servers connected:** `supabase`, `vercel` — all remote HTTP, OAuth-authorized. Prefer their read tools (`list_tables`, `get_logs`, `get_advisors`, `list_deployments`, `get_runtime_errors`) over guessing at live state.
 
 **Deliberately DISABLED or NOT installed — do not (re)install without asking:**
 - `security-guidance` — installed but **disabled 2026-08-09**. Its hooks fire on `UserPromptSubmit` (every prompt), `PostToolUse` for every `Edit`/`Write`/`Bash`, and `Stop`. On Windows each fires `bash sg-python.sh` in a **visible** console window, making the IDE unusable. Security coverage is preserved via the `payments-security-reviewer` subagent, the built-in `/security-review`, and the Security Gate in `fametech-workflow`.
 - `chrome-devtools-mcp` — installed and removed 2026-08-09. Only plugin here that runs a **local** stdio MCP server via `npx`, spawning visible `cmd.exe`/`conhost.exe` windows per session. Verify UI changes with `npx tsc --noEmit` + `npx next lint` + manual browser checks instead.
+- `postman` — removed 2026-10-17. The user maintains their own API documentation now; never invoke `postman:*` skills or the Postman docs gate again unless the user explicitly asks to bring it back.
 - `figma`, `sentry`, `coderabbit`, `firecrawl`, `commit-commands`, `remember` — no matching dependency in `package.json`; previously listed here in error.
 
 > **Windows hook caveat (read before installing any plugin).** Claude Code on Windows spawns hook commands **without** `CREATE_NO_WINDOW`, so every hook opens a visible console window. Before installing a plugin, check `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/hooks/hooks.json`. A plugin with only `SessionStart`/`SessionEnd` hooks costs one window per session (acceptable — `superpowers` and `vercel` are in this category). A plugin with `UserPromptSubmit`, `PostToolUse`, or `Stop` hooks fires constantly and will make the IDE unusable on this machine.
@@ -126,8 +126,8 @@ Tier (see top of file) decides *whether* to load skills; this table decides *whi
 | Bug / issue / error report | 1 or 2 | **Search → Investigate → Isolate → Articulate the root cause FIRST, then fix.** Obvious one-liner → Tier 1, just fix it. Non-obvious or money/auth → `superpowers:systematic-debugging` → `fametech-workflow` → `superpowers:verification-before-completion` |
 | Any DB/Supabase work | 1–2 | `fametech-supabase` + `supabase:supabase` (+ `supabase:supabase-postgres-best-practices` for schema/RLS/migrations) |
 | Any API route work | 1–2 | `fametech-api-routes` + `new-api-route` |
-| Change to `app/api/v2/**` (public dev API) that alters its request/response contract | 2 | Above + **Postman docs gate** in `fametech-workflow` |
-| `app/api/v2/**` route work with no public contract change (internal refactor) | 1–2 | `fametech-developer-api` + `fametech-api-routes` — note the row above still wins for any public contract change (Tier 2 + Postman gate) |
+| Change to `app/api/v2/**` (public dev API) that alters its request/response contract | 2 | Above — update the user's own API documentation manually; no automated docs gate |
+| `app/api/v2/**` route work with no public contract change (internal refactor) | 1–2 | `fametech-developer-api` + `fametech-api-routes` |
 | Any fulfillment/order work | 2 | `fametech-fulfillment` |
 | Any cron work | 1–2 | `fametech-cron` |
 | Any business logic | 1–2 | `fametech-domain` |
