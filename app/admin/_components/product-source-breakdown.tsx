@@ -39,14 +39,17 @@ export function ProductSourceBreakdown({ byCategory, bySource }: { byCategory: B
                 <div>
                     <div className="flex items-center gap-2 mb-4">
                         <Layers className="w-4 h-4" style={{ color: accent.violet }} />
-                        <p className={sectionLabel}>By Product</p>
+                        {/* Both panels group `orders` by a column only data orders have, so
+                            they cover data orders only — the headline Revenue/Profit tiles span
+                            all 8 product categories and will be larger. */}
+                        <p className={sectionLabel}>By Product · Data orders</p>
                     </div>
                     {!byCategory ? <div className="h-24 animate-pulse rounded-xl bg-zinc-100 dark:bg-white/5" /> : <BreakdownList rows={byCategory} keyName="category" />}
                 </div>
                 <div>
                     <div className="flex items-center gap-2 mb-4">
                         <Radio className="w-4 h-4" style={{ color: accent.emerald }} />
-                        <p className={sectionLabel}>By Source</p>
+                        <p className={sectionLabel}>By Source · Data orders</p>
                     </div>
                     {!bySource ? <div className="h-24 animate-pulse rounded-xl bg-zinc-100 dark:bg-white/5" /> : <BreakdownList rows={bySource} keyName="source" />}
                 </div>

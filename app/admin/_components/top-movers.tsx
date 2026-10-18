@@ -38,7 +38,9 @@ export function TopMovers({ trends }: { trends: AdminTrends | null }) {
                 <div>
                     <div className="flex items-center gap-2 mb-3">
                         <Crown className="w-4 h-4" style={{ color: accent.violet }} />
-                        <p className={sectionLabel}>Top Agents</p>
+                        {/* Ranked on `orders` revenue only, so an agent's airtime / AFA /
+                            results-checker sales are not counted here. */}
+                        <p className={sectionLabel}>Top Agents · Data orders</p>
                     </div>
                     {!trends ? (
                         <div className="h-32 animate-pulse rounded-xl bg-zinc-100 dark:bg-white/5" />
