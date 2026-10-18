@@ -117,10 +117,13 @@ export async function POST(request: NextRequest) {
             }
         } else {
             // Per-message path: respects the full provider fallback chain from admin settings.
-            // Sent in bounded-concurrency batches — sequential one-at-a-time awaits on a
+            // Sent in bounded-concurrency batches — fully sequential one-at-a-time awaits on a
             // non-batch provider (e.g. KingFlexyGH) take ~80s+ for 200+ recipients and blow
-            // past the 60s function budget, silently killing the broadcast mid-send.
-            const SEND_CONCURRENCY = 20
+            // past the 60s function budget. Concurrency is kept low (not maxed out) because
+            // KingFlexyGH itself rate-limits bursty parallel sends with HTTP 429 — a small
+            // stagger between batches keeps the request rate under that limit.
+            const SEND_CONCURRENCY = 5
+            const BATCH_STAGGER_MS = 150
             let sent = 0, failed = 0
             const errors: string[] = []
             for (let i = 0; i < resolved.length; i += SEND_CONCURRENCY) {
@@ -131,6 +134,7 @@ export async function POST(request: NextRequest) {
                 results.forEach((res, idx) => {
                     if (res.success) { sent++ } else { failed++; errors.push(`${batch[idx].phone}: ${res.error}`) }
                 })
+                if (i + SEND_CONCURRENCY < resolved.length) await new Promise(r => setTimeout(r, BATCH_STAGGER_MS))
             }
             result = { sent, failed, errors }
         }

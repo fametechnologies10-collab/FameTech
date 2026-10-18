@@ -53,8 +53,15 @@ export async function getRoutingConfig(): Promise<{ primary: SmsProvider; fallba
         for (const row of (data || [])) s[row.key] = row.value
 
         const primary   = (s.sms_primary_provider as SmsProvider)   || 'kingflexy'
-        let fallbacks: SmsProvider[] = []
-        try { fallbacks = JSON.parse(s.sms_fallback_providers || '[]') } catch { fallbacks = ['hubtel', 'moolre', 'mnotify'] }
+        // No stored row ⇒ s.sms_fallback_providers is undefined, which must NOT
+        // be treated the same as an admin explicitly saving "[]" — both parse
+        // successfully, so check for the row's absence before defaulting.
+        let fallbacks: SmsProvider[]
+        if (s.sms_fallback_providers === undefined) {
+            fallbacks = ['hubtel', 'moolre', 'mnotify']
+        } else {
+            try { fallbacks = JSON.parse(s.sms_fallback_providers) } catch { fallbacks = ['hubtel', 'moolre', 'mnotify'] }
+        }
         // Remove primary from fallbacks in case admin misconfigured
         fallbacks = fallbacks.filter(p => p !== primary)
 
@@ -120,33 +127,50 @@ export async function sendKingFlexySMS(options: SMSOptions): Promise<SMSResult> 
         return { success: false, error: `Invalid phone number: ${options.recipient}`, provider: 'kingflexy' }
     }
 
-    try {
-        const response = await fetch(`${KINGFLEXY_BASE_URL}/sms/send`, {
-            method: 'POST',
-            headers: {
-                'Content-Type':  'application/json',
-                'Authorization': apiKey,
-            },
-            body: JSON.stringify({
-                message:    options.message,
-                recipients: [normalizedPhone],
-                sender:     (options.sender || defaultSender).trim().substring(0, 11),
-            }),
-        })
+    // KingFlexyGH throttles bursty concurrent sends with HTTP 429 — retry with
+    // backoff (honouring Retry-After when present) before giving up, since it's
+    // currently the only fully-configured provider with no working fallback.
+    const MAX_ATTEMPTS = 3
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            const response = await fetch(`${KINGFLEXY_BASE_URL}/sms/send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'Authorization': apiKey,
+                },
+                body: JSON.stringify({
+                    message:    options.message,
+                    recipients: [normalizedPhone],
+                    sender:     (options.sender || defaultSender).trim().substring(0, 11),
+                }),
+            })
 
-        const data: any = await response.json().catch(() => ({}))
+            const data: any = await response.json().catch(() => ({}))
 
-        if (response.status === 200 && data.success === true) {
-            return { success: true, messageId: data.data?.campaignId, provider: 'kingflexy' }
+            if (response.status === 200 && data.success === true) {
+                return { success: true, messageId: data.data?.campaignId, provider: 'kingflexy' }
+            }
+
+            if (response.status === 429 && attempt < MAX_ATTEMPTS) {
+                const retryAfterSec = Number(response.headers.get('Retry-After'))
+                const delayMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+                    ? retryAfterSec * 1000
+                    : 400 * attempt
+                await new Promise(r => setTimeout(r, delayMs))
+                continue
+            }
+
+            const err = data.error?.message || `KingFlexyGH error ${response.status}`
+            console.error('[KingFlexyGH SMS] ❌', err)
+            return { success: false, error: err, provider: 'kingflexy' }
+        } catch (e: any) {
+            console.error('[KingFlexyGH SMS] ❌ Exception:', e.message)
+            return { success: false, error: `KingFlexyGH exception: ${e.message}`, provider: 'kingflexy' }
         }
-
-        const err = data.error?.message || `KingFlexyGH error ${response.status}`
-        console.error('[KingFlexyGH SMS] ❌', err)
-        return { success: false, error: err, provider: 'kingflexy' }
-    } catch (e: any) {
-        console.error('[KingFlexyGH SMS] ❌ Exception:', e.message)
-        return { success: false, error: `KingFlexyGH exception: ${e.message}`, provider: 'kingflexy' }
     }
+
+    return { success: false, error: 'KingFlexyGH error 429 (rate limited after retries)', provider: 'kingflexy' }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
