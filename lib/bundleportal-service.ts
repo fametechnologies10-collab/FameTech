@@ -4,7 +4,7 @@
 import type { OrderToFulfill, BulkOrderResult } from '@/lib/fulfillment-service'
 
 const BUNDLEPORTAL_API_KEY = process.env.BUNDLEPORTAL_API_KEY || ''
-const BUNDLEPORTAL_API_BASE_URL = process.env.BUNDLEPORTAL_API_BASE_URL || 'https://api.bundleportal.com/v1'
+const BUNDLEPORTAL_API_BASE_URL = process.env.BUNDLEPORTAL_API_BASE_URL || 'https://api.bundleportal.com/v2'
 
 // ─── Circuit Breaker ───────────────────────────────────────────────────────────
 let circuitState: 'closed' | 'open' | 'half-open' = 'closed'
