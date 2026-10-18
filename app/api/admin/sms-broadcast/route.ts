@@ -116,12 +116,21 @@ export async function POST(request: NextRequest) {
                 result = await sendHubtelBatchSMS(resolved)
             }
         } else {
-            // Per-message path: respects the full provider fallback chain from admin settings
+            // Per-message path: respects the full provider fallback chain from admin settings.
+            // Sent in bounded-concurrency batches — sequential one-at-a-time awaits on a
+            // non-batch provider (e.g. KingFlexyGH) take ~80s+ for 200+ recipients and blow
+            // past the 60s function budget, silently killing the broadcast mid-send.
+            const SEND_CONCURRENCY = 20
             let sent = 0, failed = 0
             const errors: string[] = []
-            for (const r of resolved) {
-                const res = await sendSMS({ recipient: r.phone, message: r.message })
-                if (res.success) { sent++ } else { failed++; errors.push(`${r.phone}: ${res.error}`) }
+            for (let i = 0; i < resolved.length; i += SEND_CONCURRENCY) {
+                const batch = resolved.slice(i, i + SEND_CONCURRENCY)
+                const results = await Promise.all(
+                    batch.map(r => sendSMS({ recipient: r.phone, message: r.message }))
+                )
+                results.forEach((res, idx) => {
+                    if (res.success) { sent++ } else { failed++; errors.push(`${batch[idx].phone}: ${res.error}`) }
+                })
             }
             result = { sent, failed, errors }
         }
