@@ -13,7 +13,11 @@ export function NetworkBreakdown({ rows }: { rows: BreakdownRow[] | null }) {
         <div className={cn(cardSurface, 'p-5')}>
             <div className="flex items-center gap-2 mb-4">
                 <Signal className="w-4 h-4" style={{ color: accent.blue }} />
-                <p className={sectionLabel}>Revenue by Network</p>
+                {/* Qualified: this panel groups `orders` by network, so it covers data
+                    orders only — unlike the headline Revenue/Profit tiles, which span all
+                    8 product categories. Without the qualifier it reads as a full revenue
+                    split and won't add up to the headline. */}
+                <p className={sectionLabel}>Revenue by Network · Data orders</p>
             </div>
 
             {!rows ? (
