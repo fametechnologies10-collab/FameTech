@@ -78,23 +78,67 @@ function downloadCsvTemplate() {
     a.click(); URL.revokeObjectURL(url)
 }
 
+// ─── Helper: CSV line parser that copes with quoted cells ─────────────────────
+function parseCsvLine(line: string): string[] {
+    const out: string[] = []
+    let cur = ''
+    let inQ = false
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (inQ) {
+            if (ch === '"') {
+                if (line[i + 1] === '"') { cur += '"'; i++ } else inQ = false
+            } else cur += ch
+        } else if (ch === '"') {
+            inQ = true
+        } else if (ch === ',') {
+            out.push(cur); cur = ''
+        } else cur += ch
+    }
+    out.push(cur)
+    return out.map(s => s.trim())
+}
+
+const PHONE_COL_RE = /^(phone|phone[_ ]?number|number|mobile|msisdn|recipient|tel)s?$/i
+const FIRST_COL_RE = /^(first[_ ]?name|firstname|first|given[_ ]?name)$/i
+const LAST_COL_RE  = /^(last[_ ]?name|lastname|last|surname)$/i
+const NAME_COL_RE  = /^(full[_ ]?name|name|customer)$/i
+
 // ─── Helper: Parse CSV ────────────────────────────────────────────────────────
 function parseCsv(text: string): Array<{ first_name: string; last_name: string; phone_number: string }> {
-    const lines  = text.trim().split(/\r?\n/)
-    if (lines.length < 2) return []
-    const header = lines[0].toLowerCase().split(',').map(h => h.trim())
-    const fi = header.indexOf('first_name')
-    const li = header.indexOf('last_name')
-    const pi = header.indexOf('phone_number')
-    if (pi === -1) return []
-    return lines.slice(1).map(line => {
-        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-        return {
-            first_name:   fi !== -1 ? (cols[fi] || '') : '',
-            last_name:    li !== -1 ? (cols[li] || '') : '',
-            phone_number: cols[pi] || '',
+    // Excel's "CSV UTF-8" export prepends a BOM to the first cell — strip it before matching headers.
+    const clean = text.replace(/^﻿/, '')
+    const lines = clean.split(/\r?\n/).filter(l => l.trim().length > 0)
+    if (lines.length === 0) return []
+
+    const header  = parseCsvLine(lines[0])
+    const findCol = (re: RegExp) => header.findIndex(h => re.test(h))
+    let phoneCol  = findCol(PHONE_COL_RE)
+    const firstCol = findCol(FIRST_COL_RE)
+    const lastCol  = findCol(LAST_COL_RE)
+    const nameCol  = findCol(NAME_COL_RE)
+    let startRow  = 1
+    if (phoneCol === -1) {
+        if (lines.length < 2) return []
+        phoneCol = 0
+        startRow = 1
+    }
+
+    const out: Array<{ first_name: string; last_name: string; phone_number: string }> = []
+    for (let i = startRow; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i])
+        const phone_number = (cols[phoneCol] || '').replace(/^"|"$/g, '')
+        if (!phone_number) continue
+        let first_name = firstCol >= 0 ? (cols[firstCol] || '') : ''
+        let last_name  = lastCol >= 0 ? (cols[lastCol] || '') : ''
+        if (!first_name && !last_name && nameCol >= 0) {
+            const parts = (cols[nameCol] || '').trim().split(/\s+/).filter(Boolean)
+            first_name = parts[0] || ''
+            last_name  = parts.slice(1).join(' ')
         }
-    }).filter(r => r.phone_number)
+        out.push({ first_name, last_name, phone_number })
+    }
+    return out
 }
 
 // ─── Role Badge ───────────────────────────────────────────────────────────────
