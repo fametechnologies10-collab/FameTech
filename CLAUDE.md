@@ -194,6 +194,7 @@ Audited 2026-10-13 against `app/api/cron/**` (34 routes, all `GET`, all call `va
 | [ ] | agent-renewal-reminder | daily 07:00 |
 | [ ] | daily-greeting | daily 08:00 |
 | [ ] | shop-sales-report | URL needs `?type=weekly` — Mondays 06:00 (also supports `daily`/`monthly`) |
+| [x] | sms-broadcast-recover | every 10 min, e.g. minutes 5,15,25,35,45,55 — created 2026-10-19. Safety net for the admin SMS broadcast queue (`app/admin/sms-broadcast`): finishes any broadcast the admin's browser stopped polling mid-send. Must run **no more often than every 6 min** — the cron's own writes count as recent activity, so a tighter interval would make a tick see its own last run and skip the broadcast forever. |
 
 ### Deferred until the feature has data (verified 2026-10-13: `results_checker_types`=0, `sms_campaigns`=0)
 - fulfill-pending-rc-vouchers (every 5 min, minutes 2,7,12…) and release-rc-reservations (every 15 min, minutes 9,24,39,54) — create when the first results-checker type/inventory is stocked.
@@ -210,7 +211,7 @@ sync-codecraft-status, sync-xpress-status, sync-ghdata-status, sync-hendylinks-s
 - `sync-moolre-withdrawals` — owner has no Moolre account (see memory `shop-withdraw-momo-only-paystack`); create only after Moolre goes live.
 - `hubtel-commission-reconcile` — owner has no Hubtel commission account; airtime/utilities run on KingFlexyGH. Only for legacy in-flight Hubtel rows (none exist on the new DB).
 
-**Left to do:** everything above is unchecked — 0 of 22 Tier A+B jobs created (13 Tier A + 9 Tier B), Tier C pending supplier go-live. Set a fresh `CRON_SECRET` in Vercel Production first.
+**Left to do:** 1 of 23 Tier A+B jobs created so far (`sms-broadcast-recover`, Tier B) — the other 13 Tier A + 9 Tier B jobs are still unchecked, Tier C pending supplier go-live. Set a fresh `CRON_SECRET` in Vercel Production first for the rest.
 
 ## Supabase Egress & Media
 
