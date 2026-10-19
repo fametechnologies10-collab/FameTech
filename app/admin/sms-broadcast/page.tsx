@@ -280,6 +280,8 @@ export default function AdminSMSBroadcastPage() {
     const [message, setMessage]       = useState('')
     const [sending, setSending]       = useState(false)
     const [lastResult, setLastResult] = useState<{ sent: number; failed: number; total: number } | null>(null)
+    const [broadcastProgress, setBroadcastProgress] = useState<{ sent: number; failed: number; total: number } | null>(null)
+    const [failedSamples, setFailedSamples] = useState<Array<{ phone: string; error: string | null }>>([])
 
     // Users audience
     const [appUsers, setAppUsers]         = useState<AppUser[]>([])
@@ -454,34 +456,71 @@ export default function AdminSMSBroadcastPage() {
     }
 
     // ─── Broadcast Send ───────────────────────────────────────────────────────
+    const sendCancelledRef = useRef(false)
+    useEffect(() => {
+        return () => { sendCancelledRef.current = true }
+    }, [])
+
     const handleSend = async () => {
         if (!message.trim()) { toast.error('Please enter a message'); return }
         if (audience === 'users' && selectedUsers.size === 0) { toast.error('Select at least one recipient'); return }
         if (audience === 'group' && !selectedGroupId) { toast.error('Select a contact group'); return }
         if (audience === 'group' && groupContacts.length === 0) { toast.error('Selected group has no contacts'); return }
 
-        setSending(true); setLastResult(null)
+        sendCancelledRef.current = false
+        setSending(true); setLastResult(null); setBroadcastProgress(null); setFailedSamples([])
         try {
             const payload: any = { message: message.trim(), audience }
             if (audience === 'users') payload.userIds  = Array.from(selectedUsers)
             else                       payload.groupId  = selectedGroupId
 
-            const res  = await fetch('/api/admin/sms-broadcast', {
+            const createRes  = await fetch('/api/admin/sms-broadcast', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error)
+            const createData = await createRes.json()
+            if (!createRes.ok) throw new Error(createData.error)
 
-            const { sent, failed, total } = data.results
-            setLastResult({ sent, failed, total })
-            toast.success(`✅ Sent ${sent}/${total} messages via batch API`)
-            if (failed > 0) toast.warning(`${failed} message(s) failed — check errors`)
+            const { broadcastId, total } = createData
+            if (sendCancelledRef.current) return
+            setBroadcastProgress({ sent: 0, failed: 0, total })
+
+            // Poll the dispatch endpoint — call again immediately on resolution,
+            // no artificial delay — until the broadcast is done. Stop cleanly
+            // (without throwing) if the admin navigates away mid-send; the
+            // backend/cron safety-net finishes the broadcast regardless.
+            let finalStatus: import('@/lib/admin-sms-broadcast').AdminSmsBroadcastStatus | null = null
+            while (!sendCancelledRef.current) {
+                const dispatchRes  = await fetch(`/api/admin/sms-broadcast/${broadcastId}/dispatch`, { method: 'POST' })
+                const dispatchData = await dispatchRes.json()
+                if (!dispatchRes.ok) throw new Error(dispatchData.error)
+                if (sendCancelledRef.current) return
+
+                const status = dispatchData.data as {
+                    status: 'queued' | 'sending' | 'done'
+                    totalRecipients: number
+                    sentCount: number
+                    failedCount: number
+                    failedSamples?: Array<{ phone: string; error: string | null }>
+                }
+                setBroadcastProgress({ sent: status.sentCount, failed: status.failedCount, total: status.totalRecipients })
+
+                if (status.status === 'done') { finalStatus = status; break }
+            }
+
+            if (sendCancelledRef.current || !finalStatus) return
+
+            setLastResult({ sent: finalStatus.sentCount, failed: finalStatus.failedCount, total: finalStatus.totalRecipients })
+            setFailedSamples(finalStatus.failedSamples || [])
+            toast.success(`✅ Sent ${finalStatus.sentCount}/${finalStatus.totalRecipients} messages`)
+            if (finalStatus.failedCount > 0) toast.warning(`${finalStatus.failedCount} message(s) failed — check errors`)
             setMessage(''); setSelectedUsers(new Set()); setSelectedGroupId('')
         } catch (e: any) {
-            toast.error(e.message || 'Failed to send SMS')
-        } finally { setSending(false) }
+            if (!sendCancelledRef.current) toast.error(e.message || 'Failed to send SMS')
+        } finally {
+            if (!sendCancelledRef.current) { setSending(false); setBroadcastProgress(null) }
+        }
     }
 
     // ─── Create Group ─────────────────────────────────────────────────────────
@@ -771,16 +810,52 @@ export default function AdminSMSBroadcastPage() {
                                         </div>
                                     </div>
 
-                                    {lastResult && (
-                                        <div className={cn(
-                                            'flex items-center gap-2 p-2 rounded-lg text-xs font-medium',
-                                            lastResult.failed === 0
-                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                        )}>
-                                            {lastResult.failed === 0 ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
-                                            Last batch: {lastResult.sent}/{lastResult.total} delivered
-                                            {lastResult.failed > 0 && `, ${lastResult.failed} failed`}
+                                    {sending && broadcastProgress && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center gap-2 p-2 rounded-lg text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400">
+                                                <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+                                                Sending: {broadcastProgress.sent + broadcastProgress.failed}/{broadcastProgress.total} processed
+                                                {broadcastProgress.failed > 0 && `, ${broadcastProgress.failed} failed`}
+                                            </div>
+                                            <div className="h-1.5 rounded-full bg-violet-100 dark:bg-violet-900/40 overflow-hidden">
+                                                <div
+                                                    className="h-full bg-violet-600 transition-all"
+                                                    style={{
+                                                        width: `${broadcastProgress.total > 0
+                                                            ? Math.min(100, ((broadcastProgress.sent + broadcastProgress.failed) / broadcastProgress.total) * 100)
+                                                            : 0}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!sending && lastResult && (
+                                        <div className="space-y-1.5">
+                                            <div className={cn(
+                                                'flex items-center gap-2 p-2 rounded-lg text-xs font-medium',
+                                                lastResult.failed === 0
+                                                    ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                    : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                            )}>
+                                                {lastResult.failed === 0 ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+                                                Last batch: {lastResult.sent}/{lastResult.total} delivered
+                                                {lastResult.failed > 0 && `, ${lastResult.failed} failed`}
+                                            </div>
+                                            {failedSamples.length > 0 && (
+                                                <details className="text-[11px] rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 px-2 py-1.5">
+                                                    <summary className="cursor-pointer font-semibold text-amber-700 dark:text-amber-400">
+                                                        View {failedSamples.length} failed recipient{failedSamples.length !== 1 ? 's' : ''}
+                                                    </summary>
+                                                    <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-y-auto">
+                                                        {failedSamples.map((f, i) => (
+                                                            <li key={`${f.phone}-${i}`} className="font-mono text-muted-foreground">
+                                                                {f.phone} — {f.error || 'unknown error'}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </details>
+                                            )}
                                         </div>
                                     )}
 
@@ -791,7 +866,11 @@ export default function AdminSMSBroadcastPage() {
                                         disabled={sending || recipientCount === 0 || !message.trim()}
                                     >
                                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                        {sending ? 'Sending via Hubtel Batch…' : `Send to ${recipientCount} Recipient${recipientCount !== 1 ? 's' : ''}`}
+                                        {sending
+                                            ? (broadcastProgress
+                                                ? `Sending ${broadcastProgress.sent + broadcastProgress.failed}/${broadcastProgress.total}…`
+                                                : 'Starting…')
+                                            : `Send to ${recipientCount} Recipient${recipientCount !== 1 ? 's' : ''}`}
                                     </Button>
                                 </CardContent>
                             </Card>
