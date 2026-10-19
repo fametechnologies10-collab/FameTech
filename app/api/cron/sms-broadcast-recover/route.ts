@@ -63,14 +63,22 @@ export async function GET(request: NextRequest) {
         }
 
         for (const broadcast of (abandoned as Array<{ id: string }>) || []) {
-            let status: Awaited<ReturnType<typeof dispatchAdminSmsBroadcastChunk>> = null
+            // Isolate each broadcast's dispatch loop — a transient failure on
+            // one (e.g. a dropped DB connection) must not abort the whole
+            // tick and block recovery of every OTHER abandoned broadcast.
+            try {
+                let status: Awaited<ReturnType<typeof dispatchAdminSmsBroadcastChunk>> = null
 
-            while (Date.now() - startedAt < 45_000) {
-                status = await dispatchAdminSmsBroadcastChunk(db, broadcast.id)
-                if (!status || status.status === 'done') break
+                while (Date.now() - startedAt < 45_000) {
+                    status = await dispatchAdminSmsBroadcastChunk(db, broadcast.id)
+                    if (!status || status.status === 'done') break
+                }
+
+                results.push({ id: broadcast.id, status: status?.status ?? 'unknown' })
+            } catch (e: any) {
+                console.error('[SMSBroadcastRecover] dispatch failed for broadcast', broadcast.id, e?.message)
+                results.push({ id: broadcast.id, status: 'error' })
             }
-
-            results.push({ id: broadcast.id, status: status?.status ?? 'unknown' })
 
             if (Date.now() - startedAt > 45_000) break
         }

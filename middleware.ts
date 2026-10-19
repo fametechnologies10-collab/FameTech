@@ -205,6 +205,11 @@ const rateLimiters = REDIS_CONFIGURED ? {
     adminProcessWithdrawal: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'ft:adminProcessWithdrawal' }),
     admin: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'ft:admin' }),
     adminSettings: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:adminSettings' }),
+    // The admin SMS broadcast page polls this route back-to-back with no
+    // delay to both send batches and animate progress — a large broadcast
+    // (200+ recipients) needs far more than 30 calls/min. Give it its own
+    // generous budget so it never falls back to the generic `admin` limiter.
+    adminSmsBroadcastDispatch: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(120, '1 m'), prefix: 'ft:adminSmsBroadcastDispatch' }),
     supplierBalance: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:supplierBalance' }),
     // ── Orders & Purchases ─────────────────────────────────────
     airtimeCreate: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'ft:airtimeCreate' }),
@@ -879,6 +884,9 @@ export async function middleware(request: NextRequest) {
         } else if (pathname === '/api/admin/get-prices') {
             limiter = rateLimiters.general
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
+        } else if (pathname.includes('/sms-broadcast/') && pathname.endsWith('/dispatch')) {
+            limiter = rateLimiters.adminSmsBroadcastDispatch
+            identifier = authUser?.id ?? ip
         } else if (pathname.startsWith('/api/admin')) {
             limiter = rateLimiters.admin
             identifier = authUser?.id ?? ip

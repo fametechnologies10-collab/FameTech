@@ -490,11 +490,54 @@ export default function AdminSMSBroadcastPage() {
             // no artificial delay — until the broadcast is done. Stop cleanly
             // (without throwing) if the admin navigates away mid-send; the
             // backend/cron safety-net finishes the broadcast regardless.
+            //
+            // Transient failures (429 rate-limit, 5xx, network error, bad
+            // JSON) are retried with backoff rather than aborting the loop —
+            // the broadcast is only ever half-sent in the DB at that point,
+            // and resending would double-message everyone already reached.
+            const MAX_CONSECUTIVE_ERRORS = 3
+            let consecutiveErrors = 0
             let finalStatus: import('@/lib/admin-sms-broadcast').AdminSmsBroadcastStatus | null = null
+            let gaveUp = false
+
             while (!sendCancelledRef.current) {
-                const dispatchRes  = await fetch(`/api/admin/sms-broadcast/${broadcastId}/dispatch`, { method: 'POST' })
-                const dispatchData = await dispatchRes.json()
-                if (!dispatchRes.ok) throw new Error(dispatchData.error)
+                let dispatchRes: Response
+                try {
+                    dispatchRes = await fetch(`/api/admin/sms-broadcast/${broadcastId}/dispatch`, { method: 'POST' })
+                } catch {
+                    // Network failure — treat like a transient error below.
+                    consecutiveErrors++
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
+                    await new Promise(r => setTimeout(r, 2000))
+                    continue
+                }
+                if (sendCancelledRef.current) return
+
+                if (dispatchRes.status === 429) {
+                    const retryAfterHeader = dispatchRes.headers.get('Retry-After')
+                    const retryAfterMs = retryAfterHeader ? Math.max(0, parseInt(retryAfterHeader, 10) * 1000) : 2000
+                    await new Promise(r => setTimeout(r, Number.isFinite(retryAfterMs) ? retryAfterMs : 2000))
+                    continue
+                }
+
+                let dispatchData: any
+                try {
+                    dispatchData = await dispatchRes.json()
+                } catch {
+                    consecutiveErrors++
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
+                    await new Promise(r => setTimeout(r, 2000))
+                    continue
+                }
+
+                if (!dispatchRes.ok) {
+                    consecutiveErrors++
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
+                    await new Promise(r => setTimeout(r, 2000))
+                    continue
+                }
+
+                consecutiveErrors = 0
                 if (sendCancelledRef.current) return
 
                 const status = dispatchData.data as {
@@ -509,7 +552,18 @@ export default function AdminSMSBroadcastPage() {
                 if (status.status === 'done') { finalStatus = status; break }
             }
 
-            if (sendCancelledRef.current || !finalStatus) return
+            if (sendCancelledRef.current) return
+
+            if (gaveUp) {
+                // The broadcast is still queued/sending in the DB — the
+                // safety-net cron will keep driving it forward. Do NOT
+                // imply the admin should resend; that would double-message
+                // everyone already reached.
+                toast.warning('Lost connection while sending — the broadcast is still queued and will keep sending automatically in the background. No need to resend.')
+                return
+            }
+
+            if (!finalStatus) return
 
             setLastResult({ sent: finalStatus.sentCount, failed: finalStatus.failedCount, total: finalStatus.totalRecipients })
             setFailedSamples(finalStatus.failedSamples || [])

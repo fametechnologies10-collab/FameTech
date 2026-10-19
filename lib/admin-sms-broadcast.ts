@@ -75,7 +75,20 @@ export async function createAdminSmsBroadcast(
             resolved_message: r.resolvedMessage,
         }))
         const { error: insertError } = await db.from('admin_sms_broadcast_recipients').insert(rows)
-        if (insertError) throw insertError
+        if (insertError) {
+            // Don't leave an orphaned parent row behind — the cron treats any
+            // non-'done' broadcast with no recent recipient activity as
+            // abandoned and will dispatch it, and the admin's retry (after
+            // seeing this failure) would then double-send. The `on delete
+            // cascade` FK removes any partially-inserted recipient chunks.
+            try {
+                const { error: deleteError } = await db.from('admin_sms_broadcasts').delete().eq('id', broadcastId)
+                if (deleteError) throw deleteError
+            } catch (cleanupError) {
+                console.error('[createAdminSmsBroadcast] cleanup failed for orphaned broadcast', broadcastId, cleanupError)
+            }
+            throw insertError
+        }
     }
 
     return { broadcastId, total: recipients.length }
