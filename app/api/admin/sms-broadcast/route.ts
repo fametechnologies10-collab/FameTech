@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
-import { sendHubtelBatchSMS, sendHubtelSimpleBatchSMS, sendSMS, normalizeGhanaPhone, getRoutingConfig } from '@/lib/sms-service'
-
-// Allow large broadcasts up to 60 s on Vercel Hobby/Pro; raise to 300 on Fluid
-export const maxDuration = 60
-
-async function requireAdmin() {
-    const client = await createRouteClient()
-    const { data: { user }, error } = await client.auth.getUser()
-    if (error || !user) return { error: 'Unauthorized', status: 401 }
-    const { data } = await client.from('users').select('role').eq('id', user.id).single()
-    if (data?.role !== 'admin') return { error: 'Forbidden - Admin only', status: 403 }
-    return { user }
-}
+import { normalizeGhanaPhone } from '@/lib/sms-service'
+import { validateAdminAccess } from '@/lib/auth-utils'
+import { createAdminSmsBroadcast } from '@/lib/admin-sms-broadcast'
 
 /**
  * POST /api/admin/sms-broadcast
@@ -23,15 +12,17 @@ async function requireAdmin() {
  *   audience      - 'users' | 'group'
  *   userIds?      - string[] (when audience = 'users')
  *   groupId?      - string   (when audience = 'group')
- *   useBatch?     - boolean  (use Hubtel batch endpoint; defaults true)
+ *
+ * Queues the broadcast for async dispatch instead of sending synchronously —
+ * actual sending happens via dispatchAdminSmsBroadcastChunk (lib/admin-sms-broadcast.ts).
  */
 export async function POST(request: NextRequest) {
     try {
-        const auth = await requireAdmin()
-        if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const auth = await validateAdminAccess()
+        if (auth.error !== null) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
         const body = await request.json()
-        const { message, audience, userIds, groupId, useBatch = true } = body
+        const { message, audience, userIds, groupId } = body
 
         if (!message || typeof message !== 'string' || !message.trim()) {
             return NextResponse.json({ error: 'message is required' }, { status: 400 })
@@ -87,69 +78,23 @@ export async function POST(request: NextRequest) {
                         .replace(/\[LastName\]/gi,  r.last_name  || '')
                         .replace(/\[Phone\]/gi,      phone)
                     : message
-                return { phone, message: msg }
+                return { phone, resolvedMessage: msg }
             })
-            .filter(Boolean) as Array<{ phone: string; message: string }>
+            .filter(Boolean) as Array<{ phone: string; resolvedMessage: string }>
 
         if (resolved.length === 0) {
             return NextResponse.json({ error: 'No valid phone numbers after normalization' }, { status: 400 })
         }
 
-        // ── Resolve primary provider from admin settings ──────────────────────
-        const routing = await getRoutingConfig().catch(() => ({ primary: 'kingflexy' as const, fallbacks: [] }))
-        const primaryIsHubtel = routing.primary === 'hubtel'
-
-        // ── Send via Hubtel batch (if primary) or per-message sendSMS ─────────
-        // Batch path only uses Hubtel's dedicated batch endpoints — if the admin
-        // has switched primary to KingFlexyGH/Moolre/mNotify we fall through to
-        // per-message sendSMS() which respects the full configured fallback chain.
-        let result: { batchId?: string; batchIds?: string[]; sent: number; failed: number; errors: string[] }
-
-        if (useBatch && primaryIsHubtel) {
-            // When no personalization variables, use the simpler /batch/simple/send endpoint
-            if (!hasVariables) {
-                result = await sendHubtelSimpleBatchSMS(
-                    resolved.map(r => r.phone),
-                    message.trim()
-                )
-            } else {
-                result = await sendHubtelBatchSMS(resolved)
-            }
-        } else {
-            // Per-message path: respects the full provider fallback chain from admin settings.
-            // Sent in bounded-concurrency batches — fully sequential one-at-a-time awaits on a
-            // non-batch provider (e.g. KingFlexyGH) take ~80s+ for 200+ recipients and blow
-            // past the 60s function budget. Concurrency is kept low (not maxed out) because
-            // KingFlexyGH itself rate-limits bursty parallel sends with HTTP 429 — a small
-            // stagger between batches keeps the request rate under that limit.
-            const SEND_CONCURRENCY = 5
-            const BATCH_STAGGER_MS = 150
-            let sent = 0, failed = 0
-            const errors: string[] = []
-            for (let i = 0; i < resolved.length; i += SEND_CONCURRENCY) {
-                const batch = resolved.slice(i, i + SEND_CONCURRENCY)
-                const results = await Promise.all(
-                    batch.map(r => sendSMS({ recipient: r.phone, message: r.message }))
-                )
-                results.forEach((res, idx) => {
-                    if (res.success) { sent++ } else { failed++; errors.push(`${batch[idx].phone}: ${res.error}`) }
-                })
-                if (i + SEND_CONCURRENCY < resolved.length) await new Promise(r => setTimeout(r, BATCH_STAGGER_MS))
-            }
-            result = { sent, failed, errors }
-        }
-
-        return NextResponse.json({
-            success: true,
-            results: {
-                total:    resolved.length,
-                sent:     result.sent,
-                failed:   result.failed,
-                batchId:  result.batchId,
-                batchIds: result.batchIds,
-                errors:   result.errors.slice(0, 20),
-            },
+        // ── Queue for async dispatch ────────────────────────────────────────────
+        const { broadcastId, total } = await createAdminSmsBroadcast(supabase, {
+            createdBy: auth.user.id,
+            message: message.trim(),
+            audienceType: audience,
+            recipients: resolved,
         })
+
+        return NextResponse.json({ success: true, broadcastId, total })
     } catch (e: any) {
         console.error('[SMSBroadcast] Error:', e)
         return NextResponse.json({ error: e.message || 'Internal server error' }, { status: 500 })
