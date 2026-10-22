@@ -7,9 +7,10 @@ export const MODAL_PRIORITY = {
     TERMS_ACCEPTANCE:   0, // Blocking legal gate — must be accepted before ANY other modal
     AGENT_EXPIRY:       1, // Critical: role downgrade, blocks workflow
     ANNOUNCEMENT:       2, // Important: admin-set platform notice
-    SIGNUP_PROMO:       3, // Welcome offer (one-time, commercial)
-    PUSH_PERMISSION:    4, // Ambient: push notification opt-in
-    NAV_TIP:            5, // Informational: one-time UI hint (absolutely last)
+    WALLET_BALANCE:     3, // Session-start balance check-in (before commercial promos)
+    SIGNUP_PROMO:       4, // Welcome offer (one-time, commercial)
+    PUSH_PERMISSION:    5, // Ambient: push notification opt-in
+    NAV_TIP:            6, // Informational: one-time UI hint (absolutely last)
 } as const
 
 export type ModalId = keyof typeof MODAL_PRIORITY

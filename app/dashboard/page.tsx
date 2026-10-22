@@ -16,6 +16,7 @@ import {
 } from '@/components/dashboard/WebsiteRequestBanner'
 import { TodaysOrdersSummary } from '@/components/dashboard/TodaysOrdersSummary'
 import { WalletHero } from '@/components/dashboard/home/WalletHero'
+import { WalletBalanceModal } from '@/components/dashboard/wallet-balance-modal'
 import { OrderTracker } from '@/components/dashboard/home/OrderTracker'
 import { StatusStrip } from '@/components/dashboard/home/StatusStrip'
 import { SpendInsights } from '@/components/dashboard/home/SpendInsights'
@@ -114,6 +115,7 @@ export default function DashboardPage() {
 
     return (
         <div className="ft-flat space-y-2 sm:space-y-3">
+            <WalletBalanceModal balance={summary ? summary.wallet_balance : null} />
             <RoleGreetingBox stats={summary ? { totalOrders: summary.counts.total } : undefined} />
             <WebsiteRequestBanner activeRequest={websiteRequest} />
 
