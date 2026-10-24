@@ -15,6 +15,7 @@ import {
     bundleKillSwitchKeys,
     decideAlertThrottle,
     BUNDLE_FAILURE_CUSTOMER_MESSAGE,
+    shouldAlertExhausted,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -230,6 +231,14 @@ test('decideAlertThrottle: once per hour per outcome', () => {
 
 test('customer failure message is fixed and supplier-free', () => {
     assert.equal(BUNDLE_FAILURE_CUSTOMER_MESSAGE, "We couldn't deliver your bundle. Your wallet has been refunded.")
+})
+
+test('shouldAlertExhausted: only at/over cap and not yet alerted', () => {
+    assert.equal(shouldAlertExhausted(5, 5, null), true)
+    assert.equal(shouldAlertExhausted(7, 5, {}), true)
+    assert.equal(shouldAlertExhausted(4, 5, {}), false)
+    assert.equal(shouldAlertExhausted(5, 5, { exhausted_at: '2026-10-24T12:00:00Z' }), false)
+    assert.equal(shouldAlertExhausted(5, 5, { other: 1 }), true)
 })
 
 if (failed > 0) {

@@ -210,3 +210,12 @@ export function decideAlertThrottle(
 }
 
 export const BUNDLE_FAILURE_CUSTOMER_MESSAGE = "We couldn't deliver your bundle. Your wallet has been refunded."
+
+// True when dispatch retries are exhausted and nobody has been told yet.
+export function shouldAlertExhausted(
+    attempts: number,
+    maxAttempts: number,
+    meta: Record<string, unknown> | null | undefined,
+): boolean {
+    return attempts >= maxAttempts && !(meta && meta.exhausted_at)
+}

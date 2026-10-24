@@ -6,6 +6,7 @@ import {
     decideAlertThrottle,
     decideDispatchAction,
     isBundleFlagEnabled,
+    shouldAlertExhausted,
     type BundleKind,
 } from '@/lib/standard-bundles-logic'
 
@@ -29,6 +30,24 @@ async function adminAlert(title: string, body: string) {
     }
 }
 
+function exhaustedAlertBody(reference: string, outcome: string): string {
+    return `gave up after ${MAX_ATTEMPTS} attempts on order ${reference} (last outcome ${outcome}): refund or re-dispatch manually`
+}
+
+async function markExhaustedAndAlert(supabase: any, order: any, outcome: string) {
+    const { data: marked } = await supabase
+        .from('standard_bundle_orders')
+        .update({
+            fulfillment_metadata: { ...(order.fulfillment_metadata || {}), exhausted_at: new Date().toISOString() },
+        })
+        .eq('id', order.id)
+        .eq('status', 'pending')
+        .select('id')
+    if (marked && marked.length > 0) {
+        await adminAlert('Standard bundle dispatch gave up', exhaustedAlertBody(order.reference_code, outcome))
+    }
+}
+
 /**
  * Auto-dispatch one PENDING bundle order to KingFlexyGH. Atomic claim pending->processing, the same
  * reference_code on every attempt (KingFlexyGH replays a repeated reference instead of charging twice).
@@ -46,10 +65,17 @@ export async function dispatchBundleFulfillment(orderId: string): Promise<void> 
             .maybeSingle()
         if (!order || order.status !== 'pending') return
 
+        // Retries exhausted: alert once (exhausted_at marks it). No auto-refund - an earlier attempt may have delivered.
+        if ((order.fulfillment_attempts || 0) >= MAX_ATTEMPTS) {
+            if (shouldAlertExhausted(order.fulfillment_attempts || 0, MAX_ATTEMPTS, order.fulfillment_metadata)) {
+                await markExhaustedAndAlert(supabase, order, 'unknown')
+            }
+            return
+        }
+
         if (!(await isBundleDispatchEnabled(supabase, order.network, order.kind))) return // off -> stays pending
 
         const attempt = (order.fulfillment_attempts || 0) + 1
-        if (attempt > MAX_ATTEMPTS) return
 
         // Atomic claim: only the worker that flips pending->processing proceeds.
         const { data: claimedRows } = await supabase
@@ -121,15 +147,19 @@ export async function dispatchBundleFulfillment(orderId: string): Promise<void> 
         }
 
         // revert_pending: retriable condition. The same reference is reused on the next attempt.
+        const exhausted = attempt >= MAX_ATTEMPTS
         const throttle = decideAlertThrottle(baseMeta, result.outcome, Date.now())
+        const nextMeta = exhausted ? { ...throttle.meta, exhausted_at: new Date().toISOString() } : throttle.meta
         const { data: reverted } = await supabase
             .from('standard_bundle_orders')
-            .update({ status: 'pending', fulfillment_metadata: throttle.meta, updated_at: new Date().toISOString() })
+            .update({ status: 'pending', fulfillment_metadata: nextMeta, updated_at: new Date().toISOString() })
             .eq('id', orderId)
             .eq('status', 'processing')
             .select('id')
         claimed = false
-        if (reverted && reverted.length > 0 && throttle.send) {
+        if (reverted && reverted.length > 0 && exhausted) {
+            await adminAlert('Standard bundle dispatch gave up', exhaustedAlertBody(order.reference_code, result.outcome))
+        } else if (reverted && reverted.length > 0 && throttle.send) {
             await adminAlert(
                 'Standard bundle dispatch delayed',
                 `Order ${order.reference_code} could not be sent (${result.outcome}). It will be retried automatically.`,

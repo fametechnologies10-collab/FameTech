@@ -1,4 +1,4 @@
-import { BUNDLE_FAILURE_CUSTOMER_MESSAGE } from '@/lib/standard-bundles-logic'
+import { BUNDLE_FAILURE_CUSTOMER_MESSAGE, decideAlertThrottle } from '@/lib/standard-bundles-logic'
 
 // Shared completed/failed finalize for Standard Bundle orders (dispatch response, webhook and reconcile
 // all funnel here). Every side effect runs only when the guarded status update matched a row, and every
@@ -50,6 +50,28 @@ async function notifyUser(supabase: any, userId: string | null, title: string, m
         })
     } catch {
         /* best-effort */
+    }
+}
+
+// The RPC locks the row and is idempotent: a repeat call cannot credit twice.
+async function tryRefund(supabase: any, orderId: string): Promise<boolean> {
+    try {
+        const { data: refund, error } = await supabase.rpc('refund_standard_bundle_wallet', {
+            p_order_id: orderId,
+            p_actor_id: null,
+        })
+        if (error) {
+            console.error(LOG, 'CRITICAL refund_standard_bundle_wallet failed:', error.message, 'order:', orderId)
+            return false
+        }
+        if (refund?.refunded !== true) {
+            console.error(LOG, 'CRITICAL refund RPC returned refunded:false for order:', orderId)
+            return false
+        }
+        return true
+    } catch (e) {
+        console.error(LOG, 'CRITICAL refund_standard_bundle_wallet threw:', e, 'order:', orderId)
+        return false
     }
 }
 
@@ -111,24 +133,35 @@ export async function finalizeBundle(
         .eq('id', order.id)
         .in('status', ['processing', 'pending'])
         .select('id')
-    if (!updated || updated.length === 0) return { transitioned: false }
+    if (!updated || updated.length === 0) {
+        // Order may already be 'failed' with its refund still outstanding (an earlier refund attempt
+        // errored). Retry the idempotent RPC; any other status is a settled duplicate signal.
+        const { data: fresh } = await (supabase.from('standard_bundle_orders') as any)
+            .select('status, fulfillment_metadata')
+            .eq('id', order.id)
+            .maybeSingle()
+        if (fresh?.status !== 'failed') return { transitioned: false }
 
-    // The RPC locks the row and is idempotent: a repeat call cannot credit twice.
-    let refunded = false
-    try {
-        const { data: refund, error } = await supabase.rpc('refund_standard_bundle_wallet', {
-            p_order_id: order.id,
-            p_actor_id: null,
-        })
-        if (error) {
-            console.error(LOG, 'CRITICAL refund_standard_bundle_wallet failed:', error.message, 'order:', order.id)
-        } else {
-            refunded = refund?.refunded === true
-            if (!refunded) console.error(LOG, 'CRITICAL refund RPC returned refunded:false for order:', order.id)
+        if (await tryRefund(supabase, order.id)) {
+            await notifyUser(supabase, order.user_id, 'Bundle Not Delivered', BUNDLE_FAILURE_CUSTOMER_MESSAGE)
+            await adminAlert('Standard bundle refunded on retry', `Order ${ref} was refunded on retry after an earlier refund failure.`)
+            return { transitioned: true }
         }
-    } catch (e) {
-        console.error(LOG, 'CRITICAL refund_standard_bundle_wallet threw:', e, 'order:', order.id)
+        const throttle = decideAlertThrottle(fresh.fulfillment_metadata, 'refund_retry_failed', Date.now())
+        if (throttle.send) {
+            await (supabase.from('standard_bundle_orders') as any)
+                .update({ fulfillment_metadata: throttle.meta })
+                .eq('id', order.id)
+                .eq('status', 'failed')
+            await adminAlert(
+                'Standard bundle failed - REFUND STILL NOT APPLIED',
+                `Order ${ref} is failed and the wallet refund retry also failed. Refund it manually.`,
+            )
+        }
+        return { transitioned: false }
     }
+
+    const refunded = await tryRefund(supabase, order.id)
 
     if (refunded) {
         await notifyUser(supabase, order.user_id, 'Bundle Not Delivered', BUNDLE_FAILURE_CUSTOMER_MESSAGE)
