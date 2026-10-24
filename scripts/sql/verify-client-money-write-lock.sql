@@ -4,14 +4,14 @@
 -- ussd_pending_orders, shop_orders, shop_customers) added by the
 -- 2026-09-25 amendment, plus wallet_payments (write lock) and a TRUNCATE check on
 -- six money tables, added by 20261012b_wallet_payments_write_lock.sql.
--- Run via Supabase MCP execute_sql. Every row must have pass = true. 87 rows total.
+-- Run via Supabase MCP execute_sql. Every row must have pass = true. 97 rows total (standard_bundle_orders added 2026-10-24 by 20261024_standard_bundles.sql: +6 privilege, +1 policy, +2 TRUNCATE, +1 trigger).
 -- See docs/security-audits/2026-09-24-client-order-forgery.md
-with t(tbl) as (values ('orders'),('airtime_orders'),('afa_orders'),('wallets'),('wallet_transactions')),
+with t(tbl) as (values ('orders'),('airtime_orders'),('afa_orders'),('wallets'),('wallet_transactions'),('standard_bundle_orders')),
 t2(tbl) as (values ('user_payment_references'),('ussd_pending_orders'),('shop_orders'),('shop_customers')),
 t3(tbl) as (values ('user_payment_references')),
 t4(tbl) as (values ('wallet_payments')),
 t5(tbl) as (values ('wallets'),('wallet_transactions'),('wallet_payments'),('user_payment_references'),
-                   ('momo_transactions'),('momo_claim_attempts')),
+                   ('momo_transactions'),('momo_claim_attempts'),('standard_bundle_orders')),
 r(rl) as (values ('anon'),('authenticated')),
 p(priv) as (values ('INSERT'),('UPDATE'),('DELETE')),
 expected_trg(tbl, tgname, needs_update) as (values
@@ -20,7 +20,8 @@ expected_trg(tbl, tgname, needs_update) as (values
   ('afa_orders','trg_block_client_insert',false),
   ('wallets','trg_block_client_write',true),
   ('wallet_transactions','trg_block_client_write',true),
-  ('user_payment_references','trg_block_client_write',true))
+  ('user_payment_references','trg_block_client_write',true),
+  ('standard_bundle_orders','trg_block_client_write',true))
 -- 1. No client write privileges (30 checks)
 select format('no %s %s on %s', r.rl, p.priv, t.tbl) as check_name,
        not has_table_privilege(r.rl, 'public.' || t.tbl, p.priv) as pass,
