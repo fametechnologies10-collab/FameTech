@@ -34,6 +34,14 @@ export async function GET(request: NextRequest) {
     const authError = validateCronAuth(request)
     if (authError) return authError
 
+    const startedAt = Date.now()
+    const overBudget = () => Date.now() - startedAt > 50_000
+    // Move a still-unresolved bundle order to the back of its updated_at-ordered queue.
+    const rotateBundle = async (id: string, status: string) => {
+        const { error } = await supabase.from('standard_bundle_orders')
+            .update({ updated_at: new Date().toISOString() }).eq('id', id).eq('status', status)
+        if (error) console.error(LOG, 'bundle rotate failed:', error.message, 'order:', id)
+    }
     const supabase = createServerClient() as any
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString()
     const dayAgo = new Date(Date.now() - 24 * 3_600_000).toISOString()
@@ -204,11 +212,12 @@ export async function GET(request: NextRequest) {
             .limit(10)
         if (fErr) console.error(LOG, 'bundle pass F query failed:', fErr.message)
         for (const o of (stuckBundles || [])) {
+            if (overBudget()) break
             try {
                 const r = await checkBundleOrder(o.reference_code)
                 if (!r.configured) break
                 bundles.checked++
-                if (!r.httpOk) continue
+                if (!r.httpOk) { await rotateBundle(o.id, 'processing'); continue }
 
                 if (r.state === 'completed' || r.state === 'failed') {
                     const res = await finalizeBundle(supabase, o, {
@@ -243,6 +252,7 @@ export async function GET(request: NextRequest) {
             .limit(5)
         if (gErr) console.error(LOG, 'bundle pass G query failed:', gErr.message)
         for (const o of (pendingBundles || [])) {
+            if (overBudget()) break
             try { await dispatchBundleFulfillment(o.id); bundles.dispatched++ } catch (e) { console.error(LOG, 'bundle dispatch failed for', o.id, e) }
             await rotateIfBlocked(supabase, 'standard_bundle_orders', 'fulfillment_attempts', o.id, o.fulfillment_attempts)
         }
@@ -262,9 +272,11 @@ export async function GET(request: NextRequest) {
             .limit(10)
         if (hErr) console.error(LOG, 'bundle pass H query failed:', hErr.message)
         for (const o of (failedBundles || [])) {
+            if (overBudget()) break
             try {
                 const res = await finalizeBundle(supabase, o, { state: 'failed', reason: 'refund backstop' })
                 if (res.transitioned) bundles.refundRetried++
+                else await rotateBundle(o.id, 'failed')
             } catch (e) { console.error(LOG, 'bundle pass H failed for', o.id, e) }
         }
     } catch (e) { console.error(LOG, 'bundle pass H failed', e) }
@@ -282,17 +294,20 @@ export async function GET(request: NextRequest) {
             .limit(5)
         if (iErr) console.error(LOG, 'bundle pass I query failed:', iErr.message)
         for (const o of (exhausted || [])) {
+            if (overBudget()) break
             try {
                 const r = await checkBundleOrder(o.reference_code)
                 if (!r.configured) break
                 bundles.exhaustedChecked++
-                if (!r.httpOk) continue
+                if (!r.httpOk) { await rotateBundle(o.id, 'pending'); continue }
                 if (r.state === 'completed' || r.state === 'failed') {
                     const res = await finalizeBundle(supabase, o, {
                         state: r.state, reason: r.reason, raw: r.raw,
                         ...(r.state === 'completed' ? { commission: r.commission } : {}),
                     })
                     if (res.transitioned) bundles.finalized++
+                } else {
+                    await rotateBundle(o.id, 'pending')
                 }
             } catch (e) { console.error(LOG, 'bundle pass I failed for', o.id, e) }
         }
