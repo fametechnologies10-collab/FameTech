@@ -76,14 +76,9 @@ export function findBundle(
     bundles: CatalogBundle[],
     sel: { value?: string; pack_id?: string },
 ): CatalogBundle | null {
-    if (sel.pack_id) {
-        const byPack = bundles.find((b) => b.pack_id === sel.pack_id)
-        if (byPack) return byPack
-    }
-    if (sel.value) {
-        const byValue = bundles.find((b) => b.value === sel.value)
-        if (byValue) return byValue
-    }
+    // A Special pack_id that vanished must resolve to "not found", never fall back to a standard value.
+    if (sel.pack_id) return bundles.find((b) => b.pack_id === sel.pack_id) ?? null
+    if (sel.value) return bundles.find((b) => b.value === sel.value) ?? null
     return null
 }
 

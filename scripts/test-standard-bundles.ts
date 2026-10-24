@@ -126,6 +126,8 @@ test('findBundle', () => {
     assert.equal(findBundle(bundles, { pack_id: 'PK-1' })?.size, '3GB')
     assert.equal(findBundle(bundles, { value: '1' })?.size, '1GB')
     assert.equal(findBundle(bundles, { value: '1', pack_id: 'PK-1' })?.size, '3GB')
+    assert.equal(findBundle(bundles, { value: '1', pack_id: 'GONE' }), null)
+    assert.equal(findBundle(bundles, { pack_id: 'GONE' }), null)
     assert.equal(findBundle(bundles, { value: 'nope' }), null)
     assert.equal(findBundle(bundles, {}), null)
 })
