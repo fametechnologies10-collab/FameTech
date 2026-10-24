@@ -12,6 +12,7 @@ import {
     isValidBeneficiary,
     decideDispatchAction,
 } from '../lib/standard-bundles-logic'
+import { buildPurchaseBody, isCatalogFresh } from '../lib/kingflexy-bundles-service'
 
 let failed = 0
 function test(name: string, fn: () => void) {
@@ -153,6 +154,29 @@ test('decideDispatchAction', () => {
     for (const o of ['insufficient_balance', 'unavailable', 'rate_limited', 'transient', 'config_error'] as const) {
         assert.equal(decideDispatchAction(o), 'revert_pending')
     }
+})
+
+test('buildPurchaseBody', () => {
+    assert.deepEqual(
+        buildPurchaseBody({ kind: 'standard', network: 'MTN', phone: '+233241234567', reference: 'GHD-1', value: '1GB', amount: 5 }),
+        { network: 'MTN', beneficiary_phone: '0241234567', value: '1GB', amount: 5, reference: 'GHD-1' },
+    )
+    assert.deepEqual(
+        buildPurchaseBody({ kind: 'special', network: 'MTN', phone: '0241234567', reference: 'GHD-2', packId: 'p9', amount: 12, value: 'x' }),
+        { pack_id: 'p9', beneficiary_phone: '0241234567', reference: 'GHD-2' },
+    )
+    const bb = buildPurchaseBody({ kind: 'broadband', network: 'Telecel', phone: '0201234567', reference: 'GHD-3', amount: 30, value: 'x' })
+    assert.deepEqual(bb, { network: 'TelecelBroadband', beneficiary_phone: '0201234567', amount: 30, reference: 'GHD-3' })
+    assert.equal('value' in bb, false)
+})
+
+test('isCatalogFresh', () => {
+    const now = Date.parse('2026-10-24T12:00:00Z')
+    assert.equal(isCatalogFresh('2026-10-24T11:50:00Z', now), true)
+    assert.equal(isCatalogFresh('2026-10-24T11:45:00Z', now), false)
+    assert.equal(isCatalogFresh('garbage', now), false)
+    assert.equal(isCatalogFresh(undefined, now), false)
+    assert.equal(isCatalogFresh('2026-10-24T12:05:00Z', now), false)
 })
 
 if (failed > 0) {

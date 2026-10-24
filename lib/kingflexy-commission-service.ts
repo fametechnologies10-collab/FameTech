@@ -161,7 +161,7 @@ const KF_AIRTIME_MAX_GHS = 100
 const KF_NETWORKS = new Set(['MTN', 'Telecel', 'AT'])
 const KF_PHONE_BILLERS = new Set<string>(['ecg', 'ghana_water'])
 
-class KfBreaker {
+export class KfBreaker {
     private failures = 0
     private openedAt = 0
     private readonly threshold = 5
@@ -189,7 +189,7 @@ function getKfKey(): string | undefined {
     return process.env.KINGFLEXY_COMMISSION_API_KEY || undefined
 }
 
-async function kfRequest(method: 'GET' | 'POST', path: string, apiKey: string, body?: unknown): Promise<KfHttp> {
+export async function kfRequest(method: 'GET' | 'POST', path: string, apiKey: string, body?: unknown): Promise<KfHttp> {
     const res = await fetch(`${KF_BASE_URL}${path}`, {
         method,
         headers: {
@@ -209,7 +209,7 @@ function kfErrorMessage(body: any, fallback: string): string {
     return typeof m === 'string' && m.length > 0 ? m : fallback
 }
 
-function describeKfFailure(err: unknown, apiKey: string): string {
+export function describeKfFailure(err: unknown, apiKey: string): string {
     const raw = err instanceof Error ? err.message : String(err)
     return `KingFlexyGH request failed: ${raw.split(apiKey).join('[redacted]')}`
 }
