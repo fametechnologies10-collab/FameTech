@@ -11,6 +11,10 @@ import {
     isValidIdempotencyKey,
     isValidBeneficiary,
     decideDispatchAction,
+    isBundleFlagEnabled,
+    bundleKillSwitchKeys,
+    decideAlertThrottle,
+    BUNDLE_FAILURE_CUSTOMER_MESSAGE,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -189,6 +193,43 @@ test('pickNewerCatalogCopy', () => {
     const tie = { etag: 'c', fetched_at: older.fetched_at, body: {} }
     assert.equal(pickNewerCatalogCopy(older, tie), older)
     assert.equal(pickNewerCatalogCopy(null, null), null)
+})
+
+test('isBundleFlagEnabled: only explicit false disables', () => {
+    assert.equal(isBundleFlagEnabled('true'), true)
+    assert.equal(isBundleFlagEnabled(true), true)
+    assert.equal(isBundleFlagEnabled('false'), false)
+    assert.equal(isBundleFlagEnabled(false), false)
+    assert.equal(isBundleFlagEnabled(undefined), true)
+    assert.equal(isBundleFlagEnabled(null), true)
+})
+
+test('bundleKillSwitchKeys', () => {
+    assert.deepEqual(bundleKillSwitchKeys('MTN', 'standard'), ['std_bundles_enabled', 'std_bundles_enabled_mtn'])
+    assert.deepEqual(bundleKillSwitchKeys('Telecel', 'special'), ['std_bundles_enabled', 'std_bundles_enabled_telecel'])
+    assert.deepEqual(bundleKillSwitchKeys('AT', 'standard'), ['std_bundles_enabled', 'std_bundles_enabled_at'])
+    assert.deepEqual(bundleKillSwitchKeys('Telecel', 'broadband'), ['std_bundles_enabled', 'std_bundles_enabled_broadband'])
+})
+
+test('decideAlertThrottle: once per hour per outcome', () => {
+    const now = Date.parse('2026-10-24T12:00:00Z')
+    assert.equal(decideAlertThrottle(null, 'unavailable', now).send, true)
+    assert.equal(decideAlertThrottle({}, 'unavailable', now).send, true)
+    const recent = { last_alert_at: '2026-10-24T11:30:00Z', last_alert_outcome: 'unavailable' }
+    assert.equal(decideAlertThrottle(recent, 'unavailable', now).send, false)
+    assert.equal(decideAlertThrottle(recent, 'transient', now).send, true) // different outcome
+    const old = { last_alert_at: '2026-10-24T10:59:00Z', last_alert_outcome: 'unavailable' }
+    assert.equal(decideAlertThrottle(old, 'unavailable', now).send, true)
+    assert.equal(decideAlertThrottle({ last_alert_at: 'garbage', last_alert_outcome: 'unavailable' }, 'unavailable', now).send, true)
+    const future = { last_alert_at: '2026-10-24T13:00:00Z', last_alert_outcome: 'unavailable' }
+    assert.equal(decideAlertThrottle(future, 'unavailable', now).send, true) // clock skew: don't suppress forever
+    const d = decideAlertThrottle({ keep: 1 }, 'transient', now)
+    assert.deepEqual(d.meta, { keep: 1, last_alert_at: '2026-10-24T12:00:00.000Z', last_alert_outcome: 'transient' })
+    assert.deepEqual(decideAlertThrottle(recent, 'unavailable', now).meta, recent)
+})
+
+test('customer failure message is fixed and supplier-free', () => {
+    assert.equal(BUNDLE_FAILURE_CUSTOMER_MESSAGE, "We couldn't deliver your bundle. Your wallet has been refunded.")
 })
 
 if (failed > 0) {

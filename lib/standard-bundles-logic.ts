@@ -179,3 +179,34 @@ export function decideDispatchAction(
             return 'revert_pending'
     }
 }
+
+// Kill switches are stored as JSONB strings ('"true"'/'"false"'); only an explicit false disables.
+export function isBundleFlagEnabled(v: unknown): boolean {
+    return !(v === false || v === 'false')
+}
+
+export function bundleKillSwitchKeys(network: string, kind: BundleKind): string[] {
+    const suffix = kind === 'broadband' ? 'broadband' : network.toLowerCase()
+    return ['std_bundles_enabled', `std_bundles_enabled_${suffix}`]
+}
+
+const ALERT_THROTTLE_MS = 60 * 60 * 1000
+
+// At most one admin alert per hour per outcome, tracked in fulfillment_metadata.
+export function decideAlertThrottle(
+    meta: Record<string, unknown> | null | undefined,
+    outcome: string,
+    nowMs: number,
+): { send: boolean; meta: Record<string, unknown> } {
+    const base = meta ?? {}
+    const last = typeof base.last_alert_at === 'string' ? Date.parse(base.last_alert_at) : NaN
+    const age = nowMs - last
+    const suppressed = base.last_alert_outcome === outcome && Number.isFinite(age) && age >= 0 && age < ALERT_THROTTLE_MS
+    if (suppressed) return { send: false, meta: base }
+    return {
+        send: true,
+        meta: { ...base, last_alert_at: new Date(nowMs).toISOString(), last_alert_outcome: outcome },
+    }
+}
+
+export const BUNDLE_FAILURE_CUSTOMER_MESSAGE = "We couldn't deliver your bundle. Your wallet has been refunded."
