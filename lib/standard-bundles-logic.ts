@@ -219,3 +219,42 @@ export function shouldAlertExhausted(
 ): boolean {
     return attempts >= maxAttempts && !(meta && meta.exhausted_at)
 }
+
+// ---------------------------------------------------------------------------
+// Purchase-route helpers
+// ---------------------------------------------------------------------------
+
+export type StoredBundleNetwork = 'MTN' | 'Telecel' | 'AT' | 'TelecelBroadband'
+
+// Value stored in standard_bundle_orders.network. Broadband is Telecel-only and is always stored
+// as 'TelecelBroadband'; the UI may send either 'Telecel' or 'TelecelBroadband' for it.
+export function normalizeBundleNetwork(kind: unknown, network: unknown): StoredBundleNetwork | null {
+    if (kind === 'broadband') {
+        return network === 'Telecel' || network === 'TelecelBroadband' ? 'TelecelBroadband' : null
+    }
+    if (kind !== 'standard' && kind !== 'special') return null
+    return network === 'MTN' || network === 'Telecel' || network === 'AT' ? network : null
+}
+
+// Returns the validated amount (finite, 2dp max, within [min,max]) or null.
+export function validateBroadbandAmount(amount: unknown, min: number, max: number): number | null {
+    let n: number
+    if (typeof amount === 'number') n = amount
+    else if (typeof amount === 'string' && amount.trim() !== '') n = Number(amount.trim())
+    else return null
+    if (!Number.isFinite(n)) return null
+    if (Math.abs(Math.round(n * 100) / 100 - n) > 1e-9) return null
+    if (n < min || n > max) return null
+    return n
+}
+
+// Server-side customer price, or null when it would fall below the minimum chargeable amount.
+export function computeBundlePrice(args: {
+    catalogPrice: number
+    discountSetting: unknown
+    kind: BundleKind
+}): number | null {
+    if (!Number.isFinite(args.catalogPrice) || args.catalogPrice < MIN_PRICE) return null
+    const price = applyDiscount(args.catalogPrice, parseDiscountSetting(args.discountSetting), args.kind)
+    return price >= MIN_PRICE ? price : null
+}

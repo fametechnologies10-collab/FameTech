@@ -16,6 +16,9 @@ import {
     decideAlertThrottle,
     BUNDLE_FAILURE_CUSTOMER_MESSAGE,
     shouldAlertExhausted,
+    normalizeBundleNetwork,
+    validateBroadbandAmount,
+    computeBundlePrice,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -239,6 +242,48 @@ test('shouldAlertExhausted: only at/over cap and not yet alerted', () => {
     assert.equal(shouldAlertExhausted(4, 5, {}), false)
     assert.equal(shouldAlertExhausted(5, 5, { exhausted_at: '2026-10-24T12:00:00Z' }), false)
     assert.equal(shouldAlertExhausted(5, 5, { other: 1 }), true)
+})
+
+test('normalizeBundleNetwork', () => {
+    assert.equal(normalizeBundleNetwork('standard', 'MTN'), 'MTN')
+    assert.equal(normalizeBundleNetwork('special', 'AT'), 'AT')
+    assert.equal(normalizeBundleNetwork('standard', 'Telecel'), 'Telecel')
+    assert.equal(normalizeBundleNetwork('broadband', 'Telecel'), 'TelecelBroadband')
+    assert.equal(normalizeBundleNetwork('broadband', 'TelecelBroadband'), 'TelecelBroadband')
+    assert.equal(normalizeBundleNetwork('broadband', 'MTN'), null)
+    assert.equal(normalizeBundleNetwork('standard', 'TelecelBroadband'), null)
+    assert.equal(normalizeBundleNetwork('standard', 'Vodafone'), null)
+    assert.equal(normalizeBundleNetwork('bogus', 'MTN'), null)
+    assert.equal(normalizeBundleNetwork('standard', undefined), null)
+})
+
+test('validateBroadbandAmount', () => {
+    assert.equal(validateBroadbandAmount(50, 10, 500), 50)
+    assert.equal(validateBroadbandAmount('50', 10, 500), 50)
+    assert.equal(validateBroadbandAmount(10, 10, 500), 10)
+    assert.equal(validateBroadbandAmount(500, 10, 500), 500)
+    assert.equal(validateBroadbandAmount(9.99, 10, 500), null)
+    assert.equal(validateBroadbandAmount(501, 10, 500), null)
+    assert.equal(validateBroadbandAmount(NaN, 10, 500), null)
+    assert.equal(validateBroadbandAmount(Infinity, 10, 500), null)
+    assert.equal(validateBroadbandAmount('abc', 10, 500), null)
+    assert.equal(validateBroadbandAmount('', 10, 500), null)
+    assert.equal(validateBroadbandAmount(undefined, 10, 500), null)
+    assert.equal(validateBroadbandAmount(null, 10, 500), null)
+    assert.equal(validateBroadbandAmount(10.555, 10, 500), null)
+})
+
+test('computeBundlePrice', () => {
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: '5', kind: 'standard' }), 19)
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: 5, kind: 'special' }), 19)
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: '5', kind: 'broadband' }), 20)
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: 'abc', kind: 'standard' }), 20)
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: undefined, kind: 'standard' }), 20)
+    assert.equal(computeBundlePrice({ catalogPrice: 20, discountSetting: '100', kind: 'standard' }), 10)
+    assert.equal(computeBundlePrice({ catalogPrice: 0.01, discountSetting: '50', kind: 'standard' }), 0.01)
+    assert.equal(computeBundlePrice({ catalogPrice: 0, discountSetting: 0, kind: 'standard' }), null)
+    assert.equal(computeBundlePrice({ catalogPrice: -5, discountSetting: 0, kind: 'standard' }), null)
+    assert.equal(computeBundlePrice({ catalogPrice: NaN, discountSetting: 0, kind: 'standard' }), null)
 })
 
 if (failed > 0) {
