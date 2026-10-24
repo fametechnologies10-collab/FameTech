@@ -5,6 +5,9 @@ import { dispatchAirtimeFulfillment } from '@/lib/airtime-fulfillment'
 import { dispatchUtilityFulfillment } from '@/lib/utility-fulfillment'
 import { checkAirtimeOrderStatus, checkUtilityOrderStatus, type KfStatusResult } from '@/lib/kingflexy-commission-service'
 import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
+import { checkBundleOrder } from '@/lib/kingflexy-bundles-service'
+import { finalizeBundle } from '@/lib/standard-bundles-finalize'
+import { dispatchBundleFulfillment } from '@/lib/standard-bundles-fulfillment'
 
 export const maxDuration = 60
 
@@ -14,7 +17,7 @@ const LOG = '[KingFlexyReconcile]'
 // Dispatch returns early without bumping attempts when a row is gated (kill-switch, >100 GHS, mashup,
 // unverifiable legacy attempt). Touch such a row so it rotates to the back of the updated_at-ordered
 // queue instead of starving newer eligible rows.
-async function rotateIfBlocked(supabase: any, table: 'airtime_orders' | 'utility_orders', attemptsCol: string, id: string, attemptsBefore: number | null) {
+async function rotateIfBlocked(supabase: any, table: 'airtime_orders' | 'utility_orders' | 'standard_bundle_orders', attemptsCol: string, id: string, attemptsBefore: number | null) {
     try {
         const { data: fresh } = await supabase.from(table).select(`status, ${attemptsCol}`).eq('id', id).maybeSingle()
         if (fresh?.status === 'pending' && (fresh[attemptsCol] ?? 0) === (attemptsBefore ?? 0)) {
@@ -36,6 +39,7 @@ export async function GET(request: NextRequest) {
     const dayAgo = new Date(Date.now() - 24 * 3_600_000).toISOString()
 
     const airtime = { checked: 0, finalized: 0, reverted: 0, dispatched: 0 }
+    const bundles = { checked: 0, finalized: 0, reverted: 0, dispatched: 0, refundRetried: 0, exhaustedChecked: 0 }
     const utilities = { checked: 0, finalized: 0, reverted: 0, dispatched: 0, commissionBackfilled: 0 }
 
     // Pass A: processing airtime whose webhook never arrived.
@@ -188,5 +192,111 @@ export async function GET(request: NextRequest) {
         } catch (e) { console.error(LOG, 'utility pass E failed for', o.id, e) }
     }
 
-    return NextResponse.json({ success: true, airtime, utilities })
+    const BUNDLE_COLS = 'id, reference_code, user_id, network, kind, bundle_label, beneficiary_phone, total_paid, status, fulfillment_metadata'
+
+    // Pass F: processing bundle orders whose webhook never arrived.
+    try {
+        const { data: stuckBundles, error: fErr } = await supabase.from('standard_bundle_orders')
+            .select(BUNDLE_COLS)
+            .eq('status', 'processing')
+            .lt('updated_at', fiveMinAgo)
+            .order('updated_at', { ascending: true })
+            .limit(10)
+        if (fErr) console.error(LOG, 'bundle pass F query failed:', fErr.message)
+        for (const o of (stuckBundles || [])) {
+            try {
+                const r = await checkBundleOrder(o.reference_code)
+                if (!r.configured) break
+                bundles.checked++
+                if (!r.httpOk) continue
+
+                if (r.state === 'completed' || r.state === 'failed') {
+                    const res = await finalizeBundle(supabase, o, {
+                        state: r.state, reason: r.reason, raw: r.raw,
+                        ...(r.state === 'completed' ? { commission: r.commission } : {}),
+                    })
+                    if (res.transitioned) bundles.finalized++
+                } else if (!r.found) {
+                    // The POST never landed; a same-reference re-dispatch is idempotent.
+                    const { data: rev, error: revErr } = await supabase.from('standard_bundle_orders')
+                        .update({ status: 'pending', updated_at: new Date().toISOString() })
+                        .eq('id', o.id).eq('status', 'processing').select('id')
+                    if (revErr) console.error(LOG, 'bundle revert failed:', revErr.message, 'order:', o.id)
+                    if (rev?.length) bundles.reverted++
+                } else {
+                    const { error: noteErr } = await supabase.from('standard_bundle_orders')
+                        .update({ fulfillment_metadata: { ...(o.fulfillment_metadata || {}), status_check: { state: r.state, http_ok: r.httpOk, found: r.found, at: new Date().toISOString() } }, updated_at: new Date().toISOString() })
+                        .eq('id', o.id).eq('status', 'processing').select('id')
+                    if (noteErr) console.error(LOG, 'bundle status note failed:', noteErr.message, 'order:', o.id)
+                }
+            } catch (e) { console.error(LOG, 'bundle pass F failed for', o.id, e) }
+        }
+    } catch (e) { console.error(LOG, 'bundle pass F failed', e) }
+
+    // Pass G: pending bundle orders with attempts left.
+    try {
+        const { data: pendingBundles, error: gErr } = await supabase.from('standard_bundle_orders')
+            .select('id, fulfillment_attempts')
+            .eq('status', 'pending')
+            .lt('fulfillment_attempts', 5)
+            .order('updated_at', { ascending: true })
+            .limit(5)
+        if (gErr) console.error(LOG, 'bundle pass G query failed:', gErr.message)
+        for (const o of (pendingBundles || [])) {
+            try { await dispatchBundleFulfillment(o.id); bundles.dispatched++ } catch (e) { console.error(LOG, 'bundle dispatch failed for', o.id, e) }
+            await rotateIfBlocked(supabase, 'standard_bundle_orders', 'fulfillment_attempts', o.id, o.fulfillment_attempts)
+        }
+    } catch (e) { console.error(LOG, 'bundle pass G failed', e) }
+
+    // Pass H: refund backstop. A 'failed' order whose refund RPC errored stays 'failed'; finalizeBundle
+    // on an already-failed order re-runs the idempotent refund. The 7-day window skips ancient rows.
+    try {
+        const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString()
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString()
+        const { data: failedBundles, error: hErr } = await supabase.from('standard_bundle_orders')
+            .select(BUNDLE_COLS)
+            .eq('status', 'failed')
+            .lt('updated_at', tenMinAgo)
+            .gt('created_at', sevenDaysAgo)
+            .order('updated_at', { ascending: true })
+            .limit(10)
+        if (hErr) console.error(LOG, 'bundle pass H query failed:', hErr.message)
+        for (const o of (failedBundles || [])) {
+            try {
+                const res = await finalizeBundle(supabase, o, { state: 'failed', reason: 'refund backstop' })
+                if (res.transitioned) bundles.refundRetried++
+            } catch (e) { console.error(LOG, 'bundle pass H failed for', o.id, e) }
+        }
+    } catch (e) { console.error(LOG, 'bundle pass H failed', e) }
+
+    // Pass I: exhausted pending orders (attempts >= 5). Only a definitive terminal state from the
+    // provider moves them; pending/processing/unknown/404 are NEVER auto-refunded.
+    try {
+        const fifteenMinAgo = new Date(Date.now() - 15 * 60_000).toISOString()
+        const { data: exhausted, error: iErr } = await supabase.from('standard_bundle_orders')
+            .select(BUNDLE_COLS)
+            .eq('status', 'pending')
+            .gte('fulfillment_attempts', 5)
+            .lt('updated_at', fifteenMinAgo)
+            .order('updated_at', { ascending: true })
+            .limit(5)
+        if (iErr) console.error(LOG, 'bundle pass I query failed:', iErr.message)
+        for (const o of (exhausted || [])) {
+            try {
+                const r = await checkBundleOrder(o.reference_code)
+                if (!r.configured) break
+                bundles.exhaustedChecked++
+                if (!r.httpOk) continue
+                if (r.state === 'completed' || r.state === 'failed') {
+                    const res = await finalizeBundle(supabase, o, {
+                        state: r.state, reason: r.reason, raw: r.raw,
+                        ...(r.state === 'completed' ? { commission: r.commission } : {}),
+                    })
+                    if (res.transitioned) bundles.finalized++
+                }
+            } catch (e) { console.error(LOG, 'bundle pass I failed for', o.id, e) }
+        }
+    } catch (e) { console.error(LOG, 'bundle pass I failed', e) }
+
+    return NextResponse.json({ success: true, airtime, utilities, bundles })
 }

@@ -8,6 +8,9 @@ import {
     checkUtilityOrderStatus,
 } from '@/lib/kingflexy-commission-service'
 import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
+import { decideBundleWebhook } from '@/lib/standard-bundles-logic'
+import { checkBundleOrder } from '@/lib/kingflexy-bundles-service'
+import { finalizeBundle } from '@/lib/standard-bundles-finalize'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +32,45 @@ export async function POST(request: NextRequest) {
     let payload: any
     try { payload = JSON.parse(raw) } catch {
         return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 })
+    }
+
+    // Standard Bundles share this endpoint; branch before the airtime/utility decision.
+    if (payload?.product === 'bundles') {
+        const bd = decideBundleWebhook(payload)
+        if (bd.action === 'ignore' || !bd.reference) {
+            return NextResponse.json({ success: true }, { status: 200 })
+        }
+        try {
+            const supabase = createServerClient()
+            const { data: bundleOrder, error: bundleLookupError } = await (supabase as any).from('standard_bundle_orders')
+                .select('id, reference_code, user_id, network, kind, bundle_label, beneficiary_phone, total_paid, status, fulfillment_metadata')
+                .eq('reference_code', bd.reference).maybeSingle()
+            if (bundleLookupError) {
+                console.error(LOG, 'Bundle order lookup failed:', bundleLookupError.message, 'reference:', bd.reference)
+                return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+            }
+            if (!bundleOrder) return NextResponse.json({ success: true }, { status: 200 })
+
+            if (bd.action === 'completed') {
+                let commission: number | null | undefined
+                try {
+                    const chk = await checkBundleOrder(bd.reference)
+                    commission = chk.commission
+                } catch { /* best-effort */ }
+                await finalizeBundle(supabase, bundleOrder, {
+                    state: 'completed', commission, raw: payload, previouslyRefunded: bd.previouslyRefunded,
+                })
+            } else {
+                const failReason = typeof payload?.detail?.reason === 'string' ? payload.detail.reason : undefined
+                await finalizeBundle(supabase, bundleOrder, {
+                    state: 'failed', reason: failReason, raw: payload, previouslyRefunded: bd.previouslyRefunded,
+                })
+            }
+            return NextResponse.json({ success: true }, { status: 200 })
+        } catch (error: any) {
+            console.error(LOG, 'Bundle unhandled:', error?.message || error, 'reference:', bd.reference)
+            return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+        }
     }
 
     const decision = decideKfWebhookAction(payload)
