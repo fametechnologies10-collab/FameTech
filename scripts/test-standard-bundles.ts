@@ -12,7 +12,7 @@ import {
     isValidBeneficiary,
     decideDispatchAction,
 } from '../lib/standard-bundles-logic'
-import { buildPurchaseBody, isCatalogFresh } from '../lib/kingflexy-bundles-service'
+import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
 let failed = 0
 function test(name: string, fn: () => void) {
@@ -177,6 +177,18 @@ test('isCatalogFresh', () => {
     assert.equal(isCatalogFresh('garbage', now), false)
     assert.equal(isCatalogFresh(undefined, now), false)
     assert.equal(isCatalogFresh('2026-10-24T12:05:00Z', now), false)
+})
+
+test('pickNewerCatalogCopy', () => {
+    const older = { etag: 'a', fetched_at: '2026-10-24T10:00:00Z', body: {} }
+    const newer = { etag: 'b', fetched_at: '2026-10-24T11:00:00Z', body: {} }
+    assert.equal(pickNewerCatalogCopy(older, null), older)
+    assert.equal(pickNewerCatalogCopy(null, newer), newer)
+    assert.equal(pickNewerCatalogCopy(older, newer), newer)
+    assert.equal(pickNewerCatalogCopy(newer, older), newer)
+    const tie = { etag: 'c', fetched_at: older.fetched_at, body: {} }
+    assert.equal(pickNewerCatalogCopy(older, tie), older)
+    assert.equal(pickNewerCatalogCopy(null, null), null)
 })
 
 if (failed > 0) {

@@ -75,6 +75,15 @@ interface StoredCatalog {
     body: unknown // raw API `data` object
 }
 
+// Newer fetched_at wins; `a` (persisted) wins ties and unparseable dates.
+export function pickNewerCatalogCopy<T extends { fetched_at: string }>(a: T | null, b: T | null): T | null {
+    if (!a) return b
+    if (!b) return a
+    const ta = Date.parse(a.fetched_at)
+    const tb = Date.parse(b.fetched_at)
+    return Number.isFinite(tb) && (!Number.isFinite(ta) || tb > ta) ? b : a
+}
+
 export interface CatalogResult {
     ok: boolean
     stale: boolean
@@ -125,14 +134,14 @@ function remember(network: CatalogNetwork, stored: StoredCatalog): ParsedCatalog
 }
 
 async function refreshCatalog(network: CatalogNetwork): Promise<CatalogResult> {
-    const persisted = await readPersisted(network)
-    if (persisted && isCatalogFresh(persisted.fetched_at, Date.now())) {
-        return { ok: true, stale: false, data: remember(network, persisted) }
+    const base = pickNewerCatalogCopy(await readPersisted(network), memCache.get(network)?.stored ?? null)
+    if (base && isCatalogFresh(base.fetched_at, Date.now())) {
+        return { ok: true, stale: false, data: remember(network, base) }
     }
 
     const fallback = (error: string): CatalogResult =>
-        persisted
-            ? { ok: true, stale: true, data: remember(network, persisted), error }
+        base
+            ? { ok: true, stale: true, data: remember(network, base), error }
             : { ok: false, stale: false, data: null, error }
 
     const apiKey = process.env.KINGFLEXY_COMMISSION_API_KEY || undefined
@@ -144,13 +153,13 @@ async function refreshCatalog(network: CatalogNetwork): Promise<CatalogResult> {
             headers: {
                 Authorization: apiKey,
                 Accept: 'application/json',
-                ...(persisted?.etag ? { 'If-None-Match': persisted.etag } : {}),
+                ...(base?.etag ? { 'If-None-Match': base.etag } : {}),
             },
             signal: AbortSignal.timeout(KF_TIMEOUT_MS),
         })
 
-        if (res.status === 304 && persisted) {
-            const renewed: StoredCatalog = { ...persisted, fetched_at: new Date().toISOString() }
+        if (res.status === 304 && base) {
+            const renewed: StoredCatalog = { ...base, fetched_at: new Date().toISOString() }
             await writePersisted(network, renewed)
             return { ok: true, stale: false, data: remember(network, renewed) }
         }
