@@ -54,12 +54,6 @@ export function WalletHero({ balance }: { balance: number | null }) {
           className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
         >
           <span>Your balance is low. Top up to keep buying.</span>
-          <Link
-            href={TOP_UP_HREF}
-            className={`inline-flex min-h-11 items-center font-semibold underline underline-offset-2 rounded-sm ${FOCUS_RING}`}
-          >
-            Top up
-          </Link>
         </div>
       )}
     </section>
