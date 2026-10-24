@@ -12,7 +12,8 @@ import {
     Store, Wallet, TrendingUp, ShoppingCart, ArrowRight,
     Settings, Tag, Banknote, Clock, CheckCircle2, XCircle,
     AlertCircle, ExternalLink, Copy, Check, RefreshCcw, Crown,
-    MessageCircle, Loader2, Gem, Users, FileText, MessageSquare, Smartphone, Receipt
+    MessageCircle, Loader2, Gem, Users, FileText, MessageSquare, Smartphone, Receipt,
+    Share2, Lightbulb
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
@@ -292,6 +293,7 @@ export default function ShopDashboardPage() {
     }, [dbUser, isAdmin, isSubAdmin, filter])
 
     const shopUrl = shop ? `https://shop.fametechgh.com/${shop.shop_slug}` : ''
+    const shareText = `🛍️ Buy affordable data bundles, airtime & vouchers from ${shop?.shop_name || 'my shop'}: ${shopUrl}`
 
     const copyLink = async () => {
         await navigator.clipboard.writeText(shopUrl)
@@ -536,6 +538,52 @@ export default function ShopDashboardPage() {
                     </div>
                 )}
             </div>
+
+            {/* ── Share your shop (link + QR code) ── */}
+            {shopIsLive && (
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-zinc-950 p-4 sm:p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                        <div>
+                            <h2 className="text-sm font-bold text-gray-900 dark:text-white">Share your shop</h2>
+                            <p className="text-xs text-muted-foreground">Customers can scan, tap, or get the link on WhatsApp</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 items-start">
+                        <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shopUrl)}`}
+                            alt="Shop QR code"
+                            width={132}
+                            height={132}
+                            className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-2 flex-shrink-0 mx-auto sm:mx-0"
+                        />
+
+                        <div className="flex-1 w-full min-w-0 space-y-3">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-emerald-50/60 dark:bg-emerald-950/20 p-2 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
+                                <span className="text-xs font-mono text-emerald-800 dark:text-emerald-300 truncate flex-1 px-2 py-1.5">{shopUrl}</span>
+                                <div className="flex items-center gap-2">
+                                    <Button onClick={copyLink} variant="secondary" size="sm" className="flex-1 sm:flex-none h-9 bg-white dark:bg-zinc-900 text-emerald-600 gap-1.5 rounded-lg font-semibold">
+                                        {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} {copied ? 'Copied!' : 'Copy'}
+                                    </Button>
+                                    <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer">
+                                        <Button size="sm" className="h-9 bg-[#25D366] hover:bg-[#1ebc57] text-white gap-1.5 rounded-lg font-semibold">
+                                            <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                                        </Button>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div className="grid sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
+                                <div className="flex gap-2 items-start"><Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" /> Post your link on WhatsApp status daily — consistency beats one big push.</div>
+                                <div className="flex gap-2 items-start"><Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" /> Print the QR code and place it where your community gathers.</div>
+                                <div className="flex gap-2 items-start"><Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" /> Reward returning customers with a small discount on bulk orders.</div>
+                                <div className="flex gap-2 items-start"><Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" /> Use SMS broadcasts to announce promos to your customer list.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Confirmation-status warning (only renders when something needs the owner's attention) ── */}
             <ConfirmationStatusBanner />
