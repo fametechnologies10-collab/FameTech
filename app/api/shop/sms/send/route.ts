@@ -4,7 +4,7 @@ import { createRouteClient } from '@/lib/supabase-server'
 import { createServerClient } from '@/lib/supabase'
 import { z } from 'zod'
 import { consumeRateLimit } from '@/lib/simple-rate-limit'
-import { normalizeGhanaPhone, sendHubtelShopBatchSMS } from '@/lib/sms-service'
+import { normalizeGhanaPhone, sendHubtelShopBatchSMS, sendKingFlexyShopBatchSMS, getRoutingConfig } from '@/lib/sms-service'
 import { calculateSegments } from '@/lib/sms-segments'
 import { filterSmsContent } from '@/lib/sms-content-filter'
 import { prepareSmsMessage } from '@/lib/sms-message'
@@ -271,16 +271,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Failed to reserve credits' }, { status: 500 })
         }
 
-        // 9. Send via Hubtel's batch endpoint with RegisteredDelivery — shop
-        // SMS is Hubtel-pinned (no Moolre/mNotify fallback) in exchange for
-        // real delivery tracking. See docs/superpowers/specs/
-        // 2026-08-22-shop-sms-delivery-tracking-design.md §5, §8.
-        const batchSender = approvedSender || (process.env.HUBTEL_SENDER_ID || 'FameTech').substring(0, 11)
-        const batch = await sendHubtelShopBatchSMS(recipients, message, batchSender)
+        // 9. Send via the configured primary provider's batch endpoint.
+        // Originally Hubtel-only (RegisteredDelivery + per-recipient message
+        // IDs for shop_sms_delivery_receipts — see docs/superpowers/specs/
+        // 2026-08-22-shop-sms-delivery-tracking-design.md §5, §8). KingFlexyGH
+        // became primary without a batch path here, so shop sends silently
+        // failed once Hubtel's credentials were removed — this now follows
+        // sms_primary_provider like every other send path. KingFlexyGH's
+        // batch response is aggregate-only (sent/failed counts, no
+        // per-recipient IDs), so delivery receipts are only written for
+        // Hubtel sends; KingFlexyGH sends still land in shop_sms_logs.
+        const { primary } = await getRoutingConfig()
+        const batchSender = approvedSender || (process.env.KINGFLEXY_SENDER_ID || process.env.HUBTEL_SENDER_ID || 'FameTech').substring(0, 11)
+        const batch = primary === 'hubtel'
+            ? await sendHubtelShopBatchSMS(recipients, message, batchSender)
+            : await sendKingFlexyShopBatchSMS(recipients, message, batchSender)
 
-        const sent = batch.ok ? batch.results.length : 0
+        const sent = batch.ok ? (batch.sent ?? batch.results.length) : 0
         const failed = recipients.length - sent
-        const provider = batch.ok ? 'hubtel' : undefined
+        const provider = batch.ok ? primary : undefined
 
         // 10. Refund credits for recipients Hubtel didn't confirm
         if (failed > 0) {

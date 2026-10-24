@@ -493,6 +493,14 @@ export interface ShopBatchResult {
     error?: string
     batchId?: string
     results: ShopBatchRecipientResult[]
+    /**
+     * Aggregate counts for providers (KingFlexyGH) that only return a
+     * campaign-level sent/failed split, not a per-recipient array. When
+     * present, callers must use these instead of `results.length` — see
+     * sendKingFlexyShopBatchSMS below.
+     */
+    sent?: number
+    failed?: number
 }
 
 /**
@@ -572,6 +580,75 @@ export async function sendHubtelShopBatchSMS(
     } catch (e: any) {
         console.error('[Shop SMS Batch] ❌ Exception:', e.message)
         return { ok: false, error: `Hubtel exception: ${e.message}`, results: [] }
+    }
+}
+
+const KINGFLEXY_BATCH_CHUNK_SIZE = 10000
+
+/**
+ * Send ONE shop-SMS batch (≤10,000 recipients, identical content) via
+ * KingFlexyGH's bulk `POST /sms/send` (a single call, not one-per-recipient —
+ * `recipients` takes an array natively). Unlike Hubtel's batch endpoint,
+ * KingFlexyGH's response is campaign-level only (`sent`/`failed` counts, no
+ * per-recipient message IDs), so `results` always comes back empty — callers
+ * must read `sent`/`failed` instead of `results.length`. This also means no
+ * `shop_sms_delivery_receipts` rows get written for KingFlexyGH sends; per-
+ * recipient status is only available by polling `GET /sms/messages/{campaignId}`,
+ * which nothing here does yet.
+ *
+ * No `reference` is sent — KingFlexyGH treats a repeated `reference` as an
+ * idempotency key that replays the original campaign instead of sending, and
+ * the shop-SMS route already enforces its own idempotency via
+ * `shop_sms_send_claims` before this is ever called.
+ */
+export async function sendKingFlexyShopBatchSMS(
+    phones: string[],
+    content: string,
+    sender: string
+): Promise<ShopBatchResult> {
+    const apiKey = process.env.KINGFLEXY_API_KEY
+
+    if (!sender || !sender.trim()) {
+        return { ok: false, error: 'SENDER_REQUIRED: shop sends must carry an explicit sender ID', results: [] }
+    }
+    if (!apiKey) {
+        return { ok: false, error: 'KINGFLEXY_API_KEY not configured.', results: [] }
+    }
+    if (phones.length === 0) {
+        return { ok: true, results: [], sent: 0, failed: 0 }
+    }
+    if (phones.length > KINGFLEXY_BATCH_CHUNK_SIZE) {
+        return { ok: false, error: `Chunk exceeds ${KINGFLEXY_BATCH_CHUNK_SIZE} recipients`, results: [] }
+    }
+
+    try {
+        const response = await fetch(`${KINGFLEXY_BASE_URL}/sms/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'Authorization': apiKey,
+            },
+            body: JSON.stringify({
+                message:    content,
+                recipients: phones,
+                sender:     sender.trim().substring(0, 11),
+            }),
+        })
+
+        const data: any = await response.json().catch(() => ({}))
+
+        if (response.status === 200 && data.success === true) {
+            const sent   = Number(data.data?.sent)   || 0
+            const failed = Number(data.data?.failed) || Math.max(0, phones.length - sent)
+            return { ok: true, batchId: data.data?.campaignId, results: [], sent, failed }
+        }
+
+        const err = data.error?.message || `KingFlexyGH batch error ${response.status}`
+        console.error('[KingFlexyGH Shop Batch] ❌', err)
+        return { ok: false, error: err, results: [] }
+    } catch (e: any) {
+        console.error('[KingFlexyGH Shop Batch] ❌ Exception:', e.message)
+        return { ok: false, error: `KingFlexyGH exception: ${e.message}`, results: [] }
     }
 }
 
