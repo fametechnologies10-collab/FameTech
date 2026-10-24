@@ -201,22 +201,26 @@ export default function DashboardLayoutClient({
 
             <AgentExpiryModal />
             <SessionExpiryModal />
-            <DashboardSidebar communityLink={communityLink} />
+            <div className="print:hidden">
+                <DashboardSidebar communityLink={communityLink} />
+            </div>
             <div className={cn(
-                "relative transition-all duration-300 ease-in-out min-h-screen flex flex-col w-full max-w-[100vw] overflow-x-clip",
+                "relative transition-all duration-300 ease-in-out min-h-screen flex flex-col w-full max-w-[100vw] overflow-x-clip print:pl-0 print:min-h-0",
                 isCollapsed ? "lg:pl-20" : "lg:pl-80"
             )}>
-                <DashboardHeader
-                    onOpenNotifications={handleOpenNotifications}
-                    unreadCount={unreadCount}
-                />
-                <div className="h-16 flex-shrink-0" />
-                <main className="p-4 lg:p-6 flex-1 max-lg:pb-[calc(80px+env(safe-area-inset-bottom,0px))]">
+                <div className="print:hidden">
+                    <DashboardHeader
+                        onOpenNotifications={handleOpenNotifications}
+                        unreadCount={unreadCount}
+                    />
+                    <div className="h-16 flex-shrink-0" />
+                </div>
+                <main className="p-4 lg:p-6 flex-1 max-lg:pb-[calc(80px+env(safe-area-inset-bottom,0px))] print:p-0">
                     <PageAccessGuard>
                         {children}
                     </PageAccessGuard>
                 </main>
-                <CopyrightFooter adminSettings={adminSettings} className="hidden md:block bg-transparent" />
+                <CopyrightFooter adminSettings={adminSettings} className="hidden md:block bg-transparent print:hidden" />
             </div>
 
             {/* ── Notification Modal (root-level, portals to document.body) ── */}
@@ -228,8 +232,10 @@ export default function DashboardLayoutClient({
                 onUnreadCountChange={setUnreadCount}
             />
 
-            <FloatingRefreshButton />
-            <BottomNav />
+            <div className="print:hidden">
+                <FloatingRefreshButton />
+                <BottomNav />
+            </div>
         </div>
         </ModalQueueProvider>
     )

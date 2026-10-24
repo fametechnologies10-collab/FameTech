@@ -551,13 +551,19 @@ export default function ShopDashboardPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start">
-                        <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shopUrl)}`}
-                            alt="Shop QR code"
-                            width={132}
-                            height={132}
-                            className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-2 flex-shrink-0 mx-auto sm:mx-0"
-                        />
+                        <Link
+                            href="/dashboard/shop/qr-code"
+                            title="Open a printable page for this QR code"
+                            className="flex-shrink-0 mx-auto sm:mx-0"
+                        >
+                            <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shopUrl)}`}
+                                alt="Shop QR code — tap to open a printable version"
+                                width={132}
+                                height={132}
+                                className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-2 hover:opacity-80 transition-opacity"
+                            />
+                        </Link>
 
                         <div className="flex-1 w-full min-w-0 space-y-3">
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-emerald-50/60 dark:bg-emerald-950/20 p-2 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
