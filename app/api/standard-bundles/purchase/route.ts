@@ -66,6 +66,10 @@ export async function POST(request: NextRequest) {
         if (bundleKind === 'standard' && (typeof value !== 'string' || !value)) {
             return fail('Missing bundle selection', 400)
         }
+        // Catalog `value` is not unique; a standard bundle is the (value, amount) pair. Amount is a selector only.
+        if (bundleKind === 'standard' && (typeof amount !== 'number' || !Number.isFinite(amount))) {
+            return fail('Invalid request', 400)
+        }
 
         // Per-user backstop (per-instance memory). Middleware's general /api limiter also applies.
         const rl = consumeRateLimit(`std-bundles-purchase:${userId}`, 10, 60 * 1000)
@@ -159,12 +163,12 @@ export async function POST(request: NextRequest) {
         } else {
             const found = findBundle(
                 catalog.data.bundles,
-                bundleKind === 'special' ? { pack_id: packId } : { value },
+                bundleKind === 'special' ? { pack_id: packId } : { value, amount },
             )
             const resolved = found ? resolveBundleForPurchase(bundleKind, found) : null
             if (!found || !resolved || !resolved.ok) {
                 if (found && bundleKind === 'standard') {
-                    console.error('[StandardBundles] refusing purchase: catalog row not buyable as standard (amount/price mismatch or pack_id)', { network: catalogNetwork, value })
+                    console.error('[StandardBundles] refusing purchase: catalog row not buyable as standard (amount/price mismatch or pack_id)', { network: catalogNetwork, value, selectorAmount: amount })
                 }
                 return fail('This bundle is no longer available. Please refresh.', 404)
             }

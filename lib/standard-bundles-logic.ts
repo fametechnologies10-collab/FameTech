@@ -74,11 +74,21 @@ export function parseCatalog(
 
 export function findBundle(
     bundles: CatalogBundle[],
-    sel: { value?: string; pack_id?: string },
+    sel: { value?: string; amount?: number; pack_id?: string },
 ): CatalogBundle | null {
     // A Special pack_id that vanished must resolve to "not found", never fall back to a standard value.
     if (sel.pack_id) return bundles.find((b) => b.pack_id === sel.pack_id) ?? null
-    if (sel.value) return bundles.find((b) => b.value === sel.value) ?? null
+    if (sel.value) {
+        // KingFlexyGH catalog `value` is NOT unique (Specials share values with standards; two standards can
+        // share one). A standard bundle is identified by the (value, amount) PAIR. `amount` is only a selector.
+        const wanted = sel.amount
+        if (typeof wanted !== 'number' || !Number.isFinite(wanted)) return null
+        return (
+            bundles.find(
+                (b) => b.value === sel.value && b.pack_id === null && Math.abs(b.amount - wanted) <= 0.005,
+            ) ?? null
+        )
+    }
     return null
 }
 

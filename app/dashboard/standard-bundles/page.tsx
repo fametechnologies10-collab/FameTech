@@ -343,7 +343,7 @@ export default function StandardBundlesPage() {
         const pick = (b: CatalogBundle) => openSheet(
             b.kind === 'special'
                 ? { kind: 'special', network: netKey, label: `${b.size} ${b.family_label}`.trim(), price: b.price, packId: b.pack_id ?? undefined }
-                : { kind: 'standard', network: netKey, label: `${b.size} ${b.family_label}`.trim(), price: b.price, value: b.value },
+                : { kind: 'standard', network: netKey, label: `${b.size} ${b.family_label}`.trim(), price: b.price, value: b.value, amount: b.original_price },
         )
         const families = catalog.families.filter(f => standard.some(b => b.family === f.family))
 

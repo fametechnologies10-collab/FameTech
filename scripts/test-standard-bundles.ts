@@ -140,12 +140,32 @@ test('parseCatalog', () => {
 test('findBundle', () => {
     const { bundles } = parseCatalog('MTN', catalogBody)
     assert.equal(findBundle(bundles, { pack_id: 'PK-1' })?.size, '3GB')
-    assert.equal(findBundle(bundles, { value: '1' })?.size, '1GB')
+    assert.equal(findBundle(bundles, { value: '1', amount: 5 })?.size, '1GB')
     assert.equal(findBundle(bundles, { value: '1', pack_id: 'PK-1' })?.size, '3GB')
     assert.equal(findBundle(bundles, { value: '1', pack_id: 'GONE' }), null)
     assert.equal(findBundle(bundles, { pack_id: 'GONE' }), null)
     assert.equal(findBundle(bundles, { value: 'nope' }), null)
     assert.equal(findBundle(bundles, {}), null)
+})
+
+test('findBundle identifies standard bundles by (value, amount) pair (live KingFlexy duplicate values)', () => {
+    const mk = (value: string, pack_id: string | null, amount: number, size: string) =>
+        ({ value, pack_id, amount, price: amount, size, family: 'f', family_label: 'F', network: 'MTN' }) as any
+    const special = mk('RACT_Data_GHC_3_Others', 'p1', 9.75, 'special')
+    const std3 = mk('RACT_Data_GHC_3_Others', null, 3, 'std3')
+    const std20 = mk('RACT_Data_Flexi_Bundle', null, 20, 'std20')
+    const std40 = mk('RACT_Data_Flexi_Bundle', null, 40, 'std40')
+    const rows = [special, std3, std20, std40]
+    assert.equal(findBundle(rows, { value: 'RACT_Data_GHC_3_Others', amount: 3 }), std3)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle', amount: 40 }), std40)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle', amount: 20 }), std20)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle' }), null)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle', amount: NaN }), null)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle', amount: 41 }), null)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_GHC_3_Others', amount: 9.75 }), null)
+    assert.equal(findBundle(rows, { pack_id: 'p1' }), special)
+    assert.equal(findBundle(rows, { pack_id: 'GONE' }), null)
+    assert.equal(findBundle(rows, { value: 'RACT_Data_Flexi_Bundle', amount: 20, pack_id: 'GONE' }), null)
 })
 
 test('referenceFromKey / isValidIdempotencyKey / isValidBeneficiary', () => {
