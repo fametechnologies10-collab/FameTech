@@ -289,6 +289,13 @@ export function isDefinitiveOutcome(status: number, bodyParsed: boolean): boolea
 // data/order, no reference_code) is ambiguous and must keep the idempotency key.
 export function isValidPurchaseSuccess(json: unknown): boolean {
     const j = json as any
-    return !!j && j.success === true && !!j.data && typeof j.data.order === 'object' && j.data.order !== null
+    return !!j && j.success === true && !!j.data && typeof j.data.order === 'object' && j.data.order !== null && !Array.isArray(j.data.order)
         && typeof j.data.order.reference_code === 'string' && j.data.order.reference_code.length > 0
+}
+
+// Client-side idempotency-key lifecycle for one purchase response. 'clear' (start a fresh attempt
+// next time) only for a valid success or a definitive non-ok answer; everything else keeps the key.
+export function decideAttemptKeyAction(input: { ok: boolean; status: number; bodyParsed: boolean; validSuccess: boolean }): 'clear' | 'keep' {
+    if (input.ok) return input.validSuccess ? 'clear' : 'keep'
+    return isDefinitiveOutcome(input.status, input.bodyParsed) ? 'clear' : 'keep'
 }

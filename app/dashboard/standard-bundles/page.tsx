@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogClose, DialogTitle, DialogDescription } fr
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { format, parseISO } from 'date-fns'
-import { isDefinitiveOutcome, isValidPurchaseSuccess } from '@/lib/standard-bundles-logic'
+import { isValidPurchaseSuccess, decideAttemptKeyAction } from '@/lib/standard-bundles-logic'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'MTN' | 'Telecel' | 'AT' | 'Broadband'
@@ -208,8 +208,10 @@ export default function StandardBundlesPage() {
                 }),
             })
             const json = await res.json().catch(() => null)
-            if (!(res.ok && isValidPurchaseSuccess(json))) {
-                if (!res.ok && isDefinitiveOutcome(res.status, json !== null)) {
+            const validSuccess = res.ok && isValidPurchaseSuccess(json)
+            const keyAction = decideAttemptKeyAction({ ok: res.ok, status: res.status, bodyParsed: json !== null, validSuccess })
+            if (!validSuccess) {
+                if (keyAction === 'clear') {
                     // Definitive answer, nothing charged: the next tap is a new purchase.
                     attemptRef.current = null
                     setAmbiguous(false)
@@ -221,8 +223,11 @@ export default function StandardBundlesPage() {
                 }
                 return
             }
-            // Valid success body: only now is it safe to drop the key.
+            // Valid success: the order is read first, then the attempt is settled so the next
+            // sheet (even for the same bundle and number) starts with a fresh key.
             const order = json.data.order as PlacedOrder
+            attemptRef.current = null
+            setAmbiguous(false)
             if (typeof order.new_balance === 'number') setWalletBalance(order.new_balance)
             else loadWallet()
             setPlaced(order)

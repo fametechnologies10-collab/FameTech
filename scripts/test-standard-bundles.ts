@@ -22,6 +22,7 @@ import {
     resolveBundleForPurchase,
     isDefinitiveOutcome,
     isValidPurchaseSuccess,
+    decideAttemptKeyAction,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -316,6 +317,24 @@ test('isValidPurchaseSuccess', () => {
     assert.equal(isValidPurchaseSuccess({ success: false, data: { order: { reference_code: 'x' } } }), false)
     assert.equal(isValidPurchaseSuccess(null), false)
     assert.equal(isValidPurchaseSuccess('ok'), false)
+})
+
+test('isValidPurchaseSuccess rejects an array order', () => {
+    assert.equal(isValidPurchaseSuccess({ success: true, data: { order: [] } }), false)
+    assert.equal(isValidPurchaseSuccess({ success: true, data: { order: Object.assign([], { reference_code: 'x' }) } }), false)
+})
+
+test('decideAttemptKeyAction', () => {
+    const d = decideAttemptKeyAction
+    assert.equal(d({ ok: true, status: 200, bodyParsed: true, validSuccess: true }), 'clear')
+    assert.equal(d({ ok: true, status: 200, bodyParsed: true, validSuccess: false }), 'keep')
+    assert.equal(d({ ok: true, status: 200, bodyParsed: false, validSuccess: false }), 'keep')
+    assert.equal(d({ ok: false, status: 400, bodyParsed: true, validSuccess: false }), 'clear')
+    assert.equal(d({ ok: false, status: 503, bodyParsed: true, validSuccess: false }), 'clear')
+    assert.equal(d({ ok: false, status: 500, bodyParsed: true, validSuccess: false }), 'keep')
+    assert.equal(d({ ok: false, status: 504, bodyParsed: false, validSuccess: false }), 'keep')
+    assert.equal(d({ ok: false, status: 400, bodyParsed: false, validSuccess: false }), 'keep')
+    assert.equal(d({ ok: false, status: 429, bodyParsed: true, validSuccess: false }), 'keep')
 })
 
 if (failed > 0) {
