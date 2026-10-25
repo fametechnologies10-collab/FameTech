@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogClose, DialogTitle, DialogDescription } fr
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { format, parseISO } from 'date-fns'
+import { isDefinitiveOutcome } from '@/lib/standard-bundles-logic'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'MTN' | 'Telecel' | 'AT' | 'Broadband'
@@ -118,6 +119,9 @@ export default function StandardBundlesPage() {
     const attemptRef = useRef<{ signature: string; key: string } | null>(null)
     const phoneInputRef = useRef<HTMLInputElement>(null)
     const [placed, setPlaced] = useState<PlacedOrder | null>(null)
+    // True while a failed attempt may still have created an order: the key is retained and the
+    // sheet is locked to retrying the SAME purchase (or closing, which clears the key).
+    const [ambiguous, setAmbiguous] = useState(false)
 
     const netKey = tab === 'Broadband' ? 'Telecel' : tab
     const catalog = catalogs[netKey]
@@ -205,12 +209,20 @@ export default function StandardBundlesPage() {
             })
             const json = await res.json().catch(() => null)
             if (!res.ok || !json?.success) {
-                // The server answered, so this attempt is settled: the next tap is a new purchase.
-                attemptRef.current = null
-                toast.error(json?.error || 'We could not place your order. Please try again.')
+                if (isDefinitiveOutcome(res.status, json !== null)) {
+                    // Definitive answer, nothing charged: the next tap is a new purchase.
+                    attemptRef.current = null
+                    setAmbiguous(false)
+                    toast.error(json?.error || 'We could not place your order. Please try again.')
+                } else {
+                    // Ambiguous (5xx, gateway error, throttling): the order may exist. Keep the key.
+                    setAmbiguous(true)
+                    toast.error('Your order may have gone through. Please check Order history before trying again.')
+                }
                 return
             }
             attemptRef.current = null
+            setAmbiguous(false)
             const order = json.data.order as PlacedOrder
             if (typeof order.new_balance === 'number') setWalletBalance(order.new_balance)
             else loadWallet()
@@ -220,7 +232,8 @@ export default function StandardBundlesPage() {
             loadHistory()
         } catch {
             // Network/parse failure: the order MAY exist. Keep the key so a retry returns it, not a second charge.
-            toast.error('Connection problem. Please check your order history before trying again.')
+            setAmbiguous(true)
+            toast.error('Your order may have gone through. Please check Order history before trying again.')
         } finally {
             submitLockRef.current = false
             setIsSubmitting(false)
@@ -424,7 +437,7 @@ export default function StandardBundlesPage() {
             )}
 
             {/* ── Confirm bottom sheet ── */}
-            <Dialog open={!!selection} onOpenChange={o => { if (!o && !isSubmitting) setSelection(null) }}>
+            <Dialog open={!!selection} onOpenChange={o => { if (!o && !isSubmitting) { setSelection(null); attemptRef.current = null; setAmbiguous(false) } }}>
                 <DialogContent
                     hideCloseButton
                     className="top-auto bottom-0 translate-y-0 max-w-lg rounded-b-none sm:top-1/2 sm:bottom-auto sm:-translate-y-1/2 sm:rounded-b-2xl p-5 gap-4 max-h-[92dvh] overflow-y-auto"
@@ -452,12 +465,15 @@ export default function StandardBundlesPage() {
                                     {selection.kind === 'broadband' ? 'Broadband number' : 'Recipient number'}
                                 </Label>
                                 <Input id="sb-phone" ref={phoneInputRef} inputMode="numeric" autoComplete="off" maxLength={10} placeholder="0XXXXXXXXX"
-                                    value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} disabled={isSubmitting}
+                                    value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} disabled={isSubmitting || ambiguous}
                                     aria-invalid={phone.length === 10 && !phoneValid} className="rounded-xl h-11" />
                                 {phone.length > 0 && !phoneValid && (
                                     <p className="text-xs text-red-500 mt-1.5" role="alert">Enter 10 digits starting with 0.</p>
                                 )}
                             </div>
+                            {ambiguous && (
+                                <p className="text-xs text-amber-600 dark:text-amber-500" role="status">Your last attempt may have gone through. Check Order history first. You can retry the same purchase below, or close this sheet.</p>
+                            )}
                             {!enoughBalance && walletBalance !== null ? (
                                 <div className="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-3 flex items-start gap-3" role="alert">
                                     <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />

@@ -20,6 +20,7 @@ import {
     validateBroadbandAmount,
     computeBundlePrice,
     resolveBundleForPurchase,
+    isDefinitiveOutcome,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -297,6 +298,12 @@ test('resolveBundleForPurchase', () => {
     const sp = { value: null, pack_id: 'p1', amount: 12, price: 10 } as any
     assert.deepEqual(resolveBundleForPurchase('special', sp), { ok: true, catalogPrice: 10 })
     assert.deepEqual(resolveBundleForPurchase('special', { ...sp, pack_id: null }), { ok: false })
+})
+
+test('isDefinitiveOutcome (non-ok responses only; 200 is handled by the success path)', () => {
+    for (const st of [400, 401, 403, 404, 503]) assert.equal(isDefinitiveOutcome(st, true), true, String(st))
+    for (const st of [500, 502, 504, 408, 409, 429]) assert.equal(isDefinitiveOutcome(st, true), false, String(st))
+    for (const st of [400, 401, 403, 404, 503, 500, 504]) assert.equal(isDefinitiveOutcome(st, false), false, 'unparsed ' + st)
 })
 
 if (failed > 0) {

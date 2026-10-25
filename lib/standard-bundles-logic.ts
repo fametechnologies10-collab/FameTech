@@ -274,3 +274,13 @@ export function resolveBundleForPurchase(
     if (Math.abs(bundle.amount - bundle.price) > 0.005) return { ok: false }
     return { ok: true, catalogPrice: bundle.price }
 }
+
+// Client-side: after a NON-ok purchase response, may the attempt's idempotency key be dropped?
+// Only when the server definitively answered (parseable JSON body, status 400/401/403/404/503):
+// those paths never leave a debit behind. 5xx other than 503, 408/409/429 and any unparseable
+// body (e.g. a gateway HTML 504) are ambiguous: the order may exist, so the key must be kept.
+// A 2xx response is handled by the success path and is not classified here.
+export function isDefinitiveOutcome(status: number, bodyParsed: boolean): boolean {
+    if (!bodyParsed) return false
+    return status === 400 || status === 401 || status === 403 || status === 404 || status === 503
+}
