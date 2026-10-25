@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Package, Wallet, AlertTriangle, Loader2, ArrowRight, RefreshCw, History, CheckCircle, Copy, Wifi, Sparkles, X } from 'lucide-react'
+import { Package, Wallet, AlertTriangle, Loader2, ArrowRight, RefreshCw, History, CheckCircle, Copy, Wifi, Sparkles, X, ShoppingCart } from 'lucide-react'
+import { NetworkIcon } from '@/components/network-icon'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -60,7 +61,7 @@ function newIdempotencyKey(): string {
     })
 }
 
-const money = (n: number) => `GHS ${n.toFixed(2)}`
+const money = (n: number) => `GH₵${n.toFixed(2)}`
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -72,20 +73,74 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ─── Bundle card ──────────────────────────────────────────────────────────────
-function BundleCard({ b, onSelect }: { b: CatalogBundle; onSelect: () => void }) {
+type Net = 'MTN' | 'Telecel' | 'AT'
+
+// Same palette as the Data Packages page.
+const NETWORK_STYLE: Record<Net, { cardBg: string; selectedBorder: string; dark: boolean }> = {
+    MTN: { cardBg: 'bg-amber-400', selectedBorder: 'border-amber-400', dark: true },
+    Telecel: { cardBg: 'bg-red-600', selectedBorder: 'border-red-600', dark: false },
+    AT: { cardBg: 'bg-blue-600', selectedBorder: 'border-blue-600', dark: false },
+}
+const SPECIAL_CAT = '__special'
+
+function NetworkCard({ label, selected, live, selectedBorder, onClick, children }: {
+    label: string; selected: boolean; live: boolean | null; selectedBorder: string; onClick: () => void; children: React.ReactNode
+}) {
+    return (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={onClick}
+            className={cn(
+                'relative flex flex-col items-center gap-1.5 p-2.5 sm:p-3 rounded-2xl border-2 bg-white dark:bg-zinc-900 transition-all duration-200 w-full',
+                selected ? `${selectedBorder} shadow-sm` : 'border-gray-100 dark:border-zinc-800 hover:border-gray-200 dark:hover:border-zinc-700',
+            )}
+        >
+            {children}
+            <span className="text-[10px] sm:text-[11px] font-semibold text-gray-800 dark:text-gray-200 leading-tight text-center">{label}</span>
+            {live !== null && (
+                <span className="flex items-center gap-1">
+                    <span className={cn('w-1.5 h-1.5 rounded-full', live ? 'bg-green-500' : 'bg-slate-400')} />
+                    <span className={cn('text-[9px] sm:text-[10px] font-medium', live ? 'text-green-600' : 'text-slate-400')}>{live ? 'Live' : 'Paused'}</span>
+                </span>
+            )}
+        </button>
+    )
+}
+
+function BundleCard({ b, network, onSelect }: { b: CatalogBundle; network: Net; onSelect: () => void }) {
     const discounted = b.discount_pct > 0 && b.price < b.original_price
+    const st = NETWORK_STYLE[network]
     return (
         <button
             type="button"
             onClick={onSelect}
             aria-label={`${b.size}, ${money(b.price)}`}
-            className="flex flex-col items-start gap-1 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-500/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors text-left min-w-0"
-        >
-            <span className="text-sm font-semibold text-slate-900 dark:text-white truncate w-full">{b.size}</span>
-            <span className="text-base font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{money(b.price)}</span>
-            {discounted && (
-                <span className="text-xs text-slate-400 line-through tabular-nums">{money(b.original_price)}</span>
+            className={cn(
+                'relative flex flex-col items-center rounded-2xl overflow-hidden transition-all duration-150 shadow-md hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.96] active:shadow-sm cursor-pointer select-none text-left min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground',
+                st.cardBg,
             )}
+        >
+            <div className="flex items-center justify-between w-full px-3 pt-3 pb-1">
+                <div className="p-1.5 bg-white/20 rounded-full">
+                    <NetworkIcon network={network} size={20} variant="card" />
+                </div>
+                <span className={cn('text-[9px] font-semibold px-2 py-0.5 rounded-full', st.dark ? 'bg-black/10 text-black' : 'bg-white/20 text-white')}>
+                    {network}
+                </span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center px-2 py-3 gap-0.5 w-full">
+                <span className={cn('text-2xl font-black tracking-tight truncate max-w-full', st.dark ? 'text-black' : 'text-white')}>{b.size}</span>
+                <span className={cn('text-sm font-bold tabular-nums', st.dark ? 'text-black/80' : 'text-white/90')}>{money(b.price)}</span>
+                {discounted && (
+                    <span className={cn('text-[10px] line-through tabular-nums', st.dark ? 'text-black/50' : 'text-white/60')}>{money(b.original_price)}</span>
+                )}
+            </div>
+            <div className={cn('w-full py-2.5 text-[11px] font-semibold flex items-center justify-center gap-1.5', st.dark ? 'bg-black/10 text-black' : 'bg-black/20 text-white')}>
+                <ShoppingCart className="w-3 h-3" />
+                Buy Now
+            </div>
         </button>
     )
 }
@@ -95,6 +150,7 @@ export default function StandardBundlesPage() {
     const { dbUser } = useAuth()
     const [view, setView] = useState<'buy' | 'history'>('buy')
     const [tab, setTab] = useState<TabId>('MTN')
+    const [cat, setCat] = useState<string | null>(null)
 
     const [walletBalance, setWalletBalance] = useState<number | null>(null)
     const [catalogs, setCatalogs] = useState<Partial<Record<'MTN' | 'Telecel' | 'AT', Catalog>>>({})
@@ -252,9 +308,9 @@ export default function StandardBundlesPage() {
     const renderBundles = () => {
         if (loading && !catalog) {
             return (
-                <div className="grid grid-cols-2 gap-2" aria-busy="true" aria-label="Loading bundles">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="h-[78px] rounded-xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3" aria-busy="true" aria-label="Loading bundles">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="h-[150px] rounded-2xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
                     ))}
                 </div>
             )
@@ -295,33 +351,35 @@ export default function StandardBundlesPage() {
             return <p className="text-sm text-center text-slate-500 dark:text-slate-400 py-8">No bundles are listed for {tab} right now.</p>
         }
 
+        // Category pills, as on KingFlexy: Special first, then each family in catalog order.
+        const cats: { id: string; label: string; items: CatalogBundle[]; special?: boolean }[] = []
+        if (special.length > 0) cats.push({ id: SPECIAL_CAT, label: 'Special Bundles', items: special, special: true })
+        for (const f of families) cats.push({ id: f.family, label: f.family_label, items: standard.filter(b => b.family === f.family) })
+        const active = cats.find(c => c.id === cat) ?? cats[0]
+
         return (
-            <div className="space-y-5">
+            <div className="space-y-4">
                 {catalog.stale && (
                     <p className="text-xs text-slate-400 px-1">Prices may be slightly out of date.</p>
                 )}
-                {families.map(f => (
-                    <section key={f.family} aria-label={f.family_label}>
-                        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2 px-1">{f.family_label}</h2>
-                        <div className="grid grid-cols-2 gap-2">
-                            {standard.filter(b => b.family === f.family).map(b => (
-                                <BundleCard key={b.value} b={b} onSelect={() => pick(b)} />
-                            ))}
-                        </div>
-                    </section>
-                ))}
-                {special.length > 0 && (
-                    <section aria-label="Special bundles">
-                        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2 px-1 flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-amber-500" /> Special bundles
-                        </h2>
-                        <div className="grid grid-cols-2 gap-2">
-                            {special.map(b => (
-                                <BundleCard key={b.pack_id ?? b.value} b={b} onSelect={() => pick(b)} />
-                            ))}
-                        </div>
-                    </section>
-                )}
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap" role="tablist" aria-label="Bundle category">
+                    {cats.map(c => (
+                        <button key={c.id} type="button" role="tab" aria-selected={active.id === c.id} onClick={() => setCat(c.id)}
+                            className={cn('shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm font-medium transition-colors whitespace-nowrap',
+                                active.id === c.id
+                                    ? 'bg-foreground text-background border-foreground shadow-sm'
+                                    : 'bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-zinc-700')}>
+                            {c.special && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+                            {c.label}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{active.label} · {active.items.length} {active.items.length === 1 ? 'bundle' : 'bundles'}</p>
+                <section aria-label={active.label} className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {active.items.map(b => (
+                        <BundleCard key={b.pack_id ?? b.value} b={b} network={netKey} onSelect={() => pick(b)} />
+                    ))}
+                </section>
             </div>
         )
     }
@@ -367,7 +425,7 @@ export default function StandardBundlesPage() {
     }
 
     return (
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
             <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                     <Package className="w-5 h-5 text-emerald-500 shrink-0" /> Standard bundles
@@ -395,16 +453,22 @@ export default function StandardBundlesPage() {
 
             {view === 'buy' && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                    <div className="grid grid-cols-4 gap-1.5" role="tablist" aria-label="Network">
-                        {TABS.map(t => (
-                            <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-                                className={cn('py-2.5 px-1 rounded-xl border text-xs sm:text-sm font-medium transition-colors truncate',
-                                    tab === t.id
-                                        ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500/60 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700')}>
-                                {t.label}
-                            </button>
-                        ))}
+                    <div className="grid grid-cols-4 gap-2" role="tablist" aria-label="Network">
+                        {TABS.map(t => {
+                            const net: Net | null = t.id === 'Broadband' ? null : t.id
+                            const live = net
+                                ? (catalogs[net] ? catalogs[net]!.enabled : null)
+                                : (catalogs.Telecel ? !!catalogs.Telecel.broadband?.enabled : null)
+                            return (
+                                <NetworkCard key={t.id} label={t.label} selected={tab === t.id} live={live}
+                                    selectedBorder={net ? NETWORK_STYLE[net].selectedBorder : 'border-emerald-500'}
+                                    onClick={() => { setTab(t.id); setCat(null) }}>
+                                    {net ? <NetworkIcon network={net} size={34} /> : (
+                                        <span className="w-[34px] h-[34px] rounded-full bg-emerald-500 text-white flex items-center justify-center"><Wifi className="w-[18px] h-[18px]" /></span>
+                                    )}
+                                </NetworkCard>
+                            )
+                        })}
                     </div>
                     {tab === 'Broadband' ? renderBroadband() : renderBundles()}
                 </div>
