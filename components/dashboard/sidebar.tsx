@@ -65,6 +65,7 @@ export const userNavItems = [
     { href: '/dashboard/upgrade', label: 'Upgrade', icon: Crown },
     { href: '/dashboard/data-packages', label: 'Data bundles', icon: Package },
     { href: '/dashboard/airtime', label: 'Airtime and mashup', icon: Phone },
+    { href: '/dashboard/standard-bundles', label: 'Standard bundles', icon: Package },
     { href: '/dashboard/utilities', label: 'Bills', icon: Lightbulb },
     { href: '/dashboard/results-checker', label: 'Result checkers', icon: FileText },
     { href: '/dashboard/my-orders', label: 'Orders', icon: ShoppingCart },

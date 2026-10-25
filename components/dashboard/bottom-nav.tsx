@@ -35,6 +35,7 @@ const USER_REGISTRY: Record<string, { label: string; icon: LucideIcon }> = {
     '/dashboard/developers':      { label: 'Dev',       icon: Code2 },
     '/dashboard/sms':             { label: 'SMS',       icon: Send },
     '/dashboard/airtime':         { label: 'Airtime',   icon: Phone },
+    '/dashboard/standard-bundles': { label: 'Bundles',  icon: Package },
     '/dashboard/profile':         { label: 'Profile',   icon: User },
     '/dashboard/upgrade':         { label: 'Upgrade',   icon: Crown },
     '/dashboard/api':             { label: 'API',       icon: Code2 },
