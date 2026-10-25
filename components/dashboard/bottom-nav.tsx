@@ -43,6 +43,7 @@ const USER_REGISTRY: Record<string, { label: string; icon: LucideIcon }> = {
 
 const ADMIN_REGISTRY: Record<string, { label: string; icon: LucideIcon }> = {
     '/admin/ishare':              { label: 'iShare',      icon: Wifi },
+    '/admin/standard-bundles':    { label: 'Bundles',     icon: Package },
     '/admin/utilities':           { label: 'Utilities',   icon: Lightbulb },
     '/admin/shops/withdrawals':   { label: 'Withdrawals', icon: Banknote },
     '/admin/shops/settings':      { label: 'Sh.Settings', icon: Settings },

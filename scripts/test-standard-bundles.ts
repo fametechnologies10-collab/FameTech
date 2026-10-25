@@ -23,6 +23,8 @@ import {
     isDefinitiveOutcome,
     isValidPurchaseSuccess,
     decideAttemptKeyAction,
+    validateBundleSettingsInput,
+    decideAdminRefundGate,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -335,6 +337,50 @@ test('decideAttemptKeyAction', () => {
     assert.equal(d({ ok: false, status: 504, bodyParsed: false, validSuccess: false }), 'keep')
     assert.equal(d({ ok: false, status: 400, bodyParsed: false, validSuccess: false }), 'keep')
     assert.equal(d({ ok: false, status: 429, bodyParsed: true, validSuccess: false }), 'keep')
+})
+
+test('validateBundleSettingsInput accepts valid partial bodies', () => {
+    const r = validateBundleSettingsInput({ enabled: false, networks: { mtn: true, broadband: false }, discounts: { mtn: 7.5, at: 0 } })
+    assert.deepEqual(r, {
+        ok: true,
+        updates: {
+            std_bundles_enabled: 'false',
+            std_bundles_enabled_mtn: 'true',
+            std_bundles_enabled_broadband: 'false',
+            std_bundles_discount_mtn: '7.5',
+            std_bundles_discount_at: '0',
+        },
+    })
+    assert.equal((validateBundleSettingsInput({ discounts: { telecel: 50 } }) as any).updates.std_bundles_discount_telecel, '50')
+})
+
+test('validateBundleSettingsInput rejects bad discounts, unknown keys, non-booleans, empty', () => {
+    for (const bad of [51, -1, 'abc', NaN, Infinity, 1.234, null, '', '5', true]) {
+        assert.equal(validateBundleSettingsInput({ discounts: { mtn: bad } }).ok, false, String(bad))
+    }
+    assert.equal(validateBundleSettingsInput({ discounts: { broadband: 5 } }).ok, false)
+    assert.equal(validateBundleSettingsInput({ networks: { gtp: true } }).ok, false)
+    assert.equal(validateBundleSettingsInput({ evil: 1 }).ok, false)
+    assert.equal(validateBundleSettingsInput({ enabled: 'yes' }).ok, false)
+    assert.equal(validateBundleSettingsInput({ networks: { mtn: 1 } }).ok, false)
+    assert.equal(validateBundleSettingsInput({}).ok, false)
+    assert.equal(validateBundleSettingsInput(null).ok, false)
+    assert.equal(validateBundleSettingsInput([]).ok, false)
+    assert.equal(validateBundleSettingsInput({ discounts: [] }).ok, false)
+})
+
+test('decideAdminRefundGate', () => {
+    const g = decideAdminRefundGate
+    const base = { configured: true, httpOk: true }
+    assert.equal(g({ ...base, found: true, state: 'completed' }), 'mark_completed')
+    assert.equal(g({ ...base, found: true, state: 'pending' }), 'block_in_flight')
+    assert.equal(g({ ...base, found: true, state: 'processing' }), 'block_in_flight')
+    assert.equal(g({ ...base, found: true, state: 'failed' }), 'refund')
+    assert.equal(g({ ...base, found: false, state: 'unknown' }), 'refund')
+    assert.equal(g({ ...base, found: true, state: 'unknown' }), 'block_unverifiable')
+    assert.equal(g({ configured: true, httpOk: false, found: false, state: 'unknown' }), 'block_unverifiable')
+    assert.equal(g({ configured: false, httpOk: false, found: false, state: 'unknown' }), 'block_unverifiable')
+    assert.equal(g({ configured: false, httpOk: true, found: false, state: 'unknown' }), 'block_unverifiable')
 })
 
 if (failed > 0) {

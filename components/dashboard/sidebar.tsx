@@ -92,6 +92,7 @@ export const adminNavItems = [
     { href: '/admin/number-registration', label: 'Number registration', icon: Hourglass },
     { href: '/admin/datagod', label: 'DataGod terminal', icon: Activity },
     { href: '/admin/airtime', label: 'Airtime and mashup', icon: Phone },
+    { href: '/admin/standard-bundles', label: 'Standard bundles', icon: Package },
     { href: '/admin/utilities', label: 'Utilities', icon: Lightbulb },
     { href: '/admin/shops', label: 'Shops', icon: Store },
     { href: '/admin/shops/withdrawals', label: 'Shop withdrawals', icon: Banknote },

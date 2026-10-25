@@ -299,3 +299,82 @@ export function decideAttemptKeyAction(input: { ok: boolean; status: number; bod
     if (input.ok) return input.validSuccess ? 'clear' : 'keep'
     return isDefinitiveOutcome(input.status, input.bodyParsed) ? 'clear' : 'keep'
 }
+
+// ---------------------------------------------------------------------------
+// Admin console helpers
+// ---------------------------------------------------------------------------
+
+const ADMIN_FLAG_NETWORKS = ['mtn', 'telecel', 'at', 'broadband'] as const
+const ADMIN_DISCOUNT_NETWORKS = ['mtn', 'telecel', 'at'] as const
+
+function plainObject(v: unknown): Record<string, unknown> | null {
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
+}
+
+// Validates a partial settings body. Returns admin_settings updates as plain strings (stored as JSONB
+// strings: 'true' / 'false' / '7.5'). Strict: unknown keys, non-booleans, and discounts that are not a
+// finite number in [0, 50] with at most 2 decimals are rejected (no coercion, no clamping).
+export function validateBundleSettingsInput(
+    body: unknown,
+): { ok: true; updates: Record<string, string> } | { ok: false; error: string } {
+    const b = plainObject(body)
+    if (!b) return { ok: false, error: 'Invalid settings body' }
+    const updates: Record<string, string> = {}
+
+    for (const key of Object.keys(b)) {
+        if (key !== 'enabled' && key !== 'networks' && key !== 'discounts') {
+            return { ok: false, error: `Unknown setting: ${key}` }
+        }
+    }
+
+    if (b.enabled !== undefined) {
+        if (typeof b.enabled !== 'boolean') return { ok: false, error: 'enabled must be true or false' }
+        updates.std_bundles_enabled = String(b.enabled)
+    }
+
+    if (b.networks !== undefined) {
+        const n = plainObject(b.networks)
+        if (!n) return { ok: false, error: 'networks must be an object' }
+        for (const [k, v] of Object.entries(n)) {
+            if (!(ADMIN_FLAG_NETWORKS as readonly string[]).includes(k)) return { ok: false, error: `Unknown network: ${k}` }
+            if (typeof v !== 'boolean') return { ok: false, error: `networks.${k} must be true or false` }
+            updates[`std_bundles_enabled_${k}`] = String(v)
+        }
+    }
+
+    if (b.discounts !== undefined) {
+        const d = plainObject(b.discounts)
+        if (!d) return { ok: false, error: 'discounts must be an object' }
+        for (const [k, v] of Object.entries(d)) {
+            if (!(ADMIN_DISCOUNT_NETWORKS as readonly string[]).includes(k)) return { ok: false, error: `Unknown discount network: ${k}` }
+            if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > MAX_DISCOUNT_PCT) {
+                return { ok: false, error: `Discount for ${k} must be a number from 0 to ${MAX_DISCOUNT_PCT}` }
+            }
+            if (Math.abs(Math.round(v * 100) / 100 - v) > 1e-9) {
+                return { ok: false, error: `Discount for ${k} can have at most 2 decimal places` }
+            }
+            updates[`std_bundles_discount_${k}`] = String(v)
+        }
+    }
+
+    if (Object.keys(updates).length === 0) return { ok: false, error: 'No settings provided' }
+    return { ok: true, updates }
+}
+
+export type AdminRefundGate = 'refund' | 'mark_completed' | 'block_in_flight' | 'block_unverifiable'
+
+// The refund RPC refunds a 'processing' order without knowing whether the supplier delivered, so an
+// admin refund/retry may only proceed after the supplier positively says "failed" or "no such order".
+export function decideAdminRefundGate(s: {
+    configured: boolean
+    httpOk: boolean
+    found: boolean
+    state: string
+}): AdminRefundGate {
+    if (!s.configured || !s.httpOk) return 'block_unverifiable'
+    if (!s.found) return 'refund'
+    if (s.state === 'completed') return 'mark_completed'
+    if (s.state === 'pending' || s.state === 'processing') return 'block_in_flight'
+    if (s.state === 'failed') return 'refund'
+    return 'block_unverifiable'
+}
