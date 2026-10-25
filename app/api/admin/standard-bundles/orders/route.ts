@@ -225,7 +225,10 @@ export async function POST(request: NextRequest) {
             if (!['pending', 'processing', 'failed'].includes(order.status)) {
                 return fail(`A ${order.status} order cannot be refunded`, 409)
             }
-        } else if (!['failed', 'pending'].includes(order.status)) {
+        } else if (order.status === 'failed') {
+            // 'failed' means a refund is still owed; a re-dispatch here would race the refund (bundle AND refund).
+            return fail('This order failed and is waiting for a refund. Use Refund instead.', 409)
+        } else if (order.status !== 'pending') {
             return fail(order.status === 'refunded' ? 'A refunded order cannot be retried' : `A ${order.status} order cannot be retried`, 409)
         }
 
@@ -234,6 +237,7 @@ export async function POST(request: NextRequest) {
             ...supplier,
             orderStatus: order.status,
             updatedAtMs: Date.parse(order.updated_at),
+            fulfillmentAttempts: Number(order.fulfillment_attempts) || 0,
             nowMs: Date.now(),
         })
         if (gate === 'block_too_recent') {
@@ -273,7 +277,7 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        // retry: guarded so only a failed/pending order is reset, never a refunded/processing one.
+        // retry: guarded so only a pending order is reset, never a failed/refunded/processing one.
         const { exhausted_at: _exhausted, ...keep } = (order.fulfillment_metadata || {}) as Record<string, unknown>
         void _exhausted
         const now = new Date().toISOString()
@@ -286,7 +290,7 @@ export async function POST(request: NextRequest) {
                 updated_at: now,
             })
             .eq('id', orderId)
-            .in('status', ['failed', 'pending'])
+            .eq('status', 'pending')
             .select('id')
         if (resetErr) {
             console.error(LOG, 'retry reset error:', resetErr.message, 'order:', orderId)

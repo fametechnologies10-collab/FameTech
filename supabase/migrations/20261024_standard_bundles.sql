@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS public.standard_bundle_orders (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   reference_code       text NOT NULL UNIQUE,
-  user_id              uuid NOT NULL REFERENCES public.users(id),
+  user_id              uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   user_role            text,
   network              text NOT NULL CHECK (network IN ('MTN','Telecel','AT','TelecelBroadband')),
   kind                 text NOT NULL CHECK (kind IN ('standard','special','broadband')),
@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS public.standard_bundle_orders (
   pack_id              text,
   bundle_label         text,
   beneficiary_phone    text NOT NULL,
-  catalog_price        numeric(12,2) NOT NULL,
-  discount_pct         numeric(5,2)  NOT NULL DEFAULT 0,
-  total_paid           numeric(12,2) NOT NULL,
+  catalog_price        numeric(12,2) NOT NULL CHECK (catalog_price >= 0),
+  discount_pct         numeric(5,2)  NOT NULL DEFAULT 0 CHECK (discount_pct >= 0 AND discount_pct <= 50),
+  total_paid           numeric(12,2) NOT NULL CHECK (total_paid >= 0),
   status               text NOT NULL DEFAULT 'pending'
                          CHECK (status IN ('pending','processing','completed','failed','refunded')),
   kf_order_ref         text,

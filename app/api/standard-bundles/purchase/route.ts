@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
             return fail('Failed to process payment', 500)
         }
 
-        const { data: order, error: orderError } = await (supabase as any).from('standard_bundle_orders')
+        const { data: insertedOrder, error: orderError } = await (supabase as any).from('standard_bundle_orders')
             .insert({
                 reference_code: clientReference,
                 user_id: userId,
@@ -230,12 +230,25 @@ export async function POST(request: NextRequest) {
             .select('id')
             .single()
 
-        if (orderError || !order) {
+        let order: { id: string } | null = insertedOrder
+        const isDuplicateKey = !!orderError && (orderError.code === '23505' || orderError.message?.includes('duplicate key'))
+        if ((orderError || !order) && !isDuplicateKey) {
+            // supabase-js can resolve with {error} on a network failure AFTER the insert committed. The replay
+            // check above ran before the debit and found nothing, so a row now is this request's own insert:
+            // keep it (no refund) so the customer is not refunded AND delivered.
+            const committed = await replayOf()
+            if (committed) {
+                console.error('[StandardBundles] order insert errored but the row exists; treating as success:', orderError)
+                order = { id: committed.id }
+            }
+        }
+
+        if (!order) {
             console.error('[StandardBundles] order creation error:', orderError)
             await refund('order-insert failure')
             // Concurrent request with the same key: the loser's insert hit the UNIQUE reference_code.
             // It has just been refunded; hand back the winner's order.
-            if (orderError && (orderError.code === '23505' || orderError.message?.includes('duplicate key'))) {
+            if (isDuplicateKey) {
                 const winner = await replayOf()
                 if (winner) return replayResponse(winner)
             }

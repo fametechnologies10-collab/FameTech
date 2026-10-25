@@ -34,7 +34,7 @@ function exhaustedAlertBody(reference: string, outcome: string): string {
     return `gave up after ${MAX_ATTEMPTS} attempts on order ${reference} (last outcome ${outcome}): refund or re-dispatch manually`
 }
 
-async function markExhaustedAndAlert(supabase: any, order: any, outcome: string) {
+export async function markExhaustedAndAlert(supabase: any, order: any, outcome: string) {
     const { data: marked } = await supabase
         .from('standard_bundle_orders')
         .update({

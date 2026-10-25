@@ -385,10 +385,13 @@ export function decideAdminRefundGate(s: {
     orderStatus: string
     updatedAtMs: number
     nowMs: number
+    fulfillmentAttempts?: number
 }): AdminRefundGate {
     if (!s.configured || !s.httpOk) return 'block_unverifiable'
     if (!s.found) {
-        if (s.orderStatus === 'pending' || s.orderStatus === 'processing') {
+        // A pending order never sent to the supplier (attempts 0) has nothing to index; skip the freshness window.
+        const neverDispatched = s.orderStatus === 'pending' && s.fulfillmentAttempts === 0
+        if (!neverDispatched && (s.orderStatus === 'pending' || s.orderStatus === 'processing')) {
             const age = s.nowMs - s.updatedAtMs
             if (!Number.isFinite(age) || age < ADMIN_UNINDEXED_WINDOW_MS) return 'block_too_recent'
         }

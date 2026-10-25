@@ -391,6 +391,11 @@ test('decideAdminRefundGate', () => {
         assert.equal(g({ ...base, found: false, state: 'unknown', ...ctx(st, 11) }), 'refund', st)
     }
     assert.equal(g({ ...base, found: false, state: 'unknown', ...ctx('failed', 0) }), 'refund')
+    // never-dispatched pending order (attempts 0) skips the freshness window
+    assert.equal(g({ ...base, found: false, state: 'unknown', fulfillmentAttempts: 0, ...ctx('pending', 1) }), 'refund')
+    assert.equal(g({ ...base, found: false, state: 'unknown', fulfillmentAttempts: 1, ...ctx('pending', 2) }), 'block_too_recent')
+    assert.equal(g({ ...base, found: false, state: 'unknown', fulfillmentAttempts: 0, ...ctx('processing', 1) }), 'block_too_recent')
+    assert.equal(g({ ...base, found: false, state: 'unknown', fulfillmentAttempts: 3, ...ctx('failed', 0) }), 'refund')
     assert.equal(g({ ...base, found: false, state: 'unknown', orderStatus: 'pending', updatedAtMs: NaN, nowMs: now }), 'block_too_recent')
 })
 

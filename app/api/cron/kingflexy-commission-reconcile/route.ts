@@ -7,7 +7,7 @@ import { checkAirtimeOrderStatus, checkUtilityOrderStatus, type KfStatusResult }
 import { finalizeKfAirtime, finalizeKfUtility } from '@/lib/kingflexy-finalize'
 import { checkBundleOrder } from '@/lib/kingflexy-bundles-service'
 import { finalizeBundle } from '@/lib/standard-bundles-finalize'
-import { dispatchBundleFulfillment } from '@/lib/standard-bundles-fulfillment'
+import { dispatchBundleFulfillment, markExhaustedAndAlert } from '@/lib/standard-bundles-fulfillment'
 
 export const maxDuration = 60
 
@@ -307,6 +307,8 @@ export async function GET(request: NextRequest) {
                     })
                     if (res.transitioned) bundles.finalized++
                 } else {
+                    // Not terminal / not found: never auto-refund. Alert once if nobody has been told this order is stranded.
+                    if (!(o.fulfillment_metadata as Record<string, unknown> | null)?.exhausted_at) await markExhaustedAndAlert(supabase, o, r.state)
                     await rotateBundle(o.id, 'pending')
                 }
             } catch (e) { console.error(LOG, 'bundle pass I failed for', o.id, e) }

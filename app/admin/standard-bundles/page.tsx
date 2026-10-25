@@ -135,7 +135,7 @@ export default function AdminStandardBundlesPage() {
 
     const canSync = (o: BundleOrder) => ['pending', 'processing', 'failed'].includes(o.status)
     const canRefund = (o: BundleOrder) => ['pending', 'processing', 'failed'].includes(o.status)
-    const canRetry = (o: BundleOrder) => ['pending', 'failed'].includes(o.status)
+    const canRetry = (o: BundleOrder) => o.status === 'pending'
 
     return (
         <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
