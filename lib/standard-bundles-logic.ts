@@ -258,3 +258,19 @@ export function computeBundlePrice(args: {
     const price = applyDiscount(args.catalogPrice, parseDiscountSetting(args.discountSetting), args.kind)
     return price >= MIN_PRICE ? price : null
 }
+
+// Decides whether a catalog row may be bought as `kind`, and the price base to charge from.
+// Standard orders send `amount` to the supplier while the customer is charged from `price`, so a
+// standard row whose amount and price diverge fails closed. A row carrying a pack_id is a Special
+// Bundle and can only be bought as 'special'.
+export function resolveBundleForPurchase(
+    kind: 'standard' | 'special',
+    bundle: CatalogBundle,
+): { ok: true; catalogPrice: number } | { ok: false } {
+    if (kind === 'special') {
+        return bundle.pack_id ? { ok: true, catalogPrice: bundle.price } : { ok: false }
+    }
+    if (!bundle.value || bundle.pack_id !== null) return { ok: false }
+    if (Math.abs(bundle.amount - bundle.price) > 0.005) return { ok: false }
+    return { ok: true, catalogPrice: bundle.price }
+}

@@ -19,6 +19,7 @@ import {
     normalizeBundleNetwork,
     validateBroadbandAmount,
     computeBundlePrice,
+    resolveBundleForPurchase,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -284,6 +285,18 @@ test('computeBundlePrice', () => {
     assert.equal(computeBundlePrice({ catalogPrice: 0, discountSetting: 0, kind: 'standard' }), null)
     assert.equal(computeBundlePrice({ catalogPrice: -5, discountSetting: 0, kind: 'standard' }), null)
     assert.equal(computeBundlePrice({ catalogPrice: NaN, discountSetting: 0, kind: 'standard' }), null)
+})
+
+test('resolveBundleForPurchase', () => {
+    const std = { value: '1', pack_id: null, amount: 10, price: 10 } as any
+    assert.deepEqual(resolveBundleForPurchase('standard', std), { ok: true, catalogPrice: 10 })
+    assert.deepEqual(resolveBundleForPurchase('standard', { ...std, amount: 10.004 }), { ok: true, catalogPrice: 10 })
+    assert.deepEqual(resolveBundleForPurchase('standard', { ...std, amount: 12 }), { ok: false })
+    assert.deepEqual(resolveBundleForPurchase('standard', { ...std, pack_id: 'p1' }), { ok: false })
+    assert.deepEqual(resolveBundleForPurchase('standard', { ...std, value: null }), { ok: false })
+    const sp = { value: null, pack_id: 'p1', amount: 12, price: 10 } as any
+    assert.deepEqual(resolveBundleForPurchase('special', sp), { ok: true, catalogPrice: 10 })
+    assert.deepEqual(resolveBundleForPurchase('special', { ...sp, pack_id: null }), { ok: false })
 })
 
 if (failed > 0) {

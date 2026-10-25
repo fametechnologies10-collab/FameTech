@@ -17,6 +17,7 @@ import {
     normalizeBundleNetwork,
     parseDiscountSetting,
     referenceFromKey,
+    resolveBundleForPurchase,
     validateBroadbandAmount,
     type BundleKind,
 } from '@/lib/standard-bundles-logic'
@@ -141,7 +142,6 @@ export async function POST(request: NextRequest) {
         }
 
         let catalogPrice: number // base for the discount
-        let sentAmount: number // exactly what the supplier will be sent
         let catalogValue: string | null = null
         let catalogPackId: string | null = null
         let bundleLabel: string
@@ -155,18 +155,20 @@ export async function POST(request: NextRequest) {
                 return fail(`Enter an amount between GHS ${bb.min.toFixed(2)} and GHS ${bb.max.toFixed(2)}.`, 400)
             }
             catalogPrice = validAmount
-            sentAmount = validAmount
             bundleLabel = 'Telecel Broadband'
         } else {
             const found = findBundle(
                 catalog.data.bundles,
                 bundleKind === 'special' ? { pack_id: packId } : { value },
             )
-            if (!found || (bundleKind === 'special' ? !found.pack_id : !found.value)) {
+            const resolved = found ? resolveBundleForPurchase(bundleKind, found) : null
+            if (!found || !resolved || !resolved.ok) {
+                if (found && bundleKind === 'standard') {
+                    console.error('[StandardBundles] refusing purchase: catalog row not buyable as standard (amount/price mismatch or pack_id)', { network: catalogNetwork, value })
+                }
                 return fail('This bundle is no longer available. Please refresh.', 404)
             }
-            catalogPrice = found.price
-            sentAmount = found.amount
+            catalogPrice = resolved.catalogPrice
             catalogValue = found.value
             catalogPackId = found.pack_id
             bundleLabel = (found.size || found.family_label || 'Data bundle').slice(0, 120)
@@ -219,7 +221,7 @@ export async function POST(request: NextRequest) {
                 pack_id: catalogPackId,
                 bundle_label: bundleLabel,
                 beneficiary_phone: cleanPhone,
-                catalog_price: sentAmount,
+                catalog_price: catalogPrice,
                 discount_pct: discountPct,
                 total_paid: totalPaid,
                 status: 'pending',

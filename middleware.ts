@@ -109,6 +109,7 @@ const fallbackCriticalLimits: Record<string, InMemoryLimitConfig> = {
     '/api/payments/initialize': { maxRequests: 10, windowMs: 60 * 1000 },
     '/api/payments/verify': { maxRequests: 30, windowMs: 60 * 1000 },
     '/api/airtime/create': { maxRequests: 5, windowMs: 60 * 1000 },
+    '/api/standard-bundles/purchase': { maxRequests: 5, windowMs: 60 * 1000 },
     // Wallet-funded role upgrade — real money; keep a cap during a Redis outage.
     '/api/user/upgrade/wallet': { maxRequests: 10, windowMs: 10 * 60 * 1000 },
     // Shop payout request — real money out. 3/hour matches the primary limiter.
@@ -213,6 +214,7 @@ const rateLimiters = REDIS_CONFIGURED ? {
     supplierBalance: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 m'), prefix: 'ft:supplierBalance' }),
     // ── Orders & Purchases ─────────────────────────────────────
     airtimeCreate: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'ft:airtimeCreate' }),
+    standardBundlesPurchase: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'ft:standardBundlesPurchase' }),
     ordersPurchase: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 m'), prefix: 'ft:ordersPurchase' }),
     ordersBulk: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, '1 m'), prefix: 'ft:ordersBulk' }),
     // ── Payments ──────────────────────────────────────────────
@@ -940,6 +942,9 @@ export async function middleware(request: NextRequest) {
             identifier = ip
         } else if (pathname === '/api/airtime/create') {
             limiter = rateLimiters.airtimeCreate
+            identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
+        } else if (pathname === '/api/standard-bundles/purchase') {
+            limiter = rateLimiters.standardBundlesPurchase
             identifier = authUser?.id ? `${authUser.id}-${ip}` : ip
         } else if (pathname === '/api/orders/purchase') {
             limiter = rateLimiters.ordersPurchase
