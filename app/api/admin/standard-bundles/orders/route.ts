@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
 }
 
 const SELECT_ORDER =
-    'id, reference_code, user_id, network, kind, bundle_label, beneficiary_phone, total_paid, status, fulfillment_attempts, fulfillment_metadata'
+    'id, reference_code, user_id, network, kind, bundle_label, beneficiary_phone, total_paid, status, fulfillment_attempts, fulfillment_metadata, updated_at'
 
 type Supplier = Awaited<ReturnType<typeof checkBundleOrder>>
 
@@ -230,7 +230,15 @@ export async function POST(request: NextRequest) {
         }
 
         const supplier = await checkBundleOrder(order.reference_code)
-        const gate = decideAdminRefundGate(supplier)
+        const gate = decideAdminRefundGate({
+            ...supplier,
+            orderStatus: order.status,
+            updatedAtMs: Date.parse(order.updated_at),
+            nowMs: Date.now(),
+        })
+        if (gate === 'block_too_recent') {
+            return fail('This order is too recent to verify with the supplier. Wait about 10 minutes, then sync and try again.', 409)
+        }
         if (gate === 'block_unverifiable') return fail("Can't verify with the supplier right now. Try again.", 502)
         if (gate === 'mark_completed') {
             await markCompleted(supabase, order, supplier)
@@ -245,10 +253,14 @@ export async function POST(request: NextRequest) {
             const { data: refund, error: rpcErr } = await supabase.rpc('refund_standard_bundle_wallet', {
                 p_order_id: orderId,
                 p_actor_id: admin.userId,
+                p_expected_updated_at: order.updated_at,
             })
             if (rpcErr) {
                 console.error(LOG, 'refund RPC error:', rpcErr.message, 'order:', orderId)
                 return fail('The refund could not be completed. Please try again.', 500)
+            }
+            if (refund?.reason === 'changed') {
+                return fail('The order changed while we were checking. Sync it and try again.', 409)
             }
             const refunded = refund?.refunded === true
             return NextResponse.json({

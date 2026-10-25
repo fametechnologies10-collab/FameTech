@@ -55,8 +55,17 @@ CREATE TRIGGER trg_block_client_write BEFORE INSERT OR UPDATE ON public.standard
 -- ── 3. Atomic refund-once RPC ───────────────────────────────────────────────────────────────────
 -- Order row is locked FOR UPDATE BEFORE the status check, so two concurrent calls serialize and
 -- only the first credits. Status flip, wallet credit and ledger row commit or roll back together.
--- Returns { refunded, amount, new_balance }; refunded=false (amount 0) when nothing was credited.
-CREATE OR REPLACE FUNCTION public.refund_standard_bundle_wallet(p_order_id uuid, p_actor_id uuid)
+-- Returns { refunded, amount, new_balance[, reason] }; refunded=false (amount 0) when nothing was credited,
+-- with reason = 'not_found' | 'not_refundable' | 'changed'.
+-- p_expected_updated_at (optional compare-and-set): when given and the locked row's updated_at differs,
+-- nothing is credited (reason 'changed'). Admin refunds pass the updated_at they verified with the
+-- supplier, so a row that was claimed/dispatched in between is never refunded.
+DROP FUNCTION IF EXISTS public.refund_standard_bundle_wallet(uuid, uuid);
+CREATE OR REPLACE FUNCTION public.refund_standard_bundle_wallet(
+  p_order_id uuid,
+  p_actor_id uuid,
+  p_expected_updated_at timestamptz DEFAULT NULL
+)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -69,12 +78,16 @@ DECLARE
 BEGIN
   SELECT * INTO v_o FROM public.standard_bundle_orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
-    RETURN jsonb_build_object('refunded', false, 'amount', 0, 'new_balance', NULL);
+    RETURN jsonb_build_object('refunded', false, 'amount', 0, 'new_balance', NULL, 'reason', 'not_found');
   END IF;
 
   -- Already refunded, completed, etc.: nothing to credit.
   IF v_o.status NOT IN ('pending','processing','failed') THEN
-    RETURN jsonb_build_object('refunded', false, 'amount', 0, 'new_balance', NULL);
+    RETURN jsonb_build_object('refunded', false, 'amount', 0, 'new_balance', NULL, 'reason', 'not_refundable');
+  END IF;
+
+  IF p_expected_updated_at IS NOT NULL AND v_o.updated_at <> p_expected_updated_at THEN
+    RETURN jsonb_build_object('refunded', false, 'amount', 0, 'new_balance', NULL, 'reason', 'changed');
   END IF;
 
   INSERT INTO public.wallets (user_id, balance) VALUES (v_o.user_id, 0)
@@ -103,8 +116,8 @@ BEGIN
   RETURN jsonb_build_object('refunded', true, 'amount', v_o.total_paid, 'new_balance', v_new_balance);
 END $function$;
 
-REVOKE ALL ON FUNCTION public.refund_standard_bundle_wallet(uuid, uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.refund_standard_bundle_wallet(uuid, uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.refund_standard_bundle_wallet(uuid, uuid, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.refund_standard_bundle_wallet(uuid, uuid, timestamptz) TO service_role;
 
 -- ── 4. admin_settings seeds (JSONB strings, matching the app's === 'true' comparisons) ──────────
 INSERT INTO public.admin_settings (key, value) VALUES
@@ -120,7 +133,7 @@ ON CONFLICT (key) DO NOTHING;
 
 -- ── 5. Controller test block (commented out; run in ONE execute_sql call, it rolls back) ────────
 -- Replace <USER_ID> with the id of an existing user that has a wallet. Expected result rows:
---   first = refunded:true, second = refunded:false, balance_delta = total_paid, ledger_rows = 1.
+--   stale_cas = refunded:false/reason changed, first = refunded:true, second = refunded:false, balance_delta = total_paid, ledger_rows = 1.
 --
 -- BEGIN;
 -- CREATE TEMP TABLE _t ON COMMIT DROP AS
@@ -130,6 +143,7 @@ ON CONFLICT (key) DO NOTHING;
 --    catalog_price, total_paid, status)
 -- VALUES ('00000000-0000-0000-0000-00000000a001', 'GHD-TESTREFUND0000000001', '<USER_ID>',
 --         'MTN', 'standard', '1', '0240000000', 5.00, 5.00, 'processing');
+-- SELECT public.refund_standard_bundle_wallet('00000000-0000-0000-0000-00000000a001', NULL, now() - interval '1 day') AS stale_cas; -- expect reason:changed, nothing credited
 -- SELECT public.refund_standard_bundle_wallet('00000000-0000-0000-0000-00000000a001', NULL) AS first;
 -- SELECT public.refund_standard_bundle_wallet('00000000-0000-0000-0000-00000000a001', NULL) AS second;
 -- SELECT (SELECT balance FROM public.wallets WHERE user_id = '<USER_ID>') - (SELECT bal0 FROM _t) AS balance_delta,

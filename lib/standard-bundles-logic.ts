@@ -361,18 +361,39 @@ export function validateBundleSettingsInput(
     return { ok: true, updates }
 }
 
-export type AdminRefundGate = 'refund' | 'mark_completed' | 'block_in_flight' | 'block_unverifiable'
+export type AdminRefundGate = 'refund' | 'mark_completed' | 'block_in_flight' | 'block_unverifiable' | 'block_too_recent'
+
+// A supplier "no record" for a pending/processing order is only trusted once the order has been
+// untouched this long (a freshly dispatched order may not be indexed at the supplier yet).
+export const ADMIN_UNINDEXED_WINDOW_MS = 10 * 60 * 1000
+
+// True only for a 404 carrying the supplier's own JSON envelope with success:false. A bare 404
+// (gateway, wrong base URL, HTML page) is NOT proof the order does not exist.
+export function isConfirmedNotFound(status: number, body: unknown): boolean {
+    if (status !== 404) return false
+    return !!body && typeof body === 'object' && !Array.isArray(body) && (body as Record<string, unknown>).success === false
+}
 
 // The refund RPC refunds a 'processing' order without knowing whether the supplier delivered, so an
-// admin refund/retry may only proceed after the supplier positively says "failed" or "no such order".
+// admin refund/retry may only proceed after the supplier positively says "failed", or "no record"
+// for an order old enough to have been indexed (or already locally failed).
 export function decideAdminRefundGate(s: {
     configured: boolean
     httpOk: boolean
     found: boolean
     state: string
+    orderStatus: string
+    updatedAtMs: number
+    nowMs: number
 }): AdminRefundGate {
     if (!s.configured || !s.httpOk) return 'block_unverifiable'
-    if (!s.found) return 'refund'
+    if (!s.found) {
+        if (s.orderStatus === 'pending' || s.orderStatus === 'processing') {
+            const age = s.nowMs - s.updatedAtMs
+            if (!Number.isFinite(age) || age < ADMIN_UNINDEXED_WINDOW_MS) return 'block_too_recent'
+        }
+        return 'refund'
+    }
     if (s.state === 'completed') return 'mark_completed'
     if (s.state === 'pending' || s.state === 'processing') return 'block_in_flight'
     if (s.state === 'failed') return 'refund'

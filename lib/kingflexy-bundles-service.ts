@@ -7,6 +7,7 @@ import {
 } from '@/lib/kingflexy-commission-service'
 import {
     classifyBundlePurchase,
+    isConfirmedNotFound,
     mapKfBundleStatus,
     parseCatalog,
     type BundleKind,
@@ -250,7 +251,8 @@ export async function checkBundleOrder(reference: string): Promise<{
     if (!apiKey) return { configured: false, httpOk: false, found: false, state: 'unknown' }
     try {
         const res = await kfRequest('GET', `/bundles/orders/${encodeURIComponent(reference)}`, apiKey)
-        if (res.status === 404) return { configured: true, httpOk: true, found: false, state: 'unknown', raw: res.body }
+        // Only the supplier's own JSON 404 envelope proves the order is unknown; any other 404 is unverifiable.
+        if (isConfirmedNotFound(res.status, res.body)) return { configured: true, httpOk: true, found: false, state: 'unknown', raw: res.body }
         if (!res.ok || res.body?.success !== true || !res.body?.data) {
             return { configured: true, httpOk: false, found: false, state: 'unknown', raw: res.body }
         }

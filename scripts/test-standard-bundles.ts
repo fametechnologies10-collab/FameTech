@@ -25,6 +25,7 @@ import {
     decideAttemptKeyAction,
     validateBundleSettingsInput,
     decideAdminRefundGate,
+    isConfirmedNotFound,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -371,16 +372,35 @@ test('validateBundleSettingsInput rejects bad discounts, unknown keys, non-boole
 
 test('decideAdminRefundGate', () => {
     const g = decideAdminRefundGate
+    const now = 1_000_000_000_000
+    const min = 60_000
+    const ctx = (status: string, agoMin: number) => ({ orderStatus: status, updatedAtMs: now - agoMin * min, nowMs: now })
     const base = { configured: true, httpOk: true }
-    assert.equal(g({ ...base, found: true, state: 'completed' }), 'mark_completed')
-    assert.equal(g({ ...base, found: true, state: 'pending' }), 'block_in_flight')
-    assert.equal(g({ ...base, found: true, state: 'processing' }), 'block_in_flight')
-    assert.equal(g({ ...base, found: true, state: 'failed' }), 'refund')
-    assert.equal(g({ ...base, found: false, state: 'unknown' }), 'refund')
-    assert.equal(g({ ...base, found: true, state: 'unknown' }), 'block_unverifiable')
-    assert.equal(g({ configured: true, httpOk: false, found: false, state: 'unknown' }), 'block_unverifiable')
-    assert.equal(g({ configured: false, httpOk: false, found: false, state: 'unknown' }), 'block_unverifiable')
-    assert.equal(g({ configured: false, httpOk: true, found: false, state: 'unknown' }), 'block_unverifiable')
+    const old = ctx('processing', 60)
+    assert.equal(g({ ...base, found: true, state: 'completed', ...old }), 'mark_completed')
+    assert.equal(g({ ...base, found: true, state: 'pending', ...old }), 'block_in_flight')
+    assert.equal(g({ ...base, found: true, state: 'processing', ...old }), 'block_in_flight')
+    assert.equal(g({ ...base, found: true, state: 'failed', ...ctx('processing', 1) }), 'refund')
+    assert.equal(g({ ...base, found: true, state: 'unknown', ...old }), 'block_unverifiable')
+    assert.equal(g({ configured: true, httpOk: false, found: false, state: 'unknown', ...old }), 'block_unverifiable')
+    assert.equal(g({ configured: false, httpOk: false, found: false, state: 'unknown', ...old }), 'block_unverifiable')
+    assert.equal(g({ configured: false, httpOk: true, found: false, state: 'unknown', ...old }), 'block_unverifiable')
+    // found:false (no record) needs a settled order for pending/processing
+    for (const st of ['pending', 'processing']) {
+        assert.equal(g({ ...base, found: false, state: 'unknown', ...ctx(st, 2) }), 'block_too_recent', st)
+        assert.equal(g({ ...base, found: false, state: 'unknown', ...ctx(st, 11) }), 'refund', st)
+    }
+    assert.equal(g({ ...base, found: false, state: 'unknown', ...ctx('failed', 0) }), 'refund')
+    assert.equal(g({ ...base, found: false, state: 'unknown', orderStatus: 'pending', updatedAtMs: NaN, nowMs: now }), 'block_too_recent')
+})
+
+test('isConfirmedNotFound', () => {
+    assert.equal(isConfirmedNotFound(404, { success: false, error: 'not found' }), true)
+    for (const body of ['<html>404</html>', null, undefined, [], [{ success: false }], {}, { success: true }, { error: 'x' }]) {
+        assert.equal(isConfirmedNotFound(404, body), false, JSON.stringify(body))
+    }
+    assert.equal(isConfirmedNotFound(500, { success: false }), false)
+    assert.equal(isConfirmedNotFound(200, { success: false }), false)
 })
 
 if (failed > 0) {
