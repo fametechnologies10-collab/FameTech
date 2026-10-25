@@ -284,3 +284,11 @@ export function isDefinitiveOutcome(status: number, bodyParsed: boolean): boolea
     if (!bodyParsed) return false
     return status === 400 || status === 401 || status === 403 || status === 404 || status === 503
 }
+
+// Client-side: is a 2xx purchase body complete enough to show as a success? Anything else (missing
+// data/order, no reference_code) is ambiguous and must keep the idempotency key.
+export function isValidPurchaseSuccess(json: unknown): boolean {
+    const j = json as any
+    return !!j && j.success === true && !!j.data && typeof j.data.order === 'object' && j.data.order !== null
+        && typeof j.data.order.reference_code === 'string' && j.data.order.reference_code.length > 0
+}

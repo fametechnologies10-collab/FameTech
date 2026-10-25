@@ -21,6 +21,7 @@ import {
     computeBundlePrice,
     resolveBundleForPurchase,
     isDefinitiveOutcome,
+    isValidPurchaseSuccess,
 } from '../lib/standard-bundles-logic'
 import { buildPurchaseBody, isCatalogFresh, pickNewerCatalogCopy } from '../lib/kingflexy-bundles-service'
 
@@ -304,6 +305,17 @@ test('isDefinitiveOutcome (non-ok responses only; 200 is handled by the success 
     for (const st of [400, 401, 403, 404, 503]) assert.equal(isDefinitiveOutcome(st, true), true, String(st))
     for (const st of [500, 502, 504, 408, 409, 429]) assert.equal(isDefinitiveOutcome(st, true), false, String(st))
     for (const st of [400, 401, 403, 404, 503, 500, 504]) assert.equal(isDefinitiveOutcome(st, false), false, 'unparsed ' + st)
+})
+
+test('isValidPurchaseSuccess', () => {
+    assert.equal(isValidPurchaseSuccess({ success: true, data: { order: { reference_code: 'SB-1' } } }), true)
+    assert.equal(isValidPurchaseSuccess({ success: true }), false)
+    assert.equal(isValidPurchaseSuccess({ success: true, data: {} }), false)
+    assert.equal(isValidPurchaseSuccess({ success: true, data: { order: {} } }), false)
+    assert.equal(isValidPurchaseSuccess({ success: true, data: { order: { reference_code: '' } } }), false)
+    assert.equal(isValidPurchaseSuccess({ success: false, data: { order: { reference_code: 'x' } } }), false)
+    assert.equal(isValidPurchaseSuccess(null), false)
+    assert.equal(isValidPurchaseSuccess('ok'), false)
 })
 
 if (failed > 0) {

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogClose, DialogTitle, DialogDescription } fr
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { format, parseISO } from 'date-fns'
-import { isDefinitiveOutcome } from '@/lib/standard-bundles-logic'
+import { isDefinitiveOutcome, isValidPurchaseSuccess } from '@/lib/standard-bundles-logic'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'MTN' | 'Telecel' | 'AT' | 'Broadband'
@@ -208,21 +208,20 @@ export default function StandardBundlesPage() {
                 }),
             })
             const json = await res.json().catch(() => null)
-            if (!res.ok || !json?.success) {
-                if (isDefinitiveOutcome(res.status, json !== null)) {
+            if (!(res.ok && isValidPurchaseSuccess(json))) {
+                if (!res.ok && isDefinitiveOutcome(res.status, json !== null)) {
                     // Definitive answer, nothing charged: the next tap is a new purchase.
                     attemptRef.current = null
                     setAmbiguous(false)
                     toast.error(json?.error || 'We could not place your order. Please try again.')
                 } else {
-                    // Ambiguous (5xx, gateway error, throttling): the order may exist. Keep the key.
+                    // Ambiguous (5xx, gateway error, throttling, malformed 200): the order may exist. Keep the key.
                     setAmbiguous(true)
                     toast.error('Your order may have gone through. Please check Order history before trying again.')
                 }
                 return
             }
-            attemptRef.current = null
-            setAmbiguous(false)
+            // Valid success body: only now is it safe to drop the key.
             const order = json.data.order as PlacedOrder
             if (typeof order.new_balance === 'number') setWalletBalance(order.new_balance)
             else loadWallet()
