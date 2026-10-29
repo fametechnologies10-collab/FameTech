@@ -1,6 +1,6 @@
 // Shop QR helpers: image URL + "save as PNG file" so shop owners can share the code.
 // api.qrserver.com sends `Access-Control-Allow-Origin: *`; it is allow-listed in
-// next.config.ts (img-src for display, connect-src for the download fetch).
+// next.config.ts AND vercel.json, which both send a CSP (img-src for display, connect-src for the download fetch).
 
 export function shopQrImageUrl(shopUrl: string, size = 600, margin = 10): string {
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=${margin}&format=png&data=${encodeURIComponent(shopUrl)}`
