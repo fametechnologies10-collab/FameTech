@@ -13,10 +13,11 @@ import {
     Settings, Tag, Banknote, Clock, CheckCircle2, XCircle,
     AlertCircle, ExternalLink, Copy, Check, RefreshCcw, Crown,
     MessageCircle, Loader2, Gem, Users, FileText, MessageSquare, Smartphone, Receipt,
-    Share2, Lightbulb
+    Share2, Lightbulb, Download
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { shopQrImageUrl, downloadShopQr } from '@/lib/shop-qr'
 import { Switch } from '@/components/ui/switch'
 import { ConfirmationStatusBanner } from '@/components/shop/confirmation-status-banner'
 import { PromoCarousel } from '@/components/promo-carousel/PromoCarousel'
@@ -302,6 +303,12 @@ export default function ShopDashboardPage() {
         setTimeout(() => setCopied(false), 2000)
     }
 
+    const saveQr = async () => {
+        const ok = await downloadShopQr(shopUrl, shop?.shop_slug || '')
+        if (ok) toast.success('QR code downloaded')
+        else toast.error('Could not download the QR code. Try again.')
+    }
+
     const handleSaveAnnouncement = async () => {
         if (!annMsg.trim()) {
             toast.error('Message cannot be empty')
@@ -557,7 +564,7 @@ export default function ShopDashboardPage() {
                             className="flex-shrink-0 mx-auto sm:mx-0"
                         >
                             <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shopUrl)}`}
+                                src={shopQrImageUrl(shopUrl, 300)}
                                 alt="Shop QR code — tap to open a printable version"
                                 width={132}
                                 height={132}
@@ -571,6 +578,9 @@ export default function ShopDashboardPage() {
                                 <div className="flex items-center gap-2">
                                     <Button onClick={copyLink} variant="secondary" size="sm" className="flex-1 sm:flex-none h-9 bg-white dark:bg-zinc-900 text-emerald-600 gap-1.5 rounded-lg font-semibold">
                                         {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} {copied ? 'Copied!' : 'Copy'}
+                                    </Button>
+                                    <Button onClick={saveQr} variant="secondary" size="sm" className="flex-1 sm:flex-none h-9 bg-white dark:bg-zinc-900 text-emerald-600 gap-1.5 rounded-lg font-semibold">
+                                        <Download className="w-3.5 h-3.5" /> QR
                                     </Button>
                                     <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer">
                                         <Button size="sm" className="h-9 bg-[#25D366] hover:bg-[#1ebc57] text-white gap-1.5 rounded-lg font-semibold">

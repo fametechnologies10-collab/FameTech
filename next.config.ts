@@ -162,7 +162,7 @@ const nextConfig: NextConfig = {
                             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                             "font-src 'self' https://fonts.gstatic.com",
                             "img-src 'self' data: https://*.supabase.co https://cdn.jsdelivr.net https://www.transparenttextures.com https://api.qrserver.com blob:",
-                            "connect-src 'self' https://*.supabase.co https://api.paystack.co wss://*.supabase.co",
+                            "connect-src 'self' https://*.supabase.co https://api.paystack.co https://api.qrserver.com wss://*.supabase.co",
                             "frame-src https://js.paystack.co",
                             "frame-ancestors 'none'",
                         ].join('; '),

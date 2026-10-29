@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Printer, Loader2, QrCode as QrCodeIcon } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { shopQrImageUrl, downloadShopQr } from '@/lib/shop-qr'
+import { ArrowLeft, Printer, Download, Loader2, QrCode as QrCodeIcon } from 'lucide-react'
 
 export default function ShopQrCodePage() {
     const { dbUser } = useAuth()
@@ -56,7 +58,7 @@ export default function ShopQrCodePage() {
 
             <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-zinc-950 p-6 sm:p-10 flex flex-col items-center text-center print:border-0 print:p-0">
                 <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(shopUrl)}`}
+                    src={shopQrImageUrl(shopUrl, 600)}
                     alt="Shop QR code"
                     width={320}
                     height={320}
@@ -68,9 +70,21 @@ export default function ShopQrCodePage() {
                     Scan this code to shop data bundles, airtime and vouchers.
                 </p>
 
-                <Button onClick={() => window.print()} className="mt-6 gap-1.5 print:hidden">
-                    <Printer className="w-4 h-4" /> Print
-                </Button>
+                <div className="mt-6 flex flex-wrap justify-center gap-2 print:hidden">
+                    <Button
+                        onClick={async () => {
+                            const ok = await downloadShopQr(shopUrl, shopSlug)
+                            if (ok) toast.success('QR code downloaded')
+                            else toast.error('Could not download the QR code. Try again.')
+                        }}
+                        className="gap-1.5"
+                    >
+                        <Download className="w-4 h-4" /> Download QR
+                    </Button>
+                    <Button onClick={() => window.print()} variant="outline" className="gap-1.5">
+                        <Printer className="w-4 h-4" /> Print
+                    </Button>
+                </div>
             </div>
         </div>
     )
