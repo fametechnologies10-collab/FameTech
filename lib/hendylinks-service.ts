@@ -12,6 +12,7 @@
 //  - No bundle/plan-ID catalog — always dispatches via `network` + `size_gb`.
 
 import type { OrderToFulfill, BulkOrderResult } from '@/lib/fulfillment-service'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const HENDYLINKS_API_KEY = process.env.HENDYLINKS_API_KEY || ''
 const HENDYLINKS_API_BASE_URL = process.env.HENDYLINKS_API_BASE_URL || 'https://hendylinks.net'
@@ -587,7 +588,8 @@ export async function applyHendyLinksHistoryMatch(
     supabase: any,
     order: { id: string; status: string },
     match: HendyLinksOrder,
-    sourceLabel: string = 'admin-reconciliation'
+    sourceLabel: string = 'admin-reconciliation',
+    stamp: { allowNowFallback: boolean } = { allowNowFallback: false }
 ): Promise<{ updated: boolean; error?: string }> {
     const newStatus = match.status
     if (newStatus === order.status || (newStatus !== 'completed' && newStatus !== 'failed')) {
@@ -603,7 +605,7 @@ export async function applyHendyLinksHistoryMatch(
 
     const { error: updateError } = await supabase
         .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, stamp) })
         .eq('id', order.id)
         .eq('status', order.status)
         .eq('fulfillment_method', 'hendylinks')

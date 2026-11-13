@@ -5,6 +5,7 @@ import { validateCronAuth } from '@/lib/cron-utils'
 import { syncShopOrderStatus } from '@/lib/shop-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const CONCURRENCY = 5
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
                 // or a concurrent cron run resolving it first).
                 const { data: updatedRows, error: updateError } = await (supabase
                     .from('orders') as any)
-                    .update({ status: newStatus, updated_at: new Date().toISOString() })
+                    .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
                     .eq('id', order.id)
                     .eq('status', 'processing')
                     .eq('fulfillment_method', 'spfastit')

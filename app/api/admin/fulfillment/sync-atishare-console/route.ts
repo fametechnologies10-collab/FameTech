@@ -6,6 +6,7 @@ import { validateAdminAccess } from '@/lib/auth-utils'
 import { syncShopOrderStatus } from '@/lib/shop-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 // Admin-triggered twin of app/api/cron/sync-atishare-console-status. No age threshold —
 // an admin clicking "Sync" wants an immediate check — otherwise identical resolution logic.
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
                 // status is constrained too, so a row already resolved elsewhere in the
                 // meantime is never clobbered.
                 const { data: updated, error: updateError } = await (supabase.from('orders') as any)
-                    .update({ status: mapped, updated_at: new Date().toISOString() })
+                    .update({ status: mapped, updated_at: new Date().toISOString(), ...deliveredAtPatch(mapped, { allowNowFallback: false, supplierTime: status.completedAt }) })
                     .eq('id', order.id)
                     .in('status', ['pending', 'processing'])
                     .eq('fulfillment_method', 'atishare_console')

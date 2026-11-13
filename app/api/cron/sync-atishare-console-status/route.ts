@@ -6,6 +6,7 @@ import { validateCronAuth } from '@/lib/cron-utils'
 import { syncShopOrderStatus } from '@/lib/shop-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 // AT-iShare Console (SPFastIT) has NO webhook. This cron is the ONLY mechanism that
 // ever moves a console order out of pending/processing — without it, every console
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
                     // never clobbered.
                     const { data: updated, error: updateError } = await (supabase
                         .from('orders') as any)
-                        .update({ status: mapped, updated_at: new Date().toISOString() })
+                        .update({ status: mapped, updated_at: new Date().toISOString(), ...deliveredAtPatch(mapped, { allowNowFallback: true, supplierTime: status.completedAt }) })
                         .eq('id', order.id)
                         .eq('fulfillment_method', 'atishare_console')
                         .in('status', ['pending', 'processing'])

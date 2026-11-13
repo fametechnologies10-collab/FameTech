@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
                 // 'processing'` is passed explicitly (not order.status) since this sweep's
                 // SELECT is already scoped to status='processing' — see the guard comment on
                 // applyHendyLinksHistoryMatch for the fulfillment_method race this repeats.
-                const applyResult = await applyHendyLinksHistoryMatch(supabase, { id: order.id, status: 'processing' }, match, 'cron-reconciliation')
+                const applyResult = await applyHendyLinksHistoryMatch(supabase, { id: order.id, status: 'processing' }, match, 'cron-reconciliation', { allowNowFallback: true })
                 if (applyResult.error) {
                     console.error(`[CronSyncHendyLinks] DB update failed for ${order.id}:`, applyResult.error)
                     errors.push(`DB update failed for ${order.id}: ${applyResult.error}`)

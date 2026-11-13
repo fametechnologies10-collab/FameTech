@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
 import { mapSpfastitStatus, extractOrderIdFromReference } from '@/lib/spfastit-service'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 /**
  * SPFastIT signs nothing natively — the shared secret travels as a query param on the
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
         // overwrite that new supplier's outcome (checklist item 5).
         let query: any = supabase
             .from('orders')
-            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
             .eq('spfastit_reference', reference)
             .eq('fulfillment_method', 'spfastit')
             .eq('status', 'processing')
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
         if (updatedIds.length === 0 && orderId) {
             const { data: byIdRows, error: byIdError } = await supabase
                 .from('orders')
-                .update({ status: newStatus, updated_at: new Date().toISOString(), spfastit_reference: reference })
+                .update({ status: newStatus, updated_at: new Date().toISOString(), spfastit_reference: reference, ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
                 .eq('id', orderId)
                 .eq('fulfillment_method', 'spfastit')
                 .eq('status', 'processing')

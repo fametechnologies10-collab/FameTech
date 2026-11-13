@@ -5,6 +5,7 @@ import { verifyHendyLinksSignature } from '@/lib/hendylinks-webhook-signature'
 import { parseHendyLinksTimestamp } from '@/lib/hendylinks-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 // HendyLinks signs the webhook payload with HMAC-SHA256 using the API token as the secret
 // (per their docs' Node.js example: crypto.createHmac('sha256', 'YOUR_API_TOKEN')), sent as
@@ -166,6 +167,7 @@ export async function POST(request: NextRequest) {
             .update({
                 status: newStatus,
                 updated_at: new Date().toISOString(),
+                ...deliveredAtPatch(newStatus, { allowNowFallback: true }),
             })
             .eq('id', order.id)
             .eq('status', 'processing')

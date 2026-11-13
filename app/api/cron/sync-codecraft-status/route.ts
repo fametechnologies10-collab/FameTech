@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase'
 import { checkOrderStatus } from '@/lib/codecraft-service'
 import { validateCronAuth } from '@/lib/cron-utils'
 import { syncShopOrderStatus } from '@/lib/shop-service'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const CONCURRENCY = 5
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
                 // Guard: only update if still processing (prevents race conditions)
                 const { error: updateError } = await (supabase
                     .from('orders') as any)
-                    .update({ status: newStatus, updated_at: new Date().toISOString() })
+                    .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
                     .eq('id', order.id)
                     .eq('status', 'processing')
 

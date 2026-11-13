@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto'
 import { createServerClient } from '@/lib/supabase'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 /**
  * Recovers OUR order UUID from whatever identifier DataKazina quotes back.
@@ -163,7 +164,13 @@ export async function POST(request: NextRequest) {
         ): Promise<string[]> {
             try {
                 let q: any = (supabase.from(table) as any)
-                    .update({ status: targetStatus, updated_at: new Date().toISOString() })
+                    .update({
+                        status: targetStatus,
+                        updated_at: new Date().toISOString(),
+                        // shop_orders has NO delivered_at column — adding it there would make the UPDATE fail,
+                        // so only the orders table gets the stamp.
+                        ...(table === 'orders' ? deliveredAtPatch(targetStatus, { allowNowFallback: true }) : {}),
+                    })
                 q = applyFilters(q)
                 const { data, error } = await q.eq('status', 'processing').select('id')
                 if (error) {

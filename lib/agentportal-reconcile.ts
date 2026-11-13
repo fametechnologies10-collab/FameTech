@@ -116,7 +116,10 @@ export interface ReconcileResult {
  *    NOT confirmed in flight are flagged — and even then only via admin alert, never
  *    auto-resolved and never refunded.
  */
-export async function reconcileAgentPortalDeliveries(): Promise<ReconcileResult> {
+export async function reconcileAgentPortalDeliveries(
+    // Cron keeps the default (now() fallback); the admin Sync button passes false.
+    stamp: { allowNowFallback: boolean } = { allowNowFallback: true }
+): Promise<ReconcileResult> {
     const errors: string[] = []
     let resent = 0
     let resolvedCount = 0
@@ -237,7 +240,7 @@ export async function reconcileAgentPortalDeliveries(): Promise<ReconcileResult>
             for (const [ourOrderId, outcome] of itemsResult.resolved) {
                 if (!remainingOurOrderIds.has(ourOrderId)) continue // not one of our stuck orders — ignore
 
-                const result = await applyAgentPortalOutcome(ourOrderId, outcome.outcome, outcome.failedReason, 'AgentPortal Reconcile')
+                const result = await applyAgentPortalOutcome(ourOrderId, outcome.outcome, outcome.failedReason, 'AgentPortal Reconcile', stamp)
                 if (result.retryable) {
                     errors.push(`Apply failed (transient) for order ${ourOrderId} — will retry next run`)
                     continue
@@ -280,7 +283,7 @@ export async function reconcileAgentPortalDeliveries(): Promise<ReconcileResult>
             for (const [ourOrderId, outcome] of phoneResult.resolved) {
                 if (!remainingOurOrderIds.has(ourOrderId)) continue
 
-                const result = await applyAgentPortalOutcome(ourOrderId, outcome.outcome, outcome.failedReason, 'AgentPortal Reconcile (phone lookup)')
+                const result = await applyAgentPortalOutcome(ourOrderId, outcome.outcome, outcome.failedReason, 'AgentPortal Reconcile (phone lookup)', stamp)
                 if (result.retryable) {
                     errors.push(`Apply failed (transient) for order ${ourOrderId} — will retry next run`)
                     continue
@@ -522,7 +525,7 @@ export async function syncAgentPortalOrdersById(orderIds: string[]): Promise<Sel
 
     let updated = 0
     for (const [orderId, outcome] of result.resolved) {
-        const applyResult = await applyAgentPortalOutcome(orderId, outcome.outcome, outcome.failedReason, 'AgentPortal Admin Sync (selection)')
+        const applyResult = await applyAgentPortalOutcome(orderId, outcome.outcome, outcome.failedReason, 'AgentPortal Admin Sync (selection)', { allowNowFallback: false })
         if (applyResult.retryable) {
             errors.push(`Apply failed (transient) for order ${orderId}`)
             continue

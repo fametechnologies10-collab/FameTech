@@ -43,6 +43,7 @@ import { sanitizeForStorage } from '@/lib/sanitize-for-storage'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
 import type { AgentPortalTerminalOutcome } from '@/lib/agentportal-status'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const supabaseAdmin = createAdminClient()
 
@@ -71,11 +72,14 @@ export async function applyAgentPortalOutcome(
     orderId: string,
     outcome: AgentPortalTerminalOutcome,
     failedReason: string | null,
-    alertSourceLabel: string = 'AgentPortal'
+    alertSourceLabel: string = 'AgentPortal',
+    // Admin-initiated syncs pass { allowNowFallback: false }: a manual sync can run hours after
+    // the real delivery, so now() would be a wrong delivered_at. Webhook/cron keep the default.
+    stamp: { allowNowFallback: boolean } = { allowNowFallback: true }
 ): Promise<ApplyOutcomeResult> {
     const { data: updatedRows, error: updateError } = await supabaseAdmin
         .from('orders')
-        .update({ status: outcome, updated_at: new Date().toISOString() })
+        .update({ status: outcome, updated_at: new Date().toISOString(), ...deliveredAtPatch(outcome, stamp) })
         .eq('id', orderId)
         .eq('fulfillment_method', 'agentportal')
         .in('status', ['pending', 'processing'])
@@ -100,7 +104,7 @@ export async function applyAgentPortalOutcome(
 
         const { data: rescuedRows, error: rescueError } = await supabaseAdmin
             .from('orders')
-            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .update({ status: 'completed', updated_at: new Date().toISOString(), ...deliveredAtPatch('completed', stamp) })
             .eq('id', orderId)
             .eq('fulfillment_method', 'agentportal')
             .eq('status', 'failed')
