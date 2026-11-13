@@ -1,4 +1,4 @@
-import { getGatewayStatus } from '@/lib/gateway-status'
+import { getGatewayStatus, coerceRpcRows } from '@/lib/gateway-status'
 import type { RawGatewayRow } from '@/lib/gateway-health'
 
 function assert(cond: unknown, msg: string) {
@@ -75,6 +75,24 @@ async function main() {
         const { deps, calls } = makeDeps({ cacheGet: async () => bad })
         const r = await getGatewayStatus(deps)
         assert(calls.fetch === 1 && r.networks.length === 5, `malformed treated as miss: ${String(bad)}`)
+    }
+    // 8. coerceRpcRows
+    {
+        assert(coerceRpcRows(null).length === 0 && coerceRpcRows('x').length === 0 && coerceRpcRows({}).length === 0, 'non-array input -> []')
+        const out = coerceRpcRows([
+            { key: 'MTN', last_placed_at: 5, last_delivered_at: '2026-11-13T09:55:00Z', delivery_minutes: [null, undefined, '', true, '12.5', 'abc', NaN, -3, 0, 7], resolved_count: '4', failed_count: 'x' },
+            { key: 'Telecel', delivery_minutes: 'oops', resolved_count: -2, failed_count: 1.9, last_placed_at: null },
+            { key: 42, delivery_minutes: [1] },
+            null,
+            'str',
+            { delivery_minutes: [1] },
+        ])
+        assert(out.length === 2, 'rows without string key / non-objects skipped')
+        assert(JSON.stringify(out[0].delivery_minutes) === JSON.stringify([12.5, 0, 7]), `minutes coerced: ${JSON.stringify(out[0].delivery_minutes)}`)
+        assert(out[0].resolved_count === 4 && out[0].failed_count === 0, 'counts coerced')
+        assert(out[0].last_placed_at === null && out[0].last_delivered_at === '2026-11-13T09:55:00Z', 'timestamps')
+        assert(Array.isArray(out[1].delivery_minutes) && out[1].delivery_minutes.length === 0, 'non-array minutes -> []')
+        assert(out[1].resolved_count === 0 && out[1].failed_count === 1, 'count floor/negative')
     }
     console.log('gateway-status: all assertions passed')
 }
