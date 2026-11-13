@@ -13,6 +13,7 @@ export type AdminUserAction =
     | 'reset_password'
     | 'view_momo_details'
     | 'afa_status_change'
+    | 'gateway_status_override'
 
 export async function logAdminAction(
     supabaseAdmin: SupabaseClient,

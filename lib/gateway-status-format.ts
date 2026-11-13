@@ -1,22 +1,9 @@
 /**
  * Pure formatting helpers for the dashboard delivery-status widget.
  */
-import type { GatewayBand } from '@/lib/gateway-health'
+import type { StrengthTier } from '@/lib/gateway-estimate'
 
 const DASH = '—'
-
-/** 0.4 -> "0.4 min", 59.9 -> "59.9 min", 125 -> "2hr 5min", null -> "—". */
-export function formatMinutes(minutes: number | null | undefined): string {
-    if (minutes === null || minutes === undefined || !Number.isFinite(minutes) || minutes < 0) return DASH
-    if (minutes < 60) {
-        const rounded = Math.round(minutes * 10) / 10
-        if (rounded < 60) return `${rounded} min`
-    }
-    const total = Math.round(minutes)
-    const h = Math.floor(total / 60)
-    const m = total % 60
-    return m === 0 ? `${h}hr` : `${h}hr ${m}min`
-}
 
 const CLOCK = new Intl.DateTimeFormat('en-GH', {
     hour: 'numeric',
@@ -25,34 +12,42 @@ const CLOCK = new Intl.DateTimeFormat('en-GH', {
     timeZone: 'Africa/Accra',
 })
 
+/** Replace narrow/no-break spaces with a plain space and lower-case am/pm. */
+export function normalizeClock(text: string): string {
+    return text.replace(/[\u202f\u00a0]/g, ' ').toLowerCase()
+}
+
 /** ISO timestamp -> "11:14 pm" in Ghana time; invalid/null -> "—". */
 export function formatClockTime(iso: string | null | undefined): string {
     if (!iso) return DASH
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return DASH
-    return CLOCK.format(d).replace(/[  ]/g, ' ').toLowerCase()
+    return normalizeClock(CLOCK.format(d))
 }
 
-export const BAND_HEADLINE: Record<GatewayBand, string> = {
-    excellent: 'Delivering fast',
-    good: 'Delivering fast',
-    slow: 'Running slow',
-    degraded: 'Delays likely',
-    none: 'No recent orders',
-}
-
-export const BAND_FILL_CLASS: Record<GatewayBand, string> = {
-    excellent: 'bg-green-500 dark:bg-green-400',
-    good: 'bg-lime-500 dark:bg-lime-400',
-    slow: 'bg-amber-500 dark:bg-amber-400',
-    degraded: 'bg-red-500 dark:bg-red-400',
+export const TIER_FILL_CLASS: Record<StrengthTier | 'down' | 'none', string> = {
+    Excellent: 'bg-green-500 dark:bg-green-400',
+    Good: 'bg-lime-500 dark:bg-lime-400',
+    Delayed: 'bg-amber-500 dark:bg-amber-400',
+    Critical: 'bg-red-500 dark:bg-red-400',
+    down: 'bg-transparent',
     none: 'bg-transparent',
 }
 
-export const BAND_TEXT_CLASS: Record<GatewayBand, string> = {
-    excellent: 'text-green-700 dark:text-green-400',
-    good: 'text-lime-700 dark:text-lime-400',
-    slow: 'text-amber-700 dark:text-amber-400',
-    degraded: 'text-red-700 dark:text-red-400',
+export const TIER_TEXT_CLASS: Record<StrengthTier | 'down' | 'none', string> = {
+    Excellent: 'text-green-700 dark:text-green-400',
+    Good: 'text-lime-700 dark:text-lime-400',
+    Delayed: 'text-amber-700 dark:text-amber-400',
+    Critical: 'text-red-700 dark:text-red-400',
+    down: 'text-amber-700 dark:text-amber-400',
     none: 'text-muted-foreground',
+}
+
+export const COOLDOWN_MS = 10_000
+
+/** Milliseconds of refresh cooldown left; always within [0, COOLDOWN_MS]. */
+export function cooldownRemainingMs(nowMs: number, fetchEndedAtMs: number | null): number {
+    if (fetchEndedAtMs === null || !Number.isFinite(nowMs) || !Number.isFinite(fetchEndedAtMs)) return 0
+    const remaining = COOLDOWN_MS - (nowMs - fetchEndedAtMs)
+    return Math.min(COOLDOWN_MS, Math.max(0, remaining))
 }
