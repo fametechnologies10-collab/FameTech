@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
-import type { GatewayNetwork } from '@/lib/gateway-health'
+import type { ChannelView } from '@/lib/gateway-estimate'
 
 export interface GatewayStatusData {
     generatedAt: string
-    networks: GatewayNetwork[]
+    serverNow: string
+    networks: ChannelView[]
 }
 
-const POLL_MS = 60_000
+const POLL_MS = 25_000
 const ENDPOINT = '/api/dashboard/gateway-status'
 
 async function fetchGatewayStatus(): Promise<GatewayStatusData> {
@@ -17,19 +18,28 @@ async function fetchGatewayStatus(): Promise<GatewayStatusData> {
     if (!res.ok) throw new Error(`Gateway status request failed (${res.status})`)
     const body = (await res.json()) as {
         success?: boolean
-        data?: { generatedAt?: unknown; networks?: unknown }
+        data?: { generatedAt?: unknown; serverNow?: unknown; networks?: unknown }
     } | null
-    if (!body || body.success !== true || !body.data || !Array.isArray(body.data.networks)) {
+    if (
+        !body ||
+        body.success !== true ||
+        !body.data ||
+        !Array.isArray(body.data.networks) ||
+        typeof body.data.generatedAt !== 'string' ||
+        typeof body.data.serverNow !== 'string'
+    ) {
         throw new Error('Malformed gateway status response')
     }
     return {
-        generatedAt: typeof body.data.generatedAt === 'string' ? body.data.generatedAt : '',
-        networks: body.data.networks as GatewayNetwork[],
+        generatedAt: body.data.generatedAt,
+        serverNow: body.data.serverNow,
+        networks: body.data.networks as ChannelView[],
     }
 }
 
 export function useGatewayStatus(): {
     data: GatewayStatusData | null
+    receivedAtMs: number | null
     isLoading: boolean
     error: Error | null
     refresh: () => Promise<void>
@@ -38,6 +48,7 @@ export function useGatewayStatus(): {
     const userId = dbUser?.id ?? null
 
     const [data, setData] = useState<GatewayStatusData | null>(null)
+    const [receivedAtMs, setReceivedAtMs] = useState<number | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<Error | null>(null)
 
@@ -63,6 +74,7 @@ export function useGatewayStatus(): {
             if (!mountedRef.current || gen !== genRef.current) return
             dataRef.current = next
             setData(next)
+            setReceivedAtMs(Date.now())
             setError(null)
         } catch (e) {
             if (!mountedRef.current || gen !== genRef.current) return
@@ -85,13 +97,14 @@ export function useGatewayStatus(): {
         inFlightRef.current = false
         dataRef.current = null
         setData(null)
+        setReceivedAtMs(null)
         setError(null)
         setIsLoading(true)
         if (!userId) return
         void refresh()
     }, [userId, refresh])
 
-    // Poll every 60s only while the tab is visible; refetch when it becomes visible again.
+    // Poll every 25s only while the tab is visible; refetch when it becomes visible again.
     useEffect(() => {
         if (!userId) return
         let id: ReturnType<typeof setInterval> | null = null
@@ -109,6 +122,7 @@ export function useGatewayStatus(): {
                 stop()
             } else {
                 void refresh()
+                stop()
                 start()
             }
         }
@@ -123,5 +137,5 @@ export function useGatewayStatus(): {
         }
     }, [userId, refresh])
 
-    return { data, isLoading, error, refresh }
+    return { data, receivedAtMs, isLoading, error, refresh }
 }

@@ -1,21 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useGatewayStatus } from '@/hooks/use-gateway-status'
-import { BAND_LABEL, type GatewayNetwork } from '@/lib/gateway-health'
 import {
-  BAND_FILL_CLASS,
-  BAND_HEADLINE,
-  BAND_TEXT_CLASS,
+  ageOffsetSeconds,
+  DOWN_HEADLINE,
+  formatDuration,
+  liveEstimate,
+  NONE_HEADLINE,
+  type ChannelView,
+  type StrengthTier,
+} from '@/lib/gateway-estimate'
+import {
+  COOLDOWN_MS,
+  cooldownRemainingMs,
   formatClockTime,
-  formatMinutes,
+  TIER_FILL_CLASS,
+  TIER_TEXT_CLASS,
 } from '@/lib/gateway-status-format'
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ft-blue focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 const SKELETON = 'bg-muted rounded-xl motion-safe:animate-pulse'
 const CARD = 'rounded-xl border border-border bg-card'
+const TICK_MS = 5_000
 
 // Simple brand-tinted initial avatars (no image assets).
 const AVATAR_CLASS: Record<string, string> = {
@@ -25,64 +34,73 @@ const AVATAR_CLASS: Record<string, string> = {
   'AT-BigTime': 'bg-sky-600 text-white',
 }
 
-function Avatar({ network }: { network: GatewayNetwork }) {
-  const cls = AVATAR_CLASS[network.key] ?? 'bg-muted text-foreground'
+/** Visible label for a channel: tier for live, fixed texts for none/down. */
+function stateLabel(v: ChannelView): string {
+  if (v.state === 'live') return v.tier ?? ''
+  return v.state === 'none' ? NONE_HEADLINE : DOWN_HEADLINE
+}
+
+/** Key into the TIER_* class maps. */
+function styleKey(v: ChannelView): StrengthTier | 'down' | 'none' {
+  return v.tier ?? (v.state === 'down' ? 'down' : 'none')
+}
+
+function Avatar({ view }: { view: ChannelView }) {
+  const cls = AVATAR_CLASS[view.key] ?? 'bg-muted text-foreground'
   return (
     <span
       aria-hidden="true"
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${cls}`}
     >
-      {network.label.charAt(0).toUpperCase()}
+      {view.label.charAt(0).toUpperCase()}
     </span>
   )
 }
 
-function DeliveryCard({ network, generatedAt }: { network: GatewayNetwork; generatedAt: string }) {
-  const hasDelivery = network.band !== 'none'
-  const showLast = hasDelivery && network.lastMinutes !== null
-  const showTimes = hasDelivery && !!network.lastPlacedAt && !!network.lastDeliveredAt
-  const updated = generatedAt ? formatClockTime(generatedAt) : ''
+function DeliveryCard({ view, generatedAt }: { view: ChannelView; generatedAt: string }) {
+  const headline =
+    view.state === 'live' ? view.headline : view.state === 'none' ? NONE_HEADLINE : DOWN_HEADLINE
+  const ce = view.state === 'live' ? view.currentEstimate : null
+  const ld = view.lastDelivery
+  const updated = formatClockTime(generatedAt)
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg bg-muted/50 p-3">
       <div className="flex items-center gap-2">
-        <Avatar network={network} />
-        <span className="text-sm font-medium truncate">{network.label}</span>
+        <Avatar view={view} />
+        <span className="text-sm font-medium truncate">{view.label}</span>
       </div>
-      <p className={`text-base font-semibold ${BAND_TEXT_CLASS[network.band]}`}>
-        {BAND_HEADLINE[network.band]}
-      </p>
-      {hasDelivery && network.medianMinutes !== null && (
-        <p className="text-sm">Current processing time: {formatMinutes(network.medianMinutes)}</p>
+      {headline && (
+        <p className={`text-base font-semibold ${TIER_TEXT_CLASS[styleKey(view)]}`}>{headline}</p>
       )}
-      {showLast && (
+      {ce && <p className="text-sm">Current estimate: {formatDuration(ce.minutes, ce.seconds)}</p>}
+      {ld && (
         <p className="text-sm text-muted-foreground">
-          Last delivery took {formatMinutes(network.lastMinutes)}
+          Last delivery took {formatDuration(ld.minutes, ld.seconds)}
         </p>
       )}
-      {showTimes && (
+      {ld && ld.placedAt && ld.deliveredAt && (
         <p className="text-sm text-muted-foreground">
-          Placed {formatClockTime(network.lastPlacedAt)} → Delivered{' '}
-          {formatClockTime(network.lastDeliveredAt)}
+          Placed {formatClockTime(ld.placedAt)} → Delivered {formatClockTime(ld.deliveredAt)}
         </p>
       )}
-      <p className="text-[11px] text-muted-foreground">
-        Based on recent deliveries{updated && updated !== '—' ? ` · Updated ${updated}` : ''}
-      </p>
+      {updated !== '—' && <p className="text-[11px] text-muted-foreground">Updated {updated}</p>}
     </div>
   )
 }
 
 function StrengthRow({
-  network,
+  view,
   selected,
   onSelect,
 }: {
-  network: GatewayNetwork
+  view: ChannelView
   selected: boolean
   onSelect: () => void
 }) {
-  const pct = Math.max(0, Math.min(100, network.barPct))
+  const pct = Number.isFinite(view.strengthPct) ? Math.max(0, Math.min(100, view.strengthPct)) : 0
+  const label = stateLabel(view)
+  const ld = view.lastDelivery
   return (
     <button
       type="button"
@@ -94,12 +112,12 @@ function StrengthRow({
     >
       <span className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
-          <Avatar network={network} />
-          <span className="text-sm font-medium truncate">{network.label}</span>
+          <Avatar view={view} />
+          <span className="text-sm font-medium truncate">{view.label}</span>
         </span>
-        {network.band !== 'none' && network.lastMinutes !== null && (
-          <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-            Last delivery took {formatMinutes(network.lastMinutes)}
+        {ld && (
+          <span className="shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+            Last delivery {formatDuration(ld.minutes, ld.seconds)}
           </span>
         )}
       </span>
@@ -108,30 +126,86 @@ function StrengthRow({
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`${network.label} delivery health: ${BAND_LABEL[network.band]}`}
+        aria-label={`${view.label} delivery health: ${label}`}
         className="block h-2 w-full overflow-hidden rounded-full bg-muted"
       >
         <span
-          className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${BAND_FILL_CLASS[network.band]}`}
+          className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${TIER_FILL_CLASS[styleKey(view)]}`}
           style={{ width: `${pct}%` }}
         />
       </span>
-      <span className={`text-[11px] ${BAND_TEXT_CLASS[network.band]}`}>{BAND_LABEL[network.band]}</span>
+      <span className={`text-[11px] ${TIER_TEXT_CLASS[styleKey(view)]}`}>{label}</span>
     </button>
   )
 }
 
 export function GatewayStatus() {
-  const { data, isLoading, error, refresh } = useGatewayStatus()
+  const { data, receivedAtMs, isLoading, error, refresh } = useGatewayStatus()
   const [selectedKey, setSelectedKey] = useState('MTN')
   const [refreshing, setRefreshing] = useState(false)
+  const refreshingRef = useRef(false)
+  const [fetchEndedAt, setFetchEndedAt] = useState<number | null>(null)
+  const [cooldownNow, setCooldownNow] = useState<number>(0)
+  // Set inside an effect (never during render) so SSR/hydration never sees a clock value.
+  const [now, setNow] = useState<number | null>(null)
 
-  const handleRefresh = async () => {
+  // 5s live tick, only while the tab is visible.
+  useEffect(() => {
+    let id: ReturnType<typeof setInterval> | null = null
+    const stop = () => {
+      if (id !== null) {
+        clearInterval(id)
+        id = null
+      }
+    }
+    const start = () => {
+      stop()
+      id = setInterval(() => setNow(Date.now()), TICK_MS)
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop()
+      } else {
+        setNow(Date.now())
+        start()
+      }
+    }
+    setNow(Date.now())
+    if (!document.hidden) start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
+  // 1s countdown timer, only while a cooldown is active.
+  useEffect(() => {
+    if (fetchEndedAt === null) return
+    const tick = () => {
+      const t = Date.now()
+      setCooldownNow(t)
+      if (cooldownRemainingMs(t, fetchEndedAt) <= 0) clearInterval(id)
+    }
+    const id = setInterval(tick, 1_000)
+    setCooldownNow(Date.now())
+    return () => clearInterval(id)
+  }, [fetchEndedAt])
+
+  const cooldownMs = fetchEndedAt === null ? 0 : cooldownRemainingMs(cooldownNow, fetchEndedAt)
+  const coolingDown = cooldownMs > 0
+  const secondsLeft = Math.min(COOLDOWN_MS / 1000, Math.max(1, Math.ceil(cooldownMs / 1000)))
+
+  const handleRefresh = async (ignoreCooldown = false) => {
+    if (refreshingRef.current || (!ignoreCooldown && coolingDown)) return
+    refreshingRef.current = true
     setRefreshing(true)
     try {
       await refresh()
     } finally {
+      refreshingRef.current = false
       setRefreshing(false)
+      setFetchEndedAt(Date.now())
     }
   }
 
@@ -147,7 +221,7 @@ export function GatewayStatus() {
         </p>
         <button
           type="button"
-          onClick={() => void handleRefresh()}
+          onClick={() => void handleRefresh(true)}
           className={`min-h-[44px] rounded-xl bg-ft-blue px-4 text-sm font-medium text-white ${FOCUS_RING}`}
         >
           Try again
@@ -156,8 +230,10 @@ export function GatewayStatus() {
     )
   }
 
-  const networks = data.networks
-  const selected = networks.find((n) => n.key === selectedKey) ?? networks[0]
+  const offset =
+    receivedAtMs === null ? null : ageOffsetSeconds(data.generatedAt, data.serverNow, receivedAtMs, now ?? receivedAtMs)
+  const views = data.networks.map((n) => (offset === null ? n : liveEstimate(n, offset)))
+  const selected = views.find((n) => n.key === selectedKey) ?? views[0]
 
   return (
     <section aria-label="Delivery status" className={`${CARD} p-3 sm:p-4`}>
@@ -166,28 +242,35 @@ export function GatewayStatus() {
         <button
           type="button"
           onClick={() => void handleRefresh()}
-          aria-label="Refresh delivery status"
-          className={`flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted ${FOCUS_RING}`}
+          disabled={coolingDown}
+          aria-disabled={coolingDown}
+          aria-label={coolingDown ? `Refresh available in ${secondsLeft}s` : 'Refresh delivery status'}
+          className={`flex h-11 min-w-[44px] items-center justify-center gap-1 rounded-xl px-2 text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${FOCUS_RING}`}
         >
           <RefreshCw
             className={`h-4 w-4 ${refreshing ? 'motion-safe:animate-spin' : ''}`}
             aria-hidden="true"
           />
+          {coolingDown && !refreshing && (
+            <span aria-hidden="true" className="text-[11px] tabular-nums">
+              {secondsLeft}s
+            </span>
+          )}
         </button>
       </div>
 
       {selected ? (
-        <DeliveryCard network={selected} generatedAt={data.generatedAt} />
+        <DeliveryCard view={selected} generatedAt={data.generatedAt} />
       ) : (
-        <p className="text-sm text-muted-foreground">No recent orders</p>
+        <p className="text-sm text-muted-foreground">{NONE_HEADLINE}</p>
       )}
 
       <h3 className="mb-1 mt-3 text-sm font-semibold">Gateway Strength</h3>
       <div className="flex flex-col gap-1">
-        {networks.map((n) => (
+        {views.map((n) => (
           <StrengthRow
             key={n.key}
-            network={n}
+            view={n}
             selected={selected?.key === n.key}
             onSelect={() => setSelectedKey(n.key)}
           />
