@@ -41,6 +41,7 @@ import { formatCurrency, cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { MomoDetailsModal } from '@/components/shared/momo-details-modal'
 import { isMomoLookupEligible } from '@/lib/momo-eligibility'
+import { GatewayOverrideCard } from '@/components/admin/gateway-status/GatewayOverrideCard'
 
 interface Order {
     id: string
@@ -1180,6 +1181,7 @@ export default function FulfillmentPage() {
                     </div>
                 </div>
             </div>
+            <GatewayOverrideCard />
 
             {/* Supplier Cards — 2-col on mobile, 4-col on tablet, 7-col on wide desktop (one row
                 per supplier count). There are SEVEN suppliers now; at md:grid-cols-6 the seventh
