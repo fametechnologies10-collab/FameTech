@@ -33,7 +33,8 @@ const MUST_STAMP: Record<string, number> = {
 const MUST_NOT_STAMP = [
     'app/api/cron/auto-complete-data/route.ts',
     'lib/kingflexy-finalize.ts',
-    'app/api/orders/confirm-received/route.ts', // customer/shop self-complete
+    'app/api/orders/confirm-received/route.ts', // customer/shop self-complete (thin route wrapper)
+    'lib/order-complete-service.ts', // confirmOrderReceived -> claim_self_order_complete RPC (the real self-complete path)
     'app/api/admin/fulfillment/route.ts', // admin manual completion
 ]
 
