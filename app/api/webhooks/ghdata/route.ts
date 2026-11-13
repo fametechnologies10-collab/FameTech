@@ -4,6 +4,7 @@ import { timingSafeEqual, createHmac } from 'crypto'
 import { syncShopOrderStatus } from '@/lib/shop-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 // GhData retired status-polling entirely (confirmed live: /orders?id= now returns
 // "This status-polling endpoint has been disabled") — this webhook is the only way
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
         // Mirrors the guard lib/agentportal-apply-outcome.ts already uses for AgentPortal.
         const { data: updatedRows, error: updateError } = await supabaseAdmin
             .from('orders')
-            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
             .eq('ghdata_order_id', ghdataOrderId)
             .eq('fulfillment_method', 'ghdata')
             .in('status', ['pending', 'processing'])

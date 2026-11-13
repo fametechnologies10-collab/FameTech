@@ -43,6 +43,7 @@ import { sanitizeForStorage } from '@/lib/sanitize-for-storage'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
 import type { AgentPortalTerminalOutcome } from '@/lib/agentportal-status'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const supabaseAdmin = createAdminClient()
 
@@ -75,7 +76,7 @@ export async function applyAgentPortalOutcome(
 ): Promise<ApplyOutcomeResult> {
     const { data: updatedRows, error: updateError } = await supabaseAdmin
         .from('orders')
-        .update({ status: outcome, updated_at: new Date().toISOString() })
+        .update({ status: outcome, updated_at: new Date().toISOString(), ...deliveredAtPatch(outcome, { allowNowFallback: true }) })
         .eq('id', orderId)
         .eq('fulfillment_method', 'agentportal')
         .in('status', ['pending', 'processing'])
@@ -100,7 +101,7 @@ export async function applyAgentPortalOutcome(
 
         const { data: rescuedRows, error: rescueError } = await supabaseAdmin
             .from('orders')
-            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .update({ status: 'completed', updated_at: new Date().toISOString(), ...deliveredAtPatch('completed', { allowNowFallback: true }) })
             .eq('id', orderId)
             .eq('fulfillment_method', 'agentportal')
             .eq('status', 'failed')

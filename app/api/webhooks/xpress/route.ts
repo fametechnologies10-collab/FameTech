@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { syncShopOrderStatus } from '@/lib/shop-service'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const XPRESS_WEBHOOK_SECRET = process.env.XPRESS_WEBHOOK_SECRET || ''
 
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
             // supplier. Mirrors the guard lib/agentportal-apply-outcome.ts uses for AgentPortal.
             const { data: updatedRows, error: updateError } = await supabaseAdmin
                 .from('orders')
-                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .update({ status: newStatus, updated_at: new Date().toISOString(), ...deliveredAtPatch(newStatus, { allowNowFallback: true }) })
                 .eq('id', internalOrderId)
                 .eq('fulfillment_method', 'xpress')
                 .in('status', ['processing', 'pending'])

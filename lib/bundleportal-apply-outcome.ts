@@ -19,6 +19,7 @@ import { syncShopOrderStatus } from '@/lib/shop-service'
 import { sanitizeForStorage } from '@/lib/sanitize-for-storage'
 import { waitUntil } from '@vercel/functions'
 import { notifyDataOrderWebhook } from '@/lib/data-order-webhook'
+import { deliveredAtPatch } from '@/lib/delivery-stamp'
 
 const supabaseAdmin = createAdminClient()
 
@@ -166,7 +167,7 @@ export async function applyBundlePortalOutcome(
 
     const { data: updatedRows, error: updateError } = await supabaseAdmin
         .from('orders')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status, updated_at: new Date().toISOString(), ...deliveredAtPatch(status, { allowNowFallback: true }) })
         .eq('id', orderId)
         .eq('fulfillment_method', 'bundleportal')
         .in('status', ['pending', 'processing'])

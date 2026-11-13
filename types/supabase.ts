@@ -1690,6 +1690,7 @@ export type Database = {
           api_key_id: string | null
           atishare_console_reference: string | null
           atishare_console_transaction_id: string | null
+          delivered_at: string | null
           bundleportal_reference: string | null
           category: string
           codecraft_reference: string | null
@@ -1737,6 +1738,7 @@ export type Database = {
           api_key_id?: string | null
           atishare_console_reference?: string | null
           atishare_console_transaction_id?: string | null
+          delivered_at?: string | null
           bundleportal_reference?: string | null
           category?: string
           codecraft_reference?: string | null
@@ -1784,6 +1786,7 @@ export type Database = {
           api_key_id?: string | null
           atishare_console_reference?: string | null
           atishare_console_transaction_id?: string | null
+          delivered_at?: string | null
           bundleportal_reference?: string | null
           category?: string
           codecraft_reference?: string | null
