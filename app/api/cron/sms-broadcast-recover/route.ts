@@ -12,12 +12,15 @@
  * lib/admin-sms-broadcast.ts), and finishes them by repeatedly calling
  * dispatchAdminSmsBroadcastChunk, the same chunking function the admin UI
  * drives, until each is 'done' or the time budget runs out.
+ *
+ * It also verifies recently finished broadcasts that were never checked
+ * against the supplier (verified_at is null) — see verifyAdminSmsBroadcast.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { validateCronAuth } from '@/lib/cron-utils'
-import { dispatchAdminSmsBroadcastChunk } from '@/lib/admin-sms-broadcast'
+import { dispatchAdminSmsBroadcastChunk, verifyAdminSmsBroadcast } from '@/lib/admin-sms-broadcast'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -83,7 +86,34 @@ export async function GET(request: NextRequest) {
             if (Date.now() - startedAt > 45_000) break
         }
 
-        return NextResponse.json({ success: true, data: { processed: results.length, results } })
+        // Verification pass: broadcasts that finished sending but whose
+        // supplier outcome was never checked (admin closed the tab, or the
+        // supplier lookup failed earlier). Rejected-by-carrier messages are
+        // flipped to 'failed' so the admin sees them instead of a false success.
+        let verified = 0
+        const { data: unverified, error: unverifiedError } = await db
+            .from('admin_sms_broadcasts')
+            .select('id')
+            .eq('status', 'done')
+            .is('verified_at', null)
+            .lt('completed_at', new Date(Date.now() - 60 * 1000).toISOString())
+            .gt('completed_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+
+        if (unverifiedError) {
+            console.error('[SMSBroadcastRecover] unverified lookup failed:', unverifiedError.message)
+        } else {
+            for (const broadcast of (unverified as Array<{ id: string }>) || []) {
+                if (Date.now() - startedAt > 45_000) break
+                try {
+                    await verifyAdminSmsBroadcast(db, broadcast.id)
+                    verified++
+                } catch (e: any) {
+                    console.error('[SMSBroadcastRecover] verify failed for broadcast', broadcast.id, e?.message)
+                }
+            }
+        }
+
+        return NextResponse.json({ success: true, data: { processed: results.length, results, verified } })
     } catch (e: any) {
         console.error('[SMSBroadcastRecover] error:', e?.message)
         return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })

@@ -2,7 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { normalizeGhanaPhone } from '@/lib/sms-service'
 import { validateAdminAccess } from '@/lib/auth-utils'
-import { createAdminSmsBroadcast } from '@/lib/admin-sms-broadcast'
+import { createAdminSmsBroadcast, listRecentAdminSmsBroadcasts } from '@/lib/admin-sms-broadcast'
+
+/**
+ * GET /api/admin/sms-broadcast
+ *
+ * The 10 most recent broadcasts with their counts and whether the supplier's
+ * outcome has been verified — drives the "Recent broadcasts" list/resend button.
+ */
+export async function GET() {
+    try {
+        const auth = await validateAdminAccess()
+        if (auth.error !== null) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+        const broadcasts = await listRecentAdminSmsBroadcasts(createServerClient(), 10)
+        return NextResponse.json({ success: true, data: { broadcasts } })
+    } catch (e: any) {
+        console.error('[SMSBroadcast List] Error:', e)
+        return NextResponse.json({ error: e.message || 'Internal server error' }, { status: 500 })
+    }
+}
 
 /**
  * POST /api/admin/sms-broadcast
