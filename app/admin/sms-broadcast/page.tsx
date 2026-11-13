@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import type { AdminSmsBroadcastStatus, AdminSmsBroadcastSummary } from '@/lib/admin-sms-broadcast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -279,7 +280,9 @@ export default function AdminSMSBroadcastPage() {
     const [audience, setAudience]     = useState<'users' | 'group'>('users')
     const [message, setMessage]       = useState('')
     const [sending, setSending]       = useState(false)
-    const [lastResult, setLastResult] = useState<{ sent: number; failed: number; total: number } | null>(null)
+    const [verifying, setVerifying]   = useState(false)
+    const [recentBroadcasts, setRecentBroadcasts] = useState<AdminSmsBroadcastSummary[]>([])
+    const [lastResult, setLastResult] = useState<{ broadcastId: string; sent: number; failed: number; total: number; verified: boolean } | null>(null)
     const [broadcastProgress, setBroadcastProgress] = useState<{ sent: number; failed: number; total: number } | null>(null)
     const [failedSamples, setFailedSamples] = useState<Array<{ phone: string; error: string | null }>>([])
 
@@ -350,6 +353,7 @@ export default function AdminSMSBroadcastPage() {
     // ── Initial loads ─────────────────────────────────────────────────────────
     useEffect(() => { fetchTemplates() }, [])
     useEffect(() => { fetchProviderSettings() }, [])
+    useEffect(() => { fetchRecentBroadcasts() }, [])
     useEffect(() => { if (activeTab === 'broadcast' && audience === 'users') fetchAppUsers() }, [activeTab, audience])
     useEffect(() => { if (activeTab === 'broadcast' && audience === 'group') fetchGroups() }, [activeTab, audience])
     useEffect(() => { if (activeTab === 'contacts') fetchCgGroups() }, [activeTab])
@@ -455,11 +459,119 @@ export default function AdminSMSBroadcastPage() {
         finally { setSettingsLoading(false) }
     }
 
+    const fetchRecentBroadcasts = async () => {
+        try {
+            const res  = await fetch('/api/admin/sms-broadcast')
+            const data = await res.json()
+            if (res.ok && data.success) setRecentBroadcasts(data.data.broadcasts || [])
+        } catch { /* the recent list is a convenience - ignore */ }
+    }
+
     // ─── Broadcast Send ───────────────────────────────────────────────────────
     const sendCancelledRef = useRef(false)
     useEffect(() => {
         return () => { sendCancelledRef.current = true }
     }, [])
+
+    // Drives POST .../dispatch until the broadcast is 'done'. Transient failures
+    // (429, 5xx, network error, bad JSON) are retried with backoff rather than
+    // aborting - the broadcast is only ever half-sent in the DB at that point,
+    // and resending would double-message everyone already reached. Stops cleanly
+    // (without throwing) if the admin navigates away; the cron safety-net
+    // finishes the broadcast regardless.
+    const runDispatchLoop = async (broadcastId: string, total: number): Promise<{ outcome: 'done' | 'gaveUp' | 'cancelled'; status?: AdminSmsBroadcastStatus }> => {
+        const MAX_CONSECUTIVE_ERRORS = 3
+        let consecutiveErrors = 0
+        setBroadcastProgress(prev => prev ?? { sent: 0, failed: 0, total })
+
+        while (!sendCancelledRef.current) {
+            let dispatchRes: Response
+            try {
+                dispatchRes = await fetch(`/api/admin/sms-broadcast/${broadcastId}/dispatch`, { method: 'POST' })
+            } catch {
+                consecutiveErrors++
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) return { outcome: 'gaveUp' }
+                await new Promise(r => setTimeout(r, 2000))
+                continue
+            }
+            if (sendCancelledRef.current) break
+
+            if (dispatchRes.status === 429) {
+                const retryAfterHeader = dispatchRes.headers.get('Retry-After')
+                const retryAfterMs = retryAfterHeader ? Math.max(0, parseInt(retryAfterHeader, 10) * 1000) : 2000
+                await new Promise(r => setTimeout(r, Number.isFinite(retryAfterMs) ? retryAfterMs : 2000))
+                continue
+            }
+
+            let dispatchData: any
+            try {
+                dispatchData = await dispatchRes.json()
+            } catch {
+                consecutiveErrors++
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) return { outcome: 'gaveUp' }
+                await new Promise(r => setTimeout(r, 2000))
+                continue
+            }
+
+            if (!dispatchRes.ok) {
+                consecutiveErrors++
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) return { outcome: 'gaveUp' }
+                await new Promise(r => setTimeout(r, 2000))
+                continue
+            }
+
+            consecutiveErrors = 0
+            if (sendCancelledRef.current) break
+
+            const status = dispatchData.data as AdminSmsBroadcastStatus
+            setBroadcastProgress({ sent: status.sentCount, failed: status.failedCount, total: status.totalRecipients })
+            if (status.status === 'done') return { outcome: 'done', status }
+        }
+        return { outcome: 'cancelled' }
+    }
+
+    // Asks the server to check the supplier's real outcome. Returns null when
+    // the check could not run (the broadcast stays "pending check", never success).
+    const confirmDelivery = async (broadcastId: string): Promise<AdminSmsBroadcastStatus | null> => {
+        try {
+            const res = await fetch(`/api/admin/sms-broadcast/${broadcastId}/verify`, { method: 'POST' })
+            const data = await res.json()
+            if (!res.ok || !data.success) return null
+            return data.data as AdminSmsBroadcastStatus
+        } catch {
+            return null
+        }
+    }
+
+    // Dispatch -> confirm delivery -> show the honest result. Returns true when
+    // a final result was shown (false: gave up or navigated away).
+    const sendAndConfirm = async (broadcastId: string, total: number): Promise<boolean> => {
+        const loop = await runDispatchLoop(broadcastId, total)
+        if (sendCancelledRef.current || loop.outcome === 'cancelled') return false
+        if (loop.outcome === 'gaveUp' || !loop.status) {
+            // The broadcast is still queued/sending in the DB - the safety-net
+            // cron keeps driving it. Do NOT imply the admin should resend.
+            toast.warning('Lost connection while sending - the broadcast is still queued and will keep sending automatically in the background. No need to resend.')
+            return false
+        }
+
+        setVerifying(true)
+        const checked = await confirmDelivery(broadcastId)
+        if (sendCancelledRef.current) return false
+
+        const final = checked ?? loop.status
+        const verified = !!checked?.verified
+        setLastResult({ broadcastId, sent: final.sentCount, failed: final.failedCount, total: final.totalRecipients, verified })
+        setFailedSamples(final.failedSamples || [])
+        if (!verified) {
+            toast.warning('Sent to the SMS provider, but the delivery check could not run yet. It will retry automatically - do not resend yet.')
+        } else if (final.failedCount > 0) {
+            toast.warning(`${final.failedCount} message(s) were NOT delivered - you can resend them`)
+        } else {
+            toast.success(`All ${final.totalRecipients} messages sent - none rejected by the SMS provider`)
+        }
+        return true
+    }
 
     const handleSend = async () => {
         if (!message.trim()) { toast.error('Please enter a message'); return }
@@ -486,94 +598,49 @@ export default function AdminSMSBroadcastPage() {
             if (sendCancelledRef.current) return
             setBroadcastProgress({ sent: 0, failed: 0, total })
 
-            // Poll the dispatch endpoint — call again immediately on resolution,
-            // no artificial delay — until the broadcast is done. Stop cleanly
-            // (without throwing) if the admin navigates away mid-send; the
-            // backend/cron safety-net finishes the broadcast regardless.
-            //
-            // Transient failures (429 rate-limit, 5xx, network error, bad
-            // JSON) are retried with backoff rather than aborting the loop —
-            // the broadcast is only ever half-sent in the DB at that point,
-            // and resending would double-message everyone already reached.
-            const MAX_CONSECUTIVE_ERRORS = 3
-            let consecutiveErrors = 0
-            let finalStatus: import('@/lib/admin-sms-broadcast').AdminSmsBroadcastStatus | null = null
-            let gaveUp = false
-
-            while (!sendCancelledRef.current) {
-                let dispatchRes: Response
-                try {
-                    dispatchRes = await fetch(`/api/admin/sms-broadcast/${broadcastId}/dispatch`, { method: 'POST' })
-                } catch {
-                    // Network failure — treat like a transient error below.
-                    consecutiveErrors++
-                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
-                    await new Promise(r => setTimeout(r, 2000))
-                    continue
-                }
-                if (sendCancelledRef.current) return
-
-                if (dispatchRes.status === 429) {
-                    const retryAfterHeader = dispatchRes.headers.get('Retry-After')
-                    const retryAfterMs = retryAfterHeader ? Math.max(0, parseInt(retryAfterHeader, 10) * 1000) : 2000
-                    await new Promise(r => setTimeout(r, Number.isFinite(retryAfterMs) ? retryAfterMs : 2000))
-                    continue
-                }
-
-                let dispatchData: any
-                try {
-                    dispatchData = await dispatchRes.json()
-                } catch {
-                    consecutiveErrors++
-                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
-                    await new Promise(r => setTimeout(r, 2000))
-                    continue
-                }
-
-                if (!dispatchRes.ok) {
-                    consecutiveErrors++
-                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) { gaveUp = true; break }
-                    await new Promise(r => setTimeout(r, 2000))
-                    continue
-                }
-
-                consecutiveErrors = 0
-                if (sendCancelledRef.current) return
-
-                const status = dispatchData.data as {
-                    status: 'queued' | 'sending' | 'done'
-                    totalRecipients: number
-                    sentCount: number
-                    failedCount: number
-                    failedSamples?: Array<{ phone: string; error: string | null }>
-                }
-                setBroadcastProgress({ sent: status.sentCount, failed: status.failedCount, total: status.totalRecipients })
-
-                if (status.status === 'done') { finalStatus = status; break }
-            }
-
-            if (sendCancelledRef.current) return
-
-            if (gaveUp) {
-                // The broadcast is still queued/sending in the DB — the
-                // safety-net cron will keep driving it forward. Do NOT
-                // imply the admin should resend; that would double-message
-                // everyone already reached.
-                toast.warning('Lost connection while sending — the broadcast is still queued and will keep sending automatically in the background. No need to resend.')
-                return
-            }
-
-            if (!finalStatus) return
-
-            setLastResult({ sent: finalStatus.sentCount, failed: finalStatus.failedCount, total: finalStatus.totalRecipients })
-            setFailedSamples(finalStatus.failedSamples || [])
-            toast.success(`✅ Sent ${finalStatus.sentCount}/${finalStatus.totalRecipients} messages`)
-            if (finalStatus.failedCount > 0) toast.warning(`${finalStatus.failedCount} message(s) failed — check errors`)
-            setMessage(''); setSelectedUsers(new Set()); setSelectedGroupId('')
+            const shown = await sendAndConfirm(broadcastId, total)
+            if (shown) { setMessage(''); setSelectedUsers(new Set()); setSelectedGroupId('') }
         } catch (e: any) {
             if (!sendCancelledRef.current) toast.error(e.message || 'Failed to send SMS')
         } finally {
-            if (!sendCancelledRef.current) { setSending(false); setBroadcastProgress(null) }
+            if (!sendCancelledRef.current) { setSending(false); setVerifying(false); setBroadcastProgress(null); fetchRecentBroadcasts() }
+        }
+    }
+
+    // Requeue the failed recipients of a finished broadcast and send them again.
+    const handleResend = async (broadcastId: string) => {
+        if (sending) return
+        sendCancelledRef.current = false
+        setSending(true); setLastResult(null); setBroadcastProgress(null); setFailedSamples([])
+        try {
+            const res = await fetch(`/api/admin/sms-broadcast/${broadcastId}/retry-failed`, { method: 'POST' })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || 'Could not resend')
+            const { requeued, status } = data.data as { requeued: number; status: AdminSmsBroadcastStatus }
+            if (requeued === 0) { toast.info('Nothing to resend - no failed recipients'); return }
+            toast.info(`Resending to ${requeued} recipient${requeued !== 1 ? 's' : ''}...`)
+            setBroadcastProgress({ sent: status.sentCount, failed: 0, total: status.totalRecipients })
+            await sendAndConfirm(broadcastId, status.totalRecipients)
+        } catch (e: any) {
+            if (!sendCancelledRef.current) toast.error(e.message || 'Failed to resend')
+        } finally {
+            if (!sendCancelledRef.current) { setSending(false); setVerifying(false); setBroadcastProgress(null); fetchRecentBroadcasts() }
+        }
+    }
+
+    // Re-run the delivery check for a broadcast whose check was pending.
+    const handleRecheck = async (broadcastId: string) => {
+        if (sending) return
+        setSending(true); setVerifying(true)
+        try {
+            const checked = await confirmDelivery(broadcastId)
+            if (!checked || !checked.verified) { toast.warning('Delivery check still unavailable - try again in a minute'); return }
+            setLastResult({ broadcastId, sent: checked.sentCount, failed: checked.failedCount, total: checked.totalRecipients, verified: true })
+            setFailedSamples(checked.failedSamples || [])
+            if (checked.failedCount > 0) toast.warning(`${checked.failedCount} message(s) were NOT delivered - you can resend them`)
+            else toast.success('Delivery check complete - none rejected by the SMS provider')
+        } finally {
+            setSending(false); setVerifying(false); fetchRecentBroadcasts()
         }
     }
 
@@ -864,7 +931,14 @@ export default function AdminSMSBroadcastPage() {
                                         </div>
                                     </div>
 
-                                    {sending && broadcastProgress && (
+                                    {sending && verifying && (
+                                        <div className="flex items-center gap-2 p-2 rounded-lg text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400">
+                                            <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+                                            Confirming delivery with the SMS provider…
+                                        </div>
+                                    )}
+
+                                    {sending && !verifying && broadcastProgress && (
                                         <div className="space-y-1.5">
                                             <div className="flex items-center gap-2 p-2 rounded-lg text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400">
                                                 <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
@@ -888,14 +962,27 @@ export default function AdminSMSBroadcastPage() {
                                         <div className="space-y-1.5">
                                             <div className={cn(
                                                 'flex items-center gap-2 p-2 rounded-lg text-xs font-medium',
-                                                lastResult.failed === 0
+                                                lastResult.verified && lastResult.failed === 0
                                                     ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                                     : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
                                             )}>
-                                                {lastResult.failed === 0 ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
-                                                Last batch: {lastResult.sent}/{lastResult.total} delivered
-                                                {lastResult.failed > 0 && `, ${lastResult.failed} failed`}
+                                                {lastResult.verified && lastResult.failed === 0 ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+                                                {!lastResult.verified
+                                                    ? `Sent to the SMS provider: ${lastResult.sent}/${lastResult.total}. Delivery check pending - it retries automatically, do not resend yet.`
+                                                    : lastResult.failed === 0
+                                                        ? `All ${lastResult.total} messages sent - none rejected by the SMS provider`
+                                                        : `Sent ${lastResult.sent}/${lastResult.total} - ${lastResult.failed} NOT delivered`}
                                             </div>
+                                            {!lastResult.verified && (
+                                                <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={() => handleRecheck(lastResult.broadcastId)}>
+                                                    Check delivery now
+                                                </Button>
+                                            )}
+                                            {lastResult.verified && lastResult.failed > 0 && (
+                                                <Button size="sm" className="w-full h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => handleResend(lastResult.broadcastId)}>
+                                                    Resend to failed ({lastResult.failed})
+                                                </Button>
+                                            )}
                                             {failedSamples.length > 0 && (
                                                 <details className="text-[11px] rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 px-2 py-1.5">
                                                     <summary className="cursor-pointer font-semibold text-amber-700 dark:text-amber-400">
@@ -921,13 +1008,50 @@ export default function AdminSMSBroadcastPage() {
                                     >
                                         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                         {sending
-                                            ? (broadcastProgress
-                                                ? `Sending ${broadcastProgress.sent + broadcastProgress.failed}/${broadcastProgress.total}…`
-                                                : 'Starting…')
+                                            ? (verifying
+                                                ? 'Confirming delivery…'
+                                                : broadcastProgress
+                                                    ? `Sending ${broadcastProgress.sent + broadcastProgress.failed}/${broadcastProgress.total}…`
+                                                    : 'Starting…')
                                             : `Send to ${recipientCount} Recipient${recipientCount !== 1 ? 's' : ''}`}
                                     </Button>
                                 </CardContent>
                             </Card>
+
+                            {recentBroadcasts.length > 0 && (
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm">Recent broadcasts</CardTitle>
+                                        <CardDescription className="text-xs">Resend to anyone the SMS provider rejected.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2">
+                                        {recentBroadcasts.map(b => (
+                                            <div key={b.id} className="flex items-center gap-2 rounded-lg border p-2 text-xs">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate font-medium">{b.messagePreview}</p>
+                                                    <p className="text-muted-foreground">
+                                                        {new Date(b.createdAt).toLocaleString()} · {b.sentCount}/{b.totalRecipients} sent
+                                                        {b.failedCount > 0 && ` · ${b.failedCount} not delivered`}
+                                                    </p>
+                                                </div>
+                                                {b.status !== 'done' ? (
+                                                    <Badge variant="outline">Sending</Badge>
+                                                ) : !b.verified ? (
+                                                    <Button size="sm" variant="outline" className="h-7 text-xs" disabled={sending} onClick={() => handleRecheck(b.id)}>
+                                                        Check delivery
+                                                    </Button>
+                                                ) : b.failedCount > 0 ? (
+                                                    <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" disabled={sending} onClick={() => handleResend(b.id)}>
+                                                        Resend ({b.failedCount})
+                                                    </Button>
+                                                ) : (
+                                                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
 
                         {/* Right: Audience selector */}

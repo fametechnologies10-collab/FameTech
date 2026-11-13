@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { validateAdminAccess } from '@/lib/auth-utils'
 import { verifyAdminSmsBroadcast } from '@/lib/admin-sms-broadcast'
+import { listKingFlexyFailedCampaignIds } from '@/lib/kingflexy-campaigns'
+
+export const maxDuration = 300
 
 /**
  * POST /api/admin/sms-broadcast/[id]/verify
@@ -22,7 +25,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
         let status
         try {
-            status = await verifyAdminSmsBroadcast(supabase, id)
+            // The supplier's list endpoint allows 5 calls/min; a broadcast with
+            // many rejections needs several pages, so wait out 429s here.
+            status = await verifyAdminSmsBroadcast(supabase, id, (opts) =>
+                listKingFlexyFailedCampaignIds({ ...opts, maxWaitMs: 120_000 }),
+            )
         } catch (e: any) {
             console.error('[SMSBroadcast Verify] Delivery check failed:', e?.message)
             return NextResponse.json({ success: false, error: 'Delivery check unavailable' }, { status: 502 })

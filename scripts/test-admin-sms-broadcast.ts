@@ -201,6 +201,20 @@ async function main() {
         () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 429, json: async () => ({ success: false }) })) as unknown as typeof fetch }),
         'listKingFlexyFailedCampaignIds throws on HTTP 429',
     )
+    // 429 with a wait budget: waits (Retry-After) and retries the same page, then succeeds
+    let rlCalls = 0
+    const sleeps: number[] = []
+    const rateLimitedOnce = (async () => {
+        rlCalls++
+        if (rlCalls === 1) return { status: 429, headers: { get: () => '7' }, json: async () => ({ success: false, error: { message: 'Rate limit exceeded (5/min)' } }) }
+        return okPage(camps(3))
+    }) as unknown as typeof fetch
+    const rlIds = await listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: rateLimitedOnce, maxWaitMs: 60_000, sleepFn: async (ms) => { sleeps.push(ms) } })
+    assertOk(rlIds.size === 3 && rlCalls === 2 && sleeps[0] === 7000, 'lister waits Retry-After on 429 and retries the same page when it has a wait budget')
+    await assertRejects(
+        () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 429, headers: { get: () => '30' }, json: async () => ({ success: false }) })) as unknown as typeof fetch, maxWaitMs: 10_000, sleepFn: async () => {} }),
+        'lister throws on 429 when the wait would exceed maxWaitMs',
+    )
     await assertRejects(
         () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 200, json: async () => ({ success: false }) })) as unknown as typeof fetch }),
         'listKingFlexyFailedCampaignIds throws on success:false',
