@@ -116,6 +116,70 @@ async function main() {
         .eq('broadcast_id', b4.broadcastId)
     const status4 = await dispatchAdminSmsBroadcastChunk(supabase, b4.broadcastId, fakeSendAllOk)
     assertOk(status4?.status === 'done' && status4.sentCount === 1, 'a stale sending row older than 2 minutes is reclaimed and sent')
+
+    // ── Verification RPCs (mark_admin_sms_broadcast_rejected / retry_failed_...) ──
+    const REJECTED_ERR = 'Rejected by SMS provider after acceptance'
+    const campaignFor: Record<string, string> = { '233244100001': 'camp-A', '233244100002': 'camp-B', '233244100003': 'camp-C' }
+    const idSend = async (o: { recipient: string }) => ({ success: true, messageId: `${campaignFor[o.recipient]}-${o.recipient}` })
+    const mk = async () => {
+        const b = await trackedCreate({
+            createdBy: testAdminId!, message: 'x', audienceType: 'users',
+            recipients: Object.keys(campaignFor).map((phone) => ({ phone, resolvedMessage: 'x' })),
+        })
+        await dispatchAdminSmsBroadcastChunk(supabase, b.broadcastId, idSend)
+        return b.broadcastId
+    }
+    const rowOf = async (id: string) => (await supabase.from('admin_sms_broadcasts').select('*').eq('id', id).single()).data as any
+    const recOf = async (id: string, phone: string) =>
+        (await supabase.from('admin_sms_broadcast_recipients').select('*').eq('broadcast_id', id).eq('phone', phone).single()).data as any
+
+    // 8. mark_rejected flips only matching sent rows and recomputes counts
+    const v1 = await mk()
+    const m1 = await supabase.rpc('mark_admin_sms_broadcast_rejected', { p_broadcast_id: v1, p_campaign_ids: ['camp-B-233244100002'] })
+    const m1row = Array.isArray(m1.data) ? m1.data[0] : m1.data
+    assertOk(!m1.error && m1row?.sent_count === 2 && m1row?.failed_count === 1 && !!m1row?.verified_at, 'mark_rejected: sent 2 / failed 1 / verified_at set')
+    const rej = await recOf(v1, '233244100002')
+    assertOk(rej.status === 'failed' && rej.error === REJECTED_ERR, 'mark_rejected: rejected recipient is failed with the standard error text')
+    assertOk((await recOf(v1, '233244100001')).status === 'sent', 'mark_rejected: non-matching recipient stays sent')
+
+    // 9. empty id list still stamps verified_at and changes nothing
+    const v2 = await mk()
+    const m2 = await supabase.rpc('mark_admin_sms_broadcast_rejected', { p_broadcast_id: v2, p_campaign_ids: [] })
+    const m2row = Array.isArray(m2.data) ? m2.data[0] : m2.data
+    assertOk(!m2.error && m2row?.sent_count === 3 && m2row?.failed_count === 0 && !!m2row?.verified_at, 'mark_rejected with empty list: no changes, verified_at set')
+
+    // 10. a recipient already failed (own error) is not overwritten
+    const v3 = await mk()
+    await supabase.from('admin_sms_broadcast_recipients').update({ status: 'failed', error: 'original error' }).eq('broadcast_id', v3).eq('phone', '233244100003')
+    await supabase.rpc('mark_admin_sms_broadcast_rejected', { p_broadcast_id: v3, p_campaign_ids: ['camp-C-233244100003'] })
+    assertOk((await recOf(v3, '233244100003')).error === 'original error', 'mark_rejected: only sent rows are flipped, existing failures keep their error')
+
+    // 11. retry requeues failed rows, reopens the broadcast, clears verified_at
+    const r1 = await supabase.rpc('retry_failed_admin_sms_broadcast_recipients', { p_broadcast_id: v1 })
+    const r1row = Array.isArray(r1.data) ? r1.data[0] : r1.data
+    assertOk(!r1.error && r1row?.requeued === 1, 'retry: requeued 1')
+    const afterRetry = await rowOf(v1)
+    assertOk(afterRetry.status === 'sending' && afterRetry.verified_at === null && afterRetry.completed_at === null, 'retry: broadcast reopened (sending, verified_at/completed_at null)')
+    const requeued = await recOf(v1, '233244100002')
+    assertOk(requeued.status === 'queued' && requeued.provider_message_id === null && requeued.error === null, 'retry: recipient queued with provider id and error cleared')
+
+    // 12. second retry immediately requeues 0
+    const r2 = await supabase.rpc('retry_failed_admin_sms_broadcast_recipients', { p_broadcast_id: v1 })
+    const r2row = Array.isArray(r2.data) ? r2.data[0] : r2.data
+    assertOk(!r2.error && r2row?.requeued === 0, 'retry twice: second call requeues 0')
+
+    // 13. dispatch after retry resends only the requeued recipient and finishes the broadcast
+    let resent = 0
+    const countResend = async (o: { recipient: string }) => { resent++; return { success: true, messageId: `new-${o.recipient}` } }
+    const afterResend = await dispatchAdminSmsBroadcastChunk(supabase, v1, countResend)
+    assertOk(resent === 1 && afterResend?.status === 'done' && afterResend.sentCount === 3 && afterResend.failedCount === 0, 'dispatch after retry sends only the 1 requeued recipient; broadcast done 3/3')
+
+    // 14. retry also covers send-time failures (no campaign id)
+    const v4 = await trackedCreate({ createdBy: testAdminId!, message: 'x', audienceType: 'users', recipients: [{ phone: '233244100009', resolvedMessage: 'x' }] })
+    await dispatchAdminSmsBroadcastChunk(supabase, v4.broadcastId, fakeSendFail)
+    const r4 = await supabase.rpc('retry_failed_admin_sms_broadcast_recipients', { p_broadcast_id: v4.broadcastId })
+    const r4row = Array.isArray(r4.data) ? r4.data[0] : r4.data
+    assertOk(!r4.error && r4row?.requeued === 1, 'retry: send-time failures are requeued too')
 }
 
 main()
