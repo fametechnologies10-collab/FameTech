@@ -173,7 +173,9 @@ async function main() {
 
     // (c) static assertions
     const root = join(__dirname, '..')
-    const route = readFileSync(join(root, 'app/api/admin/gateway-status/override/route.ts'), 'utf8')
+    // Normalise CRLF: Windows checkouts (core.autocrlf=true) convert the working copy, and the
+    // self-checks below replace exact multi-line text.
+    const route = readFileSync(join(root, 'app/api/admin/gateway-status/override/route.ts'), 'utf8').replace(/\r\n/g, '\n')
     assert(route.includes('validateAdminAccess(false'), 'route admin-only gate')
     assert(checkGate(route), 'route: admin gate in each handler, before any data access')
     const noGateInGet = route.replace(
@@ -198,7 +200,7 @@ async function main() {
     assert(route.includes('invalidateGatewayStatusCache'), 'route invalidates cache')
     assert(!/console\.log\(/.test(route), 'route has no console.log')
     assert(!/console\.(info|error|warn)\([^)]*reason/.test(route), 'route does not log reason')
-    const shared = readFileSync(join(root, 'lib/gateway-override-shared.ts'), 'utf8')
+    const shared = readFileSync(join(root, 'lib/gateway-override-shared.ts'), 'utf8').replace(/\r\n/g, '\n')
     assert(!/from\s+['"]@\/lib\/supabase(-admin|-server)?['"]/.test(shared), 'shared has no supabase import')
     assert(!/from\s+['"]next\//.test(shared), 'shared has no next/ import')
 
