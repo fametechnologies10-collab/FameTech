@@ -19,6 +19,7 @@ import { WalletHero } from '@/components/dashboard/home/WalletHero'
 import { WalletBalanceModal } from '@/components/dashboard/wallet-balance-modal'
 import { OrderTracker } from '@/components/dashboard/home/OrderTracker'
 import { StatusStrip } from '@/components/dashboard/home/StatusStrip'
+import { GatewayStatus } from '@/components/dashboard/home/GatewayStatus'
 import { SpendInsights } from '@/components/dashboard/home/SpendInsights'
 import { QuickActions } from '@/components/dashboard/home/QuickActions'
 
@@ -122,6 +123,10 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2 sm:gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
                 {/* Left column */}
                 <div className="contents lg:flex lg:flex-col lg:gap-3 lg:col-start-1">
+                    {/* Manages its own loading/error state, so it renders in every branch below. */}
+                    <div className="order-4">
+                        <GatewayStatus />
+                    </div>
                     {summary ? (
                         <>
                             <div className="order-2">
@@ -132,10 +137,10 @@ export default function DashboardPage() {
                                     <OrderTracker order={summary.active_order} />
                                 </div>
                             )}
-                            <div className="order-4">
+                            <div className="order-5">
                                 <StatusStrip counts={summary.counts} />
                             </div>
-                            <div className="order-5">
+                            <div className="order-6">
                                 <SpendInsights spend={summary.spend} />
                             </div>
                         </>
@@ -155,18 +160,18 @@ export default function DashboardPage() {
                             <div className="order-2">
                                 <WalletHero balance={null} />
                             </div>
-                            <div className={`${SKELETON} h-[180px] order-4`} aria-hidden="true" />
-                            <div className={`${SKELETON} h-[140px] order-5`} aria-hidden="true" />
+                            <div className={`${SKELETON} h-[180px] order-5`} aria-hidden="true" />
+                            <div className={`${SKELETON} h-[140px] order-6`} aria-hidden="true" />
                         </>
                     )}
                 </div>
 
                 {/* Right rail */}
                 <div className="contents lg:flex lg:flex-col lg:gap-3 lg:col-start-2 lg:row-start-1">
-                    <div className="order-7 lg:order-1">
+                    <div className="order-8 lg:order-1">
                         <QuickActions showSubAgents={showSubAgents} />
                     </div>
-                    <div className="order-6 lg:order-2">
+                    <div className="order-7 lg:order-2">
                         <TodaysOrdersSummary />
                     </div>
                     <div className="order-1 lg:order-3">
