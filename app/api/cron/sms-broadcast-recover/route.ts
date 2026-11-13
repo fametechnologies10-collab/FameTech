@@ -21,8 +21,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { validateCronAuth } from '@/lib/cron-utils'
 import { dispatchAdminSmsBroadcastChunk, verifyAdminSmsBroadcast } from '@/lib/admin-sms-broadcast'
-import { listKingFlexyFailedCampaignIds } from '@/lib/kingflexy-campaigns'
-
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -104,12 +102,12 @@ export async function GET(request: NextRequest) {
             console.error('[SMSBroadcastRecover] unverified lookup failed:', unverifiedError.message)
         } else {
             for (const broadcast of (unverified as Array<{ id: string }>) || []) {
-                // Leave room for the lister's up-to-15s 429 wait inside maxDuration=60.
-                if (Date.now() - startedAt > 30_000) break
+                // The dispatch phase above may already have used up to ~45s of the
+                // 60s budget, so verification only needs the time left: it fails
+                // fast on a supplier 429 (no waiting) and the next tick retries.
+                if (Date.now() - startedAt > 52_000) break
                 try {
-                    await verifyAdminSmsBroadcast(db, broadcast.id, (opts) =>
-                        listKingFlexyFailedCampaignIds({ ...opts, maxWaitMs: 15_000 }),
-                    )
+                    await verifyAdminSmsBroadcast(db, broadcast.id)
                     verified++
                 } catch (e: any) {
                     console.error('[SMSBroadcastRecover] verify failed for broadcast', broadcast.id, e?.message)
