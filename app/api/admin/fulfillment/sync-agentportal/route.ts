@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const result = await reconcileAgentPortalDeliveries()
+        const result = await reconcileAgentPortalDeliveries({ allowNowFallback: false })
         // Response shape matches the other sync-* routes (checked/updated/failed) so the
         // admin UI's existing generic handler pattern works unchanged. `updated` now reflects
         // orders actually resolved (completed/failed) via polling AgentPortal's items

@@ -23,11 +23,7 @@ const MUST_STAMP: Record<string, number> = {
     'app/api/cron/sync-ghdata-status/route.ts': 1,
     'app/api/cron/sync-codecraft-status/route.ts': 1,
     'app/api/cron/sync-atishare-console-status/route.ts': 1,
-    'app/api/admin/fulfillment/sync-xpress/route.ts': 1,
-    'app/api/admin/fulfillment/sync-spfastit/route.ts': 1,
-    'app/api/admin/fulfillment/sync-ghdata/route.ts': 1,
     'app/api/admin/fulfillment/sync-atishare-console/route.ts': 1,
-    'app/api/admin/orders/sync-selection/route.ts': 1,
 }
 
 const MUST_NOT_STAMP = [
@@ -36,6 +32,20 @@ const MUST_NOT_STAMP = [
     'app/api/orders/confirm-received/route.ts', // customer/shop self-complete (thin route wrapper)
     'lib/order-complete-service.ts', // confirmOrderReceived -> claim_self_order_complete RPC (the real self-complete path)
     'app/api/admin/fulfillment/route.ts', // admin manual completion
+]
+
+// Admin Sync buttons can run hours after the real delivery, so they must never stamp now().
+// They may only stamp a supplier-given time. Only AtiShare Console exposes one (completed_at).
+const ADMIN_MUST_NOT_STAMP_NOW = [
+    'app/api/admin/fulfillment/sync-xpress/route.ts',
+    'app/api/admin/fulfillment/sync-spfastit/route.ts',
+    'app/api/admin/fulfillment/sync-ghdata/route.ts',
+    'app/api/admin/fulfillment/sync-codecraft/route.ts',
+    'app/api/admin/fulfillment/sync-dakazina/route.ts',
+    'app/api/admin/fulfillment/sync-hendylinks/route.ts',
+    'app/api/admin/fulfillment/sync-agentportal/route.ts',
+    'app/api/admin/fulfillment/sync-atishare-console/route.ts',
+    'app/api/admin/orders/sync-selection/route.ts',
 ]
 
 const failures: string[] = []
@@ -54,6 +64,28 @@ for (const file of MUST_NOT_STAMP) {
         failures.push(`${file}: must NOT reference delivered_at / deliveredAtPatch`)
     }
 }
+
+for (const file of ADMIN_MUST_NOT_STAMP_NOW) {
+    let src: string
+    try { src = read(file) } catch { failures.push(`${file}: file not found`); continue }
+    if (src.includes('allowNowFallback: true')) failures.push(`${file}: admin sync must NOT use allowNowFallback: true`)
+}
+
+// AtiShare admin sync stamps only from the supplier's completed_at.
+try {
+    const at = read('app/api/admin/fulfillment/sync-atishare-console/route.ts')
+    if (!/deliveredAtPatch\([^)]*allowNowFallback: false[^)]*supplierTime/.test(at)) failures.push('sync-atishare-console (admin): must pass allowNowFallback: false and supplierTime')
+} catch { failures.push('sync-atishare-console (admin): file not found') }
+
+// AgentPortal: the admin entry points must opt out of the now() fallback.
+try {
+    const ap = read('app/api/admin/fulfillment/sync-agentportal/route.ts')
+    if (!ap.includes('reconcileAgentPortalDeliveries({ allowNowFallback: false })')) failures.push('sync-agentportal (admin): must pass { allowNowFallback: false }')
+    const rec = read('lib/agentportal-reconcile.ts')
+    if (!/'AgentPortal Admin Sync \(selection\)', \{ allowNowFallback: false \}/.test(rec)) failures.push('syncAgentPortalOrdersById must pass { allowNowFallback: false }')
+    const apply = read('lib/agentportal-apply-outcome.ts')
+    if (apply.includes('allowNowFallback: true }) }') ) failures.push('agentportal-apply-outcome: must use the stamp parameter, not a hard-coded true')
+} catch { failures.push('agentportal admin wiring: file not found') }
 
 // Dakazina: runUpdate() updates BOTH orders and shop_orders; shop_orders has no delivered_at
 // column, so the patch must be applied only when table === 'orders'.
