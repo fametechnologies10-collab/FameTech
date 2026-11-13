@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { parseOverrideBody, applyOverride, listOverrides } from '@/lib/gateway-overrides'
-import type { DownSnapshot } from '@/lib/gateway-estimate'
+import { parseOverrideBody, applyOverride, listOverrides, buildDownSnapshot } from '@/lib/gateway-overrides'
+import { buildChannelView, type DownSnapshot, type GatewaySignalRow } from '@/lib/gateway-estimate'
 
 /*
  * FAKE admin client. It implements EXACTLY the chained calls lib/gateway-overrides.ts uses:
@@ -50,6 +50,26 @@ function makeFake(initial: Record<string, unknown>[] = [], opts: { fail?: boolea
 
 function assert(cond: unknown, msg: string) {
     if (!cond) throw new Error(`FAIL: ${msg}`)
+}
+
+const DATA_ACCESS = ['createAdminClient(', 'fetchGatewaySignals(', 'listOverrides(', 'applyOverride(', 'getOverrideRow(', 'request.json(']
+
+/** True when validateAdminAccess(false appears >= 2 times and, in each handler, the gate precedes any data access. */
+function checkGate(src: string): boolean {
+    if ((src.match(/validateAdminAccess\(false/g) ?? []).length < 2) return false
+    const g = src.indexOf('export async function GET')
+    const p = src.indexOf('export async function POST')
+    if (g === -1 || p === -1) return false
+    const bodies = g < p ? [src.slice(g, p), src.slice(p)] : [src.slice(g), src.slice(p, g)]
+    for (const body of bodies) {
+        const gate = body.indexOf('validateAdminAccess(')
+        if (gate === -1) return false
+        for (const id of DATA_ACCESS) {
+            const at = body.indexOf(id)
+            if (at !== -1 && at < gate) return false
+        }
+    }
+    return true
 }
 
 async function main() {
@@ -118,10 +138,62 @@ async function main() {
     try { await listOverrides(makeFake([], { fail: true }).admin) } catch { threw = true }
     assert(threw, 'list DB error throws')
 
+    // (d) buildDownSnapshot
+    const NOW = Date.parse('2026-11-13T10:10:00Z')
+    const goodRow: GatewaySignalRow = {
+        key: 'MTN', c_created_at: '2026-11-13T10:00:00Z', c_delivered_at: '2026-11-13T10:02:00Z', p_created_at: null,
+        is_manually_down: false, down_reason: null, down_since: null, down_snapshot: null,
+    }
+    const expected = buildChannelView(goodRow, 'MTN', NOW).lastDelivery
+    assert(expected !== null, 'fixture has a valid C')
+    const okSnap = await buildDownSnapshot(async () => [goodRow], 'MTN', NOW)
+    assert(okSnap !== null && okSnap.lastSeconds === expected!.seconds, 'snapshot seconds')
+    assert(okSnap!.lastPlacedAt === goodRow.c_created_at && okSnap!.lastDeliveredAt === goodRow.c_delivered_at, 'snapshot timestamps')
+
+    const nulls = JSON.stringify({ lastSeconds: null, lastPlacedAt: null, lastDeliveredAt: null })
+    const noC = await buildDownSnapshot(async () => [{ ...goodRow, key: 'Telecel', c_created_at: null, c_delivered_at: null }], 'Telecel', NOW)
+    assert(JSON.stringify(noC) === nulls, 'no C -> object of nulls')
+    const noRow = await buildDownSnapshot(async () => [], 'MTN', NOW)
+    assert(JSON.stringify(noRow) === nulls, 'no row -> object of nulls')
+
+    let didThrow = false
+    let failed: DownSnapshot | null | undefined
+    try { failed = await buildDownSnapshot(async () => { throw new Error('rpc broken') }, 'MTN', NOW) } catch { didThrow = true }
+    assert(!didThrow && failed === null, 'rejecting fetch -> null, no throw')
+    failed = undefined
+    try { failed = await buildDownSnapshot((() => { throw new Error('sync boom') }) as any, 'MTN', NOW) } catch { didThrow = true }
+    assert(!didThrow && failed === null, 'sync-throwing fetch -> null')
+
+    const stale = await buildDownSnapshot(
+        async () => [{ ...goodRow, is_manually_down: true, down_snapshot: { lastSeconds: 1, lastPlacedAt: 'x', lastDeliveredAt: 'y' } }],
+        'MTN',
+        NOW,
+    )
+    assert(stale !== null && stale.lastSeconds === expected!.seconds, 'stale override row does not hide live numbers')
+
     // (c) static assertions
     const root = join(__dirname, '..')
     const route = readFileSync(join(root, 'app/api/admin/gateway-status/override/route.ts'), 'utf8')
     assert(route.includes('validateAdminAccess(false'), 'route admin-only gate')
+    assert(checkGate(route), 'route: admin gate in each handler, before any data access')
+    const noGateInGet = route.replace(
+        'export async function GET(request: NextRequest) {\n    const auth = await validateAdminAccess(false, request)',
+        'export async function GET(request: NextRequest) {\n    const auth = { error: null } as any',
+    )
+    assert(noGateInGet !== route && !checkGate(noGateInGet), 'self-check: gate missing from GET is detected')
+    const postAt = route.indexOf('export async function POST')
+    const brokenPost =
+        route.slice(0, postAt) +
+        route.slice(postAt).replace(
+            'const auth = await validateAdminAccess(false, request)',
+            'const early = await request.json()\n    const auth = await validateAdminAccess(false, request)',
+        )
+    assert(brokenPost !== route && !checkGate(brokenPost), 'self-check: data access before gate in POST is detected')
+    assert(!checkGate(route.replace(/validateAdminAccess\(false/g, 'validateAdminAccess(true')), 'self-check: wrong gate flavour is detected')
+    assert(
+        route.includes("'Failed to load network status'") && (route.match(/Failed to update network status/g) ?? []).length === 1,
+        'GET load message distinct from POST update message',
+    )
     assert(!route.includes('validateAdminAccess(true'), 'route not sub-admin')
     assert(route.includes('invalidateGatewayStatusCache'), 'route invalidates cache')
     assert(!/console\.log\(/.test(route), 'route has no console.log')

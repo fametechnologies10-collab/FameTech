@@ -1,11 +1,37 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { DownSnapshot } from '@/lib/gateway-estimate'
+import { buildChannelView, type DownSnapshot, type GatewaySignalRow } from '@/lib/gateway-estimate'
 import type { OverrideRow } from '@/lib/gateway-override-shared'
 
 export { OVERRIDE_CHANNELS, parseOverrideBody } from '@/lib/gateway-override-shared'
 export type { ParsedOverrideBody, OverrideRow } from '@/lib/gateway-override-shared'
 
 const TABLE = 'gateway_status_overrides'
+
+/**
+ * Fresh live numbers for the "last delivery" shown while a channel is down, computed as if the
+ * channel were NOT down so a stale override row can't hide them. Best-effort: any failure
+ * (e.g. the signals RPC is broken) yields null so marking a network DOWN never fails because of it.
+ * A channel with no valid C yields an object of nulls.
+ */
+export async function buildDownSnapshot(
+    fetchSignals: () => Promise<GatewaySignalRow[]>,
+    channel: string,
+    nowMs: number,
+): Promise<DownSnapshot | null> {
+    try {
+        const rows = await fetchSignals()
+        const row = rows.find((r) => r.key === channel)
+        const view = buildChannelView(row ? { ...row, is_manually_down: false } : undefined, channel, nowMs)
+        return {
+            lastSeconds: view.lastDelivery?.seconds ?? null,
+            lastPlacedAt: view.lastDelivery?.placedAt ?? null,
+            lastDeliveredAt: view.lastDelivery?.deliveredAt ?? null,
+        }
+    } catch {
+        console.warn('[gateway-override] snapshot unavailable')
+        return null
+    }
+}
 
 export async function getOverrideRow(admin: SupabaseClient, channel: string): Promise<OverrideRow | null> {
     const { data, error } = await admin.from(TABLE).select('*').eq('channel', channel).maybeSingle()

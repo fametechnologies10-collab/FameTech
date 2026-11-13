@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateAdminAccess } from '@/lib/auth-utils'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { logAdminAction } from '@/lib/admin-audit'
-import { buildChannelView, type DownSnapshot } from '@/lib/gateway-estimate'
+import type { DownSnapshot } from '@/lib/gateway-estimate'
 import { fetchGatewaySignals, invalidateGatewayStatusCache } from '@/lib/gateway-status'
-import { applyOverride, getOverrideRow, listOverrides, parseOverrideBody } from '@/lib/gateway-overrides'
+import { applyOverride, buildDownSnapshot, getOverrideRow, listOverrides, parseOverrideBody } from '@/lib/gateway-overrides'
 
 // Admin-only (NOT sub-admin): this changes what customers are told about each network.
 // Admin responses include the free-text reason; the public status API never does.
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, data })
     } catch (error) {
         console.error('[gateway-override] list failed:', error instanceof Error ? error.message : 'unknown')
-        return NextResponse.json({ success: false, error: 'Failed to update network status' }, { status: 500 })
+        return NextResponse.json({ success: false, error: 'Failed to load network status' }, { status: 500 })
     }
 }
 
@@ -47,16 +47,7 @@ export async function POST(request: NextRequest) {
         const previous = await getOverrideRow(admin, channel)
 
         // Fresh live numbers, computed as if the channel were not down so a stale override can't hide them.
-        const makeSnapshot = async (): Promise<DownSnapshot | null> => {
-            const rows = await fetchGatewaySignals()
-            const row = rows.find((r) => r.key === channel)
-            const view = buildChannelView(row ? { ...row, is_manually_down: false } : undefined, channel, Date.now())
-            return {
-                lastSeconds: view.lastDelivery?.seconds ?? null,
-                lastPlacedAt: view.lastDelivery?.placedAt ?? null,
-                lastDeliveredAt: view.lastDelivery?.deliveredAt ?? null,
-            }
-        }
+        const makeSnapshot = (): Promise<DownSnapshot | null> => buildDownSnapshot(fetchGatewaySignals, channel, Date.now())
 
         const row = await applyOverride(admin, { channel, down, reason, adminId, makeSnapshot })
         await invalidateGatewayStatusCache()
