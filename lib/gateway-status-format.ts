@@ -12,12 +12,17 @@ const CLOCK = new Intl.DateTimeFormat('en-GH', {
     timeZone: 'Africa/Accra',
 })
 
+/** Replace narrow/no-break spaces with a plain space and lower-case am/pm. */
+export function normalizeClock(text: string): string {
+    return text.replace(/[\u202f\u00a0]/g, ' ').toLowerCase()
+}
+
 /** ISO timestamp -> "11:14 pm" in Ghana time; invalid/null -> "—". */
 export function formatClockTime(iso: string | null | undefined): string {
     if (!iso) return DASH
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return DASH
-    return CLOCK.format(d).replace(/[  ]/g, ' ').toLowerCase()
+    return normalizeClock(CLOCK.format(d))
 }
 
 export const TIER_FILL_CLASS: Record<StrengthTier | 'down' | 'none', string> = {

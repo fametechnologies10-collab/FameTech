@@ -179,6 +179,11 @@ export function GatewayStatus() {
     }
   }, [])
 
+  // New data arrived: re-sync the clock so elapsed time never goes negative.
+  useEffect(() => {
+    if (receivedAtMs !== null) setNow(Date.now())
+  }, [receivedAtMs])
+
   // 1s countdown timer, only while a cooldown is active.
   useEffect(() => {
     if (fetchEndedAt === null) return
@@ -231,7 +236,7 @@ export function GatewayStatus() {
   }
 
   const offset =
-    receivedAtMs === null ? null : ageOffsetSeconds(data.generatedAt, data.serverNow, receivedAtMs, now ?? receivedAtMs)
+    receivedAtMs === null ? null : ageOffsetSeconds(data.generatedAt, data.serverNow, receivedAtMs, Math.max(now ?? receivedAtMs, receivedAtMs))
   const views = data.networks.map((n) => (offset === null ? n : liveEstimate(n, offset)))
   const selected = views.find((n) => n.key === selectedKey) ?? views[0]
 

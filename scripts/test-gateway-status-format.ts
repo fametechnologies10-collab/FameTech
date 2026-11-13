@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
     formatClockTime,
+    normalizeClock,
     TIER_FILL_CLASS,
     TIER_TEXT_CLASS,
     COOLDOWN_MS,
@@ -21,8 +22,10 @@ eq(formatClockTime('not-a-date'), '—', 'time invalid')
 eq(formatClockTime(null), '—', 'time null')
 eq(formatClockTime(undefined), '—', 'time undefined')
 eq(formatClockTime(''), '—', 'time empty')
-eq(formatClockTime('2026-11-13T23:14:00Z').includes(' '), false, 'no narrow nbsp')
-eq(formatClockTime('2026-11-13T23:14:00Z').includes(' '), false, 'no nbsp')
+
+eq(normalizeClock('11:14\u202fPM'), '11:14 pm', 'normalise narrow nbsp')
+eq(normalizeClock('9:05\u00a0AM'), '9:05 am', 'normalise nbsp')
+eq(/[\u202f\u00a0]/.test(formatClockTime('2026-11-13T23:14:00Z')), false, 'no invisible spaces in output')
 
 // Cooldown
 eq(COOLDOWN_MS, 10_000, 'cooldown constant')
@@ -48,7 +51,8 @@ eq(TIER_FILL_CLASS.down, 'bg-transparent', 'down fill')
 
 // Widget source guards
 const src = readFileSync(join(process.cwd(), 'components/dashboard/home/GatewayStatus.tsx'), 'utf8')
-for (const bad of ['Running slow', 'Delays likely', 'Delivering fast', 'gateway-health']) {
+if (src.length < 500) throw new Error('widget source unexpectedly empty')
+for (const bad of ['Running slow', 'Delays likely', 'Delivering fast', 'gateway-health', 'Experiencing down', 'is down']) {
     if (src.includes(bad)) throw new Error(`widget source must not contain "${bad}"`)
 }
 

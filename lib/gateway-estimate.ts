@@ -203,13 +203,14 @@ export function ageOffsetSeconds(
     receivedAtMs: number,
     nowMs: number,
 ): number {
-    const sinceReceipt = (nowMs - receivedAtMs) / 1000
-    const fallback = Number.isFinite(sinceReceipt) ? Math.max(0, sinceReceipt) : 0
+    const raw = (nowMs - receivedAtMs) / 1000
+    const sinceReceipt = Number.isFinite(raw) ? Math.max(0, raw) : null
     const gen = parseMs(generatedAtIso)
     const srv = parseMs(serverNowIso)
-    if (gen === null || srv === null || !Number.isFinite(sinceReceipt)) return fallback
-    const total = (srv - gen) / 1000 + sinceReceipt
-    return Number.isFinite(total) ? Math.max(0, total) : fallback
+    if (sinceReceipt === null) return 0
+    if (gen === null || srv === null) return sinceReceipt
+    const total = Math.max(0, (srv - gen) / 1000) + sinceReceipt
+    return Number.isFinite(total) ? Math.max(0, total) : sinceReceipt
 }
 
 /** Recompute current estimate + headline as time passes. Never mutates; base age is kept. */

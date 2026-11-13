@@ -179,6 +179,8 @@ eq(ageOffsetSeconds('2026-11-13T12:00:00Z', '2026-11-13T12:00:20Z', 1_000_000, 1
 eq(ageOffsetSeconds('2026-11-13T12:00:00Z', '2026-11-13T12:00:00Z', 1_000_000, 1_000_000), 0, 'age zero')
 eq(ageOffsetSeconds('2026-11-13T12:00:10Z', '2026-11-13T12:00:00Z', 1_000_000, 1_000_000), 0, 'negative clamped')
 eq(ageOffsetSeconds('garbage', 'junk', 1_000_000, 1_007_000), 7, 'garbage -> receipt-relative')
+eq(ageOffsetSeconds('2026-11-13T12:00:00Z', '2026-11-13T12:00:20Z', 1_000_000, 998_000), 20, 'now before receipt contributes 0')
+eq(ageOffsetSeconds('2026-11-13T12:00:10Z', '2026-11-13T12:00:00Z', 1_000_000, 1_005_000), 5, 'negative server term contributes 0')
 for (const args of [['x', 'y', NaN, NaN], ['', '', 0, -5], ['2026-11-13T12:00:00Z', 'bad', Infinity, 1]] as [string, string, number, number][]) {
     const r = ageOffsetSeconds(...args)
     if (!Number.isFinite(r) || r < 0) throw new Error(`age offset not finite >= 0: ${r}`)
