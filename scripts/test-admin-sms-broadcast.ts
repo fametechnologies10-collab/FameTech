@@ -19,7 +19,11 @@ import {
     createAdminSmsBroadcast,
     getAdminSmsBroadcastStatus,
     dispatchAdminSmsBroadcastChunk,
+    verifyAdminSmsBroadcast,
+    retryFailedAdminSmsBroadcast,
+    listRecentAdminSmsBroadcasts,
 } from '../lib/admin-sms-broadcast'
+import { listKingFlexyFailedCampaignIds } from '../lib/kingflexy-campaigns'
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -180,6 +184,64 @@ async function main() {
     const r4 = await supabase.rpc('retry_failed_admin_sms_broadcast_recipients', { p_broadcast_id: v4.broadcastId })
     const r4row = Array.isArray(r4.data) ? r4.data[0] : r4.data
     assertOk(!r4.error && r4row?.requeued === 1, 'retry: send-time failures are requeued too')
+
+    // ── lib: listKingFlexyFailedCampaignIds ──
+    process.env.KINGFLEXY_API_KEY = process.env.KINGFLEXY_API_KEY || 'test-key'
+    const camps = (n: number, offset = 0) => Array.from({ length: n }, (_, i) => ({ id: `c${offset + i}`, status: 'failed' }))
+    const okPage = (campaigns: unknown[]) => ({ status: 200, json: async () => ({ success: true, data: { campaigns, page: 0 } }) })
+    let calls = 0
+    const pagedFetch = (async (url: string) => {
+        calls++
+        const page = Number(new URL(url).searchParams.get('page') ?? '0')
+        return okPage(page === 0 ? camps(30) : camps(5, 30))
+    }) as unknown as typeof fetch
+    const ids = await listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: pagedFetch })
+    assertOk(ids.size === 35 && calls === 2, 'listKingFlexyFailedCampaignIds paginates (30 then 5 -> 35 ids, 2 calls)')
+    await assertRejects(
+        () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 429, json: async () => ({ success: false }) })) as unknown as typeof fetch }),
+        'listKingFlexyFailedCampaignIds throws on HTTP 429',
+    )
+    await assertRejects(
+        () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 200, json: async () => ({ success: false }) })) as unknown as typeof fetch }),
+        'listKingFlexyFailedCampaignIds throws on success:false',
+    )
+    await assertRejects(
+        () => listKingFlexyFailedCampaignIds({ from: new Date(), to: new Date(), fetchFn: (async () => ({ status: 200, json: async () => { throw new Error('bad json') } })) as unknown as typeof fetch }),
+        'listKingFlexyFailedCampaignIds throws on non-JSON body',
+    )
+
+    // ── lib: verifyAdminSmsBroadcast ──
+    const w1 = await mk()
+    const vs = await verifyAdminSmsBroadcast(supabase, w1, async () => new Set(['camp-B-233244100002', 'unrelated-id']))
+    assertOk(vs?.sentCount === 2 && vs.failedCount === 1 && vs.verified === true, 'verify marks only intersecting sent recipients, status.verified true')
+
+    const w2 = await mk()
+    await assertRejects(() => verifyAdminSmsBroadcast(supabase, w2, async () => { throw new Error('supplier down') }), 'verify propagates a lister failure')
+    assertOk((await rowOf(w2)).verified_at === null, 'verify leaves verified_at null when the lister fails')
+
+    let listerCalls = 0
+    const spyList = async () => { listerCalls++; return new Set<string>() }
+    await verifyAdminSmsBroadcast(supabase, w1, spyList)
+    assertOk(listerCalls === 0, 'verify on an already-verified broadcast is a no-op (lister not called)')
+    const notDone = await trackedCreate({ createdBy: testAdminId!, message: 'x', audienceType: 'users', recipients: [{ phone: '233244100008', resolvedMessage: 'x' }] })
+    const nd = await verifyAdminSmsBroadcast(supabase, notDone.broadcastId, spyList)
+    assertOk(listerCalls === 0 && nd?.status === 'queued' && nd.verified === false, 'verify on a not-done broadcast is a no-op (lister not called)')
+    assertOk((await verifyAdminSmsBroadcast(supabase, randomUUID(), spyList)) === null, 'verify on unknown broadcast returns null')
+
+    // recipients with null provider_message_id are ignored
+    const w3 = await trackedCreate({ createdBy: testAdminId!, message: 'x', audienceType: 'users', recipients: [{ phone: '233244100007', resolvedMessage: 'x' }] })
+    await dispatchAdminSmsBroadcastChunk(supabase, w3.broadcastId, async () => ({ success: true }))
+    const vn = await verifyAdminSmsBroadcast(supabase, w3.broadcastId, async () => new Set(['null', 'undefined', '']))
+    assertOk(vn?.sentCount === 1 && vn.failedCount === 0 && vn.verified === true, 'verify ignores recipients with null provider_message_id')
+
+    // ── lib: retryFailedAdminSmsBroadcast / listRecent ──
+    const rr = await retryFailedAdminSmsBroadcast(supabase, v3)
+    assertOk(rr?.requeued === 1 && rr.status.status === 'sending' && rr.status.verified === false, 'retryFailedAdminSmsBroadcast returns requeued count and reopened status')
+    assertOk((await retryFailedAdminSmsBroadcast(supabase, randomUUID())) === null, 'retryFailedAdminSmsBroadcast on unknown broadcast returns null')
+    const recent = await listRecentAdminSmsBroadcasts(supabase, 10)
+    const times = recent.map((r) => r.createdAt)
+    assertOk(recent.length <= 10 && recent.length > 0 && times.every((t, i) => i === 0 || t <= times[i - 1]), 'listRecentAdminSmsBroadcasts returns <=10 rows newest first')
+    assertOk(recent.every((r) => r.messagePreview.length <= 60), 'listRecentAdminSmsBroadcasts truncates preview to 60 chars')
 }
 
 main()

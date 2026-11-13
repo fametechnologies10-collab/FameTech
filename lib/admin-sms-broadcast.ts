@@ -14,6 +14,7 @@
  */
 import { sendSMS } from '@/lib/sms-service'
 import type { SMSResult } from '@/lib/sms-service'
+import { listKingFlexyFailedCampaignIds } from '@/lib/kingflexy-campaigns'
 
 const INSERT_CHUNK_SIZE = 1000
 const CLAIM_LIMIT = 10
@@ -24,6 +25,8 @@ export type AdminSmsBroadcastStatus = {
     totalRecipients: number
     sentCount: number
     failedCount: number
+    /** True once the supplier's outcome has been checked (see verifyAdminSmsBroadcast). */
+    verified: boolean
     failedSamples?: Array<{ phone: string; error: string | null }>
 }
 
@@ -97,7 +100,7 @@ export async function createAdminSmsBroadcast(
 export async function getAdminSmsBroadcastStatus(db: any, broadcastId: string): Promise<AdminSmsBroadcastStatus | null> {
     const { data, error } = await db
         .from('admin_sms_broadcasts')
-        .select('status, total_recipients, sent_count, failed_count')
+        .select('status, total_recipients, sent_count, failed_count, verified_at')
         .eq('id', broadcastId)
         .maybeSingle()
     if (error) throw error
@@ -108,12 +111,27 @@ export async function getAdminSmsBroadcastStatus(db: any, broadcastId: string): 
         totalRecipients: data.total_recipients,
         sentCount: data.sent_count,
         failedCount: data.failed_count,
+        verified: data.verified_at != null,
     }
 
     if (status.status === 'done' && status.failedCount > 0) {
         status.failedSamples = await fetchFailedSamples(db, broadcastId)
     }
 
+    return status
+}
+
+async function statusFromRow(db: any, row: any): Promise<AdminSmsBroadcastStatus> {
+    const status: AdminSmsBroadcastStatus = {
+        status: row.status,
+        totalRecipients: row.total_recipients,
+        sentCount: row.sent_count,
+        failedCount: row.failed_count,
+        verified: row.verified_at != null,
+    }
+    if (status.status === 'done' && status.failedCount > 0) {
+        status.failedSamples = await fetchFailedSamples(db, row.id)
+    }
     return status
 }
 
@@ -171,16 +189,107 @@ export async function dispatchAdminSmsBroadcastChunk(
     const row = Array.isArray(incremented) ? incremented[0] : incremented
     if (!row || !row.id) return null
 
-    const status: AdminSmsBroadcastStatus = {
-        status: row.status,
-        totalRecipients: row.total_recipients,
-        sentCount: row.sent_count,
-        failedCount: row.failed_count,
+    return statusFromRow(db, row)
+}
+
+/**
+ * Checks KingFlexyGH's outcome for a finished broadcast. A message the supplier
+ * accepted at send time can still be rejected by its carrier gateway; those
+ * campaigns show up as `failed` in the campaign list. Matching recipients are
+ * flipped sent -> failed (never the reverse) and verified_at is stamped.
+ *
+ * No-op (returns current status) when the broadcast isn't 'done' or is already
+ * verified. If the supplier lookup throws, the error propagates and verified_at
+ * stays null so a later call (page or cron) retries.
+ */
+export async function verifyAdminSmsBroadcast(
+    db: any,
+    broadcastId: string,
+    listFn: (opts: { from: Date; to: Date }) => Promise<Set<string>> = listKingFlexyFailedCampaignIds,
+): Promise<AdminSmsBroadcastStatus | null> {
+    const { data: broadcast, error } = await db
+        .from('admin_sms_broadcasts')
+        .select('*')
+        .eq('id', broadcastId)
+        .maybeSingle()
+    if (error) throw error
+    if (!broadcast) return null
+    if (broadcast.status !== 'done' || broadcast.verified_at) return statusFromRow(db, broadcast)
+
+    const from = new Date(new Date(broadcast.created_at).getTime() - 60_000)
+    const to = new Date(new Date(broadcast.completed_at ?? Date.now()).getTime() + 5 * 60_000)
+    const failedCampaignIds = await listFn({ from, to })
+
+    const sentCampaignIds: string[] = []
+    for (let offset = 0; ; offset += 1000) {
+        const { data, error: recError } = await db
+            .from('admin_sms_broadcast_recipients')
+            .select('provider_message_id')
+            .eq('broadcast_id', broadcastId)
+            .eq('status', 'sent')
+            .not('provider_message_id', 'is', null)
+            .order('id')
+            .range(offset, offset + 999)
+        if (recError) throw recError
+        const page = (data as Array<{ provider_message_id: string }>) || []
+        for (const r of page) sentCampaignIds.push(r.provider_message_id)
+        if (page.length < 1000) break
     }
 
-    if (status.status === 'done' && status.failedCount > 0) {
-        status.failedSamples = await fetchFailedSamples(db, broadcastId)
-    }
+    const rejected = sentCampaignIds.filter((id) => failedCampaignIds.has(id))
+    const { data: marked, error: markError } = await db.rpc('mark_admin_sms_broadcast_rejected', {
+        p_broadcast_id: broadcastId,
+        p_campaign_ids: rejected,
+    })
+    if (markError) throw markError
 
-    return status
+    const row = Array.isArray(marked) ? marked[0] : marked
+    if (!row || !row.id) return null
+    return statusFromRow(db, row)
+}
+
+/**
+ * Requeues every failed recipient (supplier-rejected or send-time failures)
+ * and reopens the broadcast; the normal dispatch loop then resends them.
+ * Returns null for an unknown broadcast.
+ */
+export async function retryFailedAdminSmsBroadcast(
+    db: any,
+    broadcastId: string,
+): Promise<{ requeued: number; status: AdminSmsBroadcastStatus } | null> {
+    const { data, error } = await db.rpc('retry_failed_admin_sms_broadcast_recipients', { p_broadcast_id: broadcastId })
+    if (error) throw error
+    // An unknown id yields a broadcast object whose fields are all null.
+    if (!data?.broadcast?.id) return null
+    return { requeued: data.requeued as number, status: await statusFromRow(db, data.broadcast) }
+}
+
+export type AdminSmsBroadcastSummary = {
+    id: string
+    messagePreview: string
+    status: 'queued' | 'sending' | 'done'
+    verified: boolean
+    totalRecipients: number
+    sentCount: number
+    failedCount: number
+    createdAt: string
+}
+
+export async function listRecentAdminSmsBroadcasts(db: any, limit = 10): Promise<AdminSmsBroadcastSummary[]> {
+    const { data, error } = await db
+        .from('admin_sms_broadcasts')
+        .select('id, message, status, verified_at, total_recipients, sent_count, failed_count, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    if (error) throw error
+    return ((data as any[]) || []).map((b) => ({
+        id: b.id,
+        messagePreview: String(b.message).slice(0, 60),
+        status: b.status,
+        verified: b.verified_at != null,
+        totalRecipients: b.total_recipients,
+        sentCount: b.sent_count,
+        failedCount: b.failed_count,
+        createdAt: b.created_at,
+    }))
 }
