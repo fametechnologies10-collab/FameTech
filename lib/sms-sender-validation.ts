@@ -1,5 +1,5 @@
 /**
- * Sender-ID validation (FTGH SMS) — charset/length rules + NORMALIZED
+ * Sender-ID validation (FTH SMS) — charset/length rules + NORMALIZED
  * reserved-brand collision detection.
  *
  * Exact-match deny lists are trivially bypassed ('M T N', 'MTNAlert',

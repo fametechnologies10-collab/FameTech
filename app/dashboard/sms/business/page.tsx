@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * FTGH SMS — Business Registration + Sender-ID wizard.
+ * FTH SMS — Business Registration + Sender-ID wizard.
  * Fintech-style onboarding: status stepper, draft/submit flow with review
  * lock, rejection/revocation re-edit, pool sender picker and own Sender-ID
  * requests with a live status timeline. KYC documents (Ghana Card, business
@@ -427,7 +427,7 @@ export default function SmsBusinessPage() {
                 <div>
                     <Link href="/dashboard/sms">
                         <Button variant="ghost" size="sm" className="w-fit gap-2 -ml-2 h-10 text-muted-foreground hover:text-emerald-600">
-                            <ArrowLeft className="w-4 h-4" /> Back to FTGH SMS
+                            <ArrowLeft className="w-4 h-4" /> Back to FTH SMS
                         </Button>
                     </Link>
                     <h1 className="text-xl font-bold flex items-center gap-2 mt-1">
@@ -877,7 +877,7 @@ export default function SmsBusinessPage() {
                                 </h3>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     Register your own brand name to send under. Add up to {MAX_SENDERS} — each is reviewed by our team, then registered with the network.
-                                    {!isBusinessMode && ' Platform Mode accounts can request one KYC-free — no documents needed. Once approved, pick it from the sender dropdown in Compose, or enable it as your order-confirmation sender from FTGH SMS settings.'}
+                                    {!isBusinessMode && ' Platform Mode accounts can request one KYC-free — no documents needed. Once approved, pick it from the sender dropdown in Compose, or enable it as your order-confirmation sender from FTH SMS settings.'}
                                 </p>
                             </div>
 

@@ -448,7 +448,7 @@ export async function POST(request: NextRequest) {
                 if (input.hold) await cancelQueuedCampaigns(db, a.id)
                 notifyUser(a.user_id, input.hold ? 'Business SMS mode paused' : 'Business SMS mode restored',
                     input.hold
-                        ? `Your business SMS mode has been paused${input.reason ? `: ${input.reason}` : ' until your business certificate is provided'}. While paused, your messages send under the FTGH platform sender with standard filtering — your own sender ID and business filtering are not usable.`
+                        ? `Your business SMS mode has been paused${input.reason ? `: ${input.reason}` : ' until your business certificate is provided'}. While paused, your messages send under the FTH platform sender with standard filtering — your own sender ID and business filtering are not usable.`
                         : 'Your business SMS mode has been restored — your own sender ID and business filtering are active again.')
                 audit(db, user.id, input.hold ? 'sms_business_hold' : 'sms_business_release',
                     a.user_id, { business_on_hold: a.business_on_hold }, { business_on_hold: input.hold, reason: input.reason ?? null })

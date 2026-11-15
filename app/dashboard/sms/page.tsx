@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * /dashboard/sms — FTGH SMS platform OVERVIEW.
+ * /dashboard/sms — FTH SMS platform OVERVIEW.
  * Hero + mode badge, credit balance, 30-day quick stats (computed client-side
  * from the first page of campaigns), sending-identity strip, and navigation
  * cards to Records / Contacts / Credits / Business & Sender ID.
@@ -238,7 +238,7 @@ export default function SmsOverviewPage() {
                 </div>
                 <div>
                     <h1 className="text-lg font-bold">
-                        {gate === 'disabled' ? 'FTGH SMS is coming soon' : 'SMS is not available for your account'}
+                        {gate === 'disabled' ? 'FTH SMS is coming soon' : 'SMS is not available for your account'}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1.5">
                         {gate === 'disabled'

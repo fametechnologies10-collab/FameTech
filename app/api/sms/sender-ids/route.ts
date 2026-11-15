@@ -1,5 +1,5 @@
 /**
- * /api/sms/sender-ids — own sender-ID requests (FTGH SMS).
+ * /api/sms/sender-ids — own sender-ID requests (FTH SMS).
  *
  * GET : list the account's sender IDs.
  * POST: request a new sender ID. Gates:
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
             const { data: profile } = await db.from('sms_business_profiles')
                 .select('status').eq('account_id', accountId).maybeSingle()
             if ((profile as any)?.status !== 'approved') {
-                return NextResponse.json({ success: false, error: 'Your business registration must be approved before requesting a sender ID (Dashboard → FTGH SMS → Business & Sender ID)' }, { status: 409 })
+                return NextResponse.json({ success: false, error: 'Your business registration must be approved before requesting a sender ID (Dashboard → FTH SMS → Business & Sender ID)' }, { status: 409 })
             }
         }
 

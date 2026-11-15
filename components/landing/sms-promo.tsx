@@ -26,7 +26,7 @@ export function SmsPromo() {
     return (
         <section id="sms" aria-labelledby="sms-heading" className="ft-lazy scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-7xl">
-                <p className="text-sm font-semibold text-[color:var(--ft-muted)]">New: FTGH SMS</p>
+                <p className="text-sm font-semibold text-[color:var(--ft-muted)]">New: FTH SMS</p>
                 <h2 id="sms-heading" className="ft-display mt-1 max-w-3xl text-3xl font-extrabold tracking-tight text-ft-ink sm:text-4xl">
                     Send SMS to your customers, at scale.
                 </h2>
@@ -57,7 +57,7 @@ export function SmsPromo() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                             <ClayButton asChild>
                                 <Link href="/sms">
-                                    Explore FTGH SMS
+                                    Explore FTH SMS
                                     <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                                 </Link>
                             </ClayButton>

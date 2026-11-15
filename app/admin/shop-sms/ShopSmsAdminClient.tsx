@@ -604,7 +604,7 @@ export default function ShopSmsAdminClient() {
                             <Tag className="w-4 h-4 text-amber-500" /> Sender ID Requests ({data.pendingSenderRequests.length})
                         </h2>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Shops asking to send order confirmations under their own brand name instead of FTGH.
+                            Shops asking to send order confirmations under their own brand name instead of FTH.
                         </p>
                     </div>
 

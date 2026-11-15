@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, Info, X, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Shop-overview warning banner for Task F4 (FTGH SMS v2). Task F3 made shop
+// Shop-overview warning banner for Task F4 (FTH SMS v2). Task F3 made shop
 // customer order confirmations suppress-until-ready — they only send once a
 // shop has SMS activated + an admin-approved sender ID + spare credits. 182
 // live shops will otherwise silently stop getting confirmations sent, so

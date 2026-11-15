@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * /dashboard/sms/records — FTGH SMS campaign records list.
+ * /dashboard/sms/records — FTH SMS campaign records list.
  * Moolre/mNotify-style history: status filter pills, color-coded status chips,
  * message preview, recipients/credits/date meta, source icon (dashboard vs API),
  * pagination, row click → detail, and cancel (with Dialog confirm — never

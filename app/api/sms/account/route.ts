@@ -1,5 +1,5 @@
 /**
- * GET /api/sms/account — SMS platform account overview (FTGH SMS).
+ * GET /api/sms/account — SMS platform account overview (FTH SMS).
  * Auth: user session. Provisions the account+wallet on first hit
  * (ensure_sms_account) and returns everything the dashboard shell needs.
  */

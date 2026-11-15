@@ -1,5 +1,5 @@
 /**
- * /api/sms/business — business registration (FTGH SMS).
+ * /api/sms/business — business registration (FTH SMS).
  *
  * GET : own profile + the admin WhatsApp number to send KYC documents to.
  * POST: save draft / submit for review. Domain + description unlock business

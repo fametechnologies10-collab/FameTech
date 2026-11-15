@@ -4,7 +4,7 @@ import { BadgeCheck, Smartphone, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
- * Reusable "what is a sender ID" explainer for FTGH SMS.
+ * Reusable "what is a sender ID" explainer for FTH SMS.
  *
  * - `compact`: a single-line info strip — used inline in wizards / banners
  *   where space is tight (e.g. shop setup wizard final step).
@@ -27,7 +27,7 @@ export function SenderIdExplainer({
                 <BadgeCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
                     A <strong>sender ID</strong> is the name customers see instead of a phone number when you SMS
-                    them — e.g. <span className="font-mono font-semibold">&quot;FTGH Shop&quot;</span> (max 11 characters).
+                    them — e.g. <span className="font-mono font-semibold">&quot;FTH Shop&quot;</span> (max 11 characters).
                     Request your own so order confirmations arrive from <strong>your brand</strong>, not FameTech.
                 </p>
             </div>
@@ -57,7 +57,7 @@ export function SenderIdExplainer({
                         KS
                     </div>
                     <div>
-                        <p className="text-xs font-bold">FTGH Shop</p>
+                        <p className="text-xs font-bold">FTH Shop</p>
                         <p className="text-[10px] text-muted-foreground">Your order of GHS 25 MTN data is confirmed. Thank you!</p>
                     </div>
                 </div>

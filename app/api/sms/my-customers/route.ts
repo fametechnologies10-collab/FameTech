@@ -6,7 +6,7 @@ import { consumeRateLimit } from '@/lib/simple-rate-limit'
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/sms/my-customers — "My Customers" picker for FTGH SMS compose.
+ * GET /api/sms/my-customers — "My Customers" picker for FTH SMS compose.
  *
  * Mirrors the shop SMS feature's recipient source (shop_customers), but for
  * the KFT compose page. SECURITY: the shop is ALWAYS derived from the
