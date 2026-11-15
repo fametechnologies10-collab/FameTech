@@ -1730,6 +1730,7 @@ export type Database = {
           size: string
           source: string
           spfastit_reference: string | null
+          kingflexy_reference: string | null
           status: string | null
           updated_at: string | null
           user_id: string | null
@@ -1778,6 +1779,7 @@ export type Database = {
           size: string
           source?: string
           spfastit_reference?: string | null
+          kingflexy_reference?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -1826,6 +1828,7 @@ export type Database = {
           size?: string
           source?: string
           spfastit_reference?: string | null
+          kingflexy_reference?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string | null
