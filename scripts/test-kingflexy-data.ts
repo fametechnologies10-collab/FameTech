@@ -7,6 +7,7 @@ import {
     KF_DATA_NETWORKS, assertSupportedNetwork, sizeToVolumeGb, toLocalRecipient,
     buildKingflexyReference, extractOrderIdFromReference, extractAttemptNoFromReference,
     mapKingflexyStatus, classifyPurchase, verifyWebhookSignature, shouldRedeliver,
+    placeOrder, checkOrderStatus, fetchSupplierBalance, __resetKingflexyBreakerForTests,
 } from '../lib/kingflexy-data-service'
 
 let failures = 0
@@ -105,5 +106,123 @@ assertEqual(shouldRedeliver('garbage', now), false, 'garbage')
 assertEqual(shouldRedeliver(undefined, now), false, 'undefined')
 assertEqual(shouldRedeliver(null, now), false, 'null')
 
-console.log(failures === 0 ? '\nAll tests passed' : `\n${failures} test(s) failed`)
-process.exit(failures > 0 ? 1 : 0)
+// ─── I/O (fetch stubbed; no real network) ───
+const KEY = 'kf_test_SECRETKEY123'
+const realFetch = globalThis.fetch
+let calls: { url: string; init: any }[] = []
+function stub(fn: (url: string, init: any) => Response | Promise<Response>) {
+    calls = []
+    globalThis.fetch = (async (url: any, init: any) => { calls.push({ url: String(url), init }); return fn(String(url), init) }) as any
+}
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const input = { recipient: '0240000001', network: 'MTN' as const, volumeGb: 5, reference: buildKingflexyReference(uuid, 0) }
+const noKey = (s: unknown) => !JSON.stringify(s ?? '').includes(KEY)
+
+async function ioTests() {
+    // missing key
+    delete process.env.KINGFLEXY_DATA_API_KEY
+    __resetKingflexyBreakerForTests()
+    stub(() => json(200, {}))
+    let r = await placeOrder(input)
+    assertEqual([r.success, r.outcome, calls.length], [false, 'config_error', 0], 'missing key -> config_error, no fetch')
+
+    process.env.KINGFLEXY_DATA_API_KEY = KEY // set AFTER import: proves call-time read
+
+    // accepted
+    stub(() => json(200, { success: true, data: { order_id: 'o1', reference: input.reference, status: 'pending', network: 'MTN', size: '5GB', recipient: input.recipient, price: 1, new_balance: 9 } }))
+    r = await placeOrder(input)
+    assertEqual([r.success, r.outcome, r.status], [true, 'accepted', 'pending'], '200 accepted')
+    assertEqual(calls[0].url, 'https://api.kingflexygh.com/api/v2/data/purchase', 'purchase url')
+    assertEqual(calls[0].init.method, 'POST', 'purchase method')
+    assertEqual(calls[0].init.headers.Authorization, KEY, 'raw key, no Bearer')
+    assertEqual(calls[0].init.headers['Content-Type'], 'application/json', 'content type')
+    assertEqual(JSON.parse(calls[0].init.body), { network: 'MTN', volume_gb: 5, recipient: input.recipient, reference: input.reference }, 'purchase body')
+
+    // 409 unregistered x6 -> hold, breaker stays closed
+    const MSG = "This number isn't registered to receive MTN data yet. We've submitted it for registration — please try again soon."
+    stub(() => json(409, { success: false, error: { code: 409, message: MSG } }))
+    for (let i = 0; i < 6; i++) r = await placeOrder(input)
+    assertEqual([r.success, r.outcome], [false, 'retryable_hold'], '409 unregistered -> retryable_hold')
+    assertEqual(calls.length, 6, '6 hold calls all hit fetch (breaker closed)')
+    assertEqual((r.apiResponse as any)?.error?.message, MSG, 'apiResponse preserves supplier reason')
+
+    // 409 other -> rejected
+    stub(() => json(409, { success: false, error: { code: 409, message: 'Reference reused with different payload' } }))
+    r = await placeOrder(input)
+    assertEqual(r.outcome, 'rejected', '409 other -> rejected')
+    assertEqual((r.apiResponse as any)?.error?.message, 'Reference reused with different payload', 'rejected keeps reason')
+
+    // 6x 502 -> breaker opens; next call no fetch
+    __resetKingflexyBreakerForTests()
+    stub(() => json(502, { error: 'bad gateway' }))
+    for (let i = 0; i < 6; i++) r = await placeOrder(input)
+    assertEqual(calls.length, 5, 'breaker opened after exactly 5 failures (6th made no fetch)')
+    const before = calls.length
+    r = await placeOrder(input)
+    assertEqual([r.success, calls.length], [false, before], 'breaker open: no fetch on next call')
+    // reads never gated while open
+    stub(() => json(200, { success: true, data: { balance: 124.5, currency: 'GHS' } }))
+    const b = await fetchSupplierBalance()
+    assertEqual([b.success, b.balance, b.currency, calls.length], [true, 124.5, 'GHS', 1], 'reads not gated by open breaker')
+    assertEqual(calls[0].url, 'https://api.kingflexygh.com/api/v2/wallet/balance', 'balance url')
+    assertEqual(calls[0].init.headers.Authorization, KEY, 'balance raw key')
+
+    // non-JSON 502 -> ambiguous
+    __resetKingflexyBreakerForTests()
+    stub(() => new Response('<html>oops</html>', { status: 502 }))
+    r = await placeOrder(input)
+    assertEqual([r.success, r.outcome], [false, 'ambiguous'], 'non-JSON 502 ambiguous')
+
+    // thrown fetch -> ambiguous + transportFault, key never leaked
+    __resetKingflexyBreakerForTests()
+    stub(() => { throw new Error(`socket hang up Authorization: ${KEY}`) })
+    r = await placeOrder(input)
+    assertEqual([r.success, r.outcome, r.transportFault], [false, 'ambiguous', true], 'thrown fetch -> ambiguous transportFault')
+    assertEqual(noKey(r), true, 'transport error does not leak key')
+
+    // transport faults trip breaker too (1 already counted)
+    for (let i = 0; i < 4; i++) await placeOrder(input)
+    const c = calls.length
+    await placeOrder(input)
+    assertEqual(calls.length, c, 'transport faults open breaker')
+
+    // 401 / 429 / 503 never trip
+    for (const [st, out] of [[401, 'config_error'], [429, 'rate_limited'], [503, 'paused']] as const) {
+        __resetKingflexyBreakerForTests()
+        stub(() => json(st, { success: false, error: { code: st, message: 'nope' } }))
+        for (let i = 0; i < 7; i++) r = await placeOrder(input)
+        assertEqual([r.outcome, calls.length], [out, 7], `${st} never trips breaker`)
+        assertEqual(noKey(r), true, `${st} no key leak`)
+    }
+
+    // checkOrderStatus
+    stub(() => json(200, { success: true, data: { order_id: 'o1', reference: 'a/b', status: 'completed' } }))
+    let s = await checkOrderStatus('a/b')
+    assertEqual([s.success, s.found, s.status], [true, true, 'completed'], 'status found')
+    assertEqual(calls[0].url, 'https://api.kingflexygh.com/api/v2/orders/a%2Fb', 'status url encoded')
+    assertEqual(calls[0].init.headers.Authorization, KEY, 'status raw key')
+    stub(() => json(404, { success: false, error: { code: 404, message: 'No order with this reference on your account.' } }))
+    s = await checkOrderStatus('x')
+    assertEqual([s.success, s.found], [true, false], '404 envelope -> found:false')
+    stub(() => new Response('<html>nginx 404</html>', { status: 404 }))
+    s = await checkOrderStatus('x')
+    assertEqual([s.success, s.found], [false, false], '404 non-JSON -> success:false')
+    stub(() => json(502, { error: 'x' }))
+    s = await checkOrderStatus('x')
+    assertEqual([s.success, s.found], [false, false], '502 -> success:false')
+    stub(() => { throw new Error('timeout') })
+    s = await checkOrderStatus('x')
+    assertEqual([s.success, s.found], [false, false], 'thrown -> success:false')
+    delete process.env.KINGFLEXY_DATA_API_KEY
+    stub(() => json(200, {}))
+    s = await checkOrderStatus('x')
+    assertEqual([s.success, calls.length], [false, 0], 'status w/o key -> no fetch')
+    const bb = await fetchSupplierBalance()
+    assertEqual([bb.success, calls.length], [false, 0], 'balance w/o key -> no fetch')
+    globalThis.fetch = realFetch
+}
+
+ioTests().then(() => {
+    console.log(failures === 0 ? '\nAll tests passed' : `\n${failures} test(s) failed`)
+    process.exit(failures > 0 ? 1 : 0)
+}).catch(e => { console.error('test crash', e); process.exit(1) })

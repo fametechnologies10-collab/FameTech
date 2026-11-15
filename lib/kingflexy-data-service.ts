@@ -1,8 +1,8 @@
 /**
  * KingFlexyGH Standard-key data API — fulfillment supplier service.
  *
- * This section is PURE: no top-level I/O, no fetch, no env reads at import time, so it is
- * importable from plain `npx tsx` tests. The HTTP client is added below it in a later task.
+ * The first section is PURE (no top-level I/O or env reads) so it is importable from plain `npx tsx` tests.
+ * The HTTP client + circuit breaker follow it; they read env and call fetch only at call time.
  */
 import { createHmac, timingSafeEqual } from 'crypto'
 
@@ -128,4 +128,168 @@ export function shouldRedeliver(eventTimestamp: unknown, nowMs: number): boolean
     }
     if (!Number.isFinite(ms)) return false
     return nowMs - ms < 10 * 60 * 1000
+}
+
+// ─── I/O (HTTP client + circuit breaker) ──────────────────────────────────────────────────────
+// Auth is the RAW key in `Authorization` (NO "Bearer"). Key = KINGFLEXY_DATA_API_KEY, read at
+// CALL time. Never confuse with KINGFLEXY_API_KEY (SMS) / KINGFLEXY_COMMISSION_API_KEY.
+// SECURITY: never log headers/config/key; every error string returned here is generic.
+
+const KF_BASE_URL = 'https://api.kingflexygh.com/api/v2'
+const KF_TIMEOUT_MS = 20000
+
+// Breaker: gates ONLY placeOrder. Because purchases carry a client idempotency key (reference),
+// only `ambiguous` outcomes (transport faults, 5xx, non-JSON) count; reads are never gated.
+let circuitState: 'closed' | 'open' | 'half-open' = 'closed'
+let failureCount = 0
+let lastFailureTime: number | null = null
+const FAILURE_THRESHOLD = 5
+const RECOVERY_TIMEOUT = 60000
+
+function checkCircuit(): boolean {
+    if (circuitState === 'closed') return true
+    if (circuitState === 'open') {
+        if (lastFailureTime && Date.now() - lastFailureTime > RECOVERY_TIMEOUT) {
+            circuitState = 'half-open'
+            return true
+        }
+        return false
+    }
+    return true
+}
+
+function recordSuccess() {
+    failureCount = 0
+    circuitState = 'closed'
+}
+
+function recordFailure() {
+    failureCount++
+    lastFailureTime = Date.now()
+    if (circuitState === 'half-open' || failureCount >= FAILURE_THRESHOLD) circuitState = 'open'
+}
+
+/** Test-only: reset module-level breaker state. */
+export function __resetKingflexyBreakerForTests() {
+    circuitState = 'closed'
+    failureCount = 0
+    lastFailureTime = null
+}
+
+function getKey(): string {
+    return (process.env.KINGFLEXY_DATA_API_KEY || '').trim()
+}
+
+/** One request. Never throws. body is null when the response was not parseable JSON. */
+async function kfRequest(method: 'GET' | 'POST', path: string, key: string, payload?: unknown): Promise<
+    { transportFault: true } | { transportFault: false; status: number; body: any }
+> {
+    try {
+        const headers: Record<string, string> = { Authorization: key, Accept: 'application/json' }
+        if (payload !== undefined) headers['Content-Type'] = 'application/json'
+        const res = await fetch(`${KF_BASE_URL}${path}`, {
+            method,
+            headers,
+            body: payload !== undefined ? JSON.stringify(payload) : undefined,
+            signal: AbortSignal.timeout(KF_TIMEOUT_MS),
+        })
+        let body: any = null
+        try {
+            const text = await res.text()
+            body = text ? JSON.parse(text) : null
+        } catch {
+            body = null
+        }
+        return { transportFault: false, status: res.status, body }
+    } catch {
+        return { transportFault: true }
+    }
+}
+
+export interface KingflexySendResult {
+    success: boolean
+    outcome: PurchaseOutcome
+    status?: string
+    error?: string
+    transportFault?: boolean
+    apiResponse?: any
+}
+
+export async function placeOrder(input: {
+    recipient: string
+    network: KfDataNetwork
+    volumeGb: number
+    reference: string
+}): Promise<KingflexySendResult> {
+    const key = getKey()
+    if (!key) return { success: false, outcome: 'config_error', error: 'KingFlexy data API key not configured' }
+    if (!checkCircuit()) {
+        return { success: false, outcome: 'paused', error: 'KingFlexy circuit breaker open' }
+    }
+
+    const r = await kfRequest('POST', '/data/purchase', key, {
+        network: input.network,
+        volume_gb: input.volumeGb,
+        recipient: input.recipient,
+        reference: input.reference,
+    })
+
+    if (r.transportFault) {
+        recordFailure()
+        return { success: false, outcome: 'ambiguous', transportFault: true, error: 'KingFlexy request failed (network/timeout)' }
+    }
+
+    const { outcome, status } = classifyPurchase(r.status, r.body)
+    if (outcome === 'ambiguous') recordFailure()
+    else recordSuccess()
+
+    if (outcome === 'accepted') return { success: true, outcome, status, apiResponse: r.body }
+    return {
+        success: false,
+        outcome,
+        error: `KingFlexy purchase ${outcome.replace('_', ' ')} (HTTP ${r.status})`,
+        apiResponse: r.body ?? undefined,
+    }
+}
+
+export interface KingflexyStatusResult {
+    success: boolean
+    found: boolean
+    status?: string
+    error?: string
+    apiResponse?: any
+}
+
+export async function checkOrderStatus(reference: string): Promise<KingflexyStatusResult> {
+    const key = getKey()
+    if (!key) return { success: false, found: false, error: 'KingFlexy data API key not configured' }
+
+    const r = await kfRequest('GET', `/orders/${encodeURIComponent(reference)}`, key)
+    if (r.transportFault) return { success: false, found: false, error: 'KingFlexy request failed (network/timeout)' }
+
+    const env = r.body
+    if (r.status === 200 && env && env.success === true && env.data) {
+        const st = env.data.status
+        return { success: true, found: true, status: typeof st === 'string' ? st : undefined, apiResponse: env }
+    }
+    // Only a 404 carrying the supplier's own JSON error envelope proves "never arrived".
+    if (r.status === 404 && env && env.success === false && env.error && typeof env.error === 'object') {
+        return { success: true, found: false, apiResponse: env }
+    }
+    return { success: false, found: false, error: `KingFlexy status check failed (HTTP ${r.status})`, apiResponse: env ?? undefined }
+}
+
+export async function fetchSupplierBalance(): Promise<{ success: boolean; balance?: number; currency?: string; error?: string }> {
+    const key = getKey()
+    if (!key) return { success: false, error: 'KingFlexy data API key not configured' }
+
+    const r = await kfRequest('GET', '/wallet/balance', key)
+    if (r.transportFault) return { success: false, error: 'KingFlexy request failed (network/timeout)' }
+
+    const bal = Number(r.body?.data?.balance)
+    if (r.status === 200 && r.body?.success === true && Number.isFinite(bal)) {
+        const cur = r.body.data.currency
+        return { success: true, balance: bal, currency: typeof cur === 'string' ? cur : undefined }
+    }
+    return { success: false, error: `KingFlexy balance check failed (HTTP ${r.status})` }
 }
