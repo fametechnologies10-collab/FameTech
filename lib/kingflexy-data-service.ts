@@ -40,6 +40,41 @@ export function buildKingflexyReference(orderId: string, attemptNo?: number): st
     return `${orderId}-r${safe}`
 }
 
+/**
+ * Single pre-dispatch decision shared by every dispatch site (trigger, shop processor, refulfillment).
+ * Pure: validates network/size/phone and builds the reference. `error` strings are generic (admin
+ * alerts / tracking only) and never name a supplier to customers. Callers must report `ok:false`
+ * through their normal definite-failure path, never an early return after the dispatch claim.
+ */
+export function prepareKingflexyDispatch(input: {
+    network: string
+    size: string
+    phone: string
+    orderId: string
+    retryCount?: number | null
+}):
+    | { ok: true; network: KfDataNetwork; volumeGb: number; recipient: string; reference: string }
+    | { ok: false; error: string } {
+    if (!assertSupportedNetwork(input.network)) {
+        return { ok: false, error: `Network "${input.network}" is not supported by this supplier` }
+    }
+    const volumeGb = sizeToVolumeGb(input.size)
+    if (volumeGb === null) {
+        return { ok: false, error: `Unsupported bundle size "${input.size}" for this supplier` }
+    }
+    const recipient = toLocalRecipient(input.phone)
+    if (recipient === null) {
+        return { ok: false, error: 'Invalid recipient phone number for this supplier' }
+    }
+    return {
+        ok: true,
+        network: input.network,
+        volumeGb,
+        recipient,
+        reference: buildKingflexyReference(input.orderId, input.retryCount ?? 0),
+    }
+}
+
 export function extractOrderIdFromReference(reference: string): string | null {
     const m = String(reference ?? '').match(/^([0-9a-f-]{36})-r\d+$/i)
     return m ? m[1] : null

@@ -7,7 +7,7 @@ import {
     KF_DATA_NETWORKS, assertSupportedNetwork, sizeToVolumeGb, toLocalRecipient,
     buildKingflexyReference, extractOrderIdFromReference, extractAttemptNoFromReference,
     mapKingflexyStatus, classifyPurchase, verifyWebhookSignature, shouldRedeliver,
-    placeOrder, checkOrderStatus, fetchSupplierBalance, __resetKingflexyBreakerForTests,
+    placeOrder, checkOrderStatus, prepareKingflexyDispatch, fetchSupplierBalance, __resetKingflexyBreakerForTests,
 } from '../lib/kingflexy-data-service'
 
 let failures = 0
@@ -27,6 +27,20 @@ assertEqual(assertSupportedNetwork('Vodafone'), false, 'unknown not supported')
 
 // reference
 const uuid = '123e4567-e89b-12d3-a456-426614174000'
+
+// prepareKingflexyDispatch (shared decision for all dispatch sites)
+{
+    const base = { network: 'MTN', size: '5GB', phone: '+233241234567', orderId: uuid }
+    assertEqual(prepareKingflexyDispatch(base),
+        { ok: true, network: 'MTN', volumeGb: 5, recipient: '0241234567', reference: `${uuid}-r0` }, 'prepare: valid')
+    assertEqual((prepareKingflexyDispatch({ ...base, retryCount: null }) as any).reference, `${uuid}-r0`, 'prepare: retryCount null -> r0')
+    assertEqual((prepareKingflexyDispatch({ ...base, retryCount: 2 }) as any).reference, `${uuid}-r2`, 'prepare: retryCount 2 -> r2')
+    assertEqual(prepareKingflexyDispatch({ ...base, network: 'Vodafone' }).ok, false, 'prepare: bad network')
+    assertEqual(prepareKingflexyDispatch({ ...base, size: '500MB' }).ok, false, 'prepare: 500MB rejected')
+    assertEqual(prepareKingflexyDispatch({ ...base, phone: '12345' }).ok, false, 'prepare: bad phone')
+    const bad = prepareKingflexyDispatch({ ...base, phone: '12345' }) as any
+    assertEqual(typeof bad.error === 'string' && bad.error.length > 0, true, 'prepare: error string present')
+}
 assertEqual(extractOrderIdFromReference(buildKingflexyReference(uuid, 2)), uuid, 'reference round-trip order id')
 assertEqual(extractAttemptNoFromReference(buildKingflexyReference(uuid, 2)), 2, 'reference attempt 2')
 assertEqual(extractAttemptNoFromReference(buildKingflexyReference(uuid)), 0, 'default attempt 0')
