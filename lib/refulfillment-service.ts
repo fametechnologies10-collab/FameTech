@@ -72,6 +72,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
     const hendylinksNetworkSettings: Record<string, boolean> = dbFulfillmentSettings.hendylinks_networks || {}
     const atishareConsoleNetworkSettings: Record<string, boolean> = dbFulfillmentSettings.atishare_console_networks || {}
     const spfastitNetworkSettings: Record<string, boolean> = dbFulfillmentSettings.spfastit_networks || {}
+    const kingflexyNetworkSettings: Record<string, boolean> = dbFulfillmentSettings.kingflexy_networks || {}
     const thresholdMins = parseInt(settingsMap.auto_refulfill_threshold_mins || '5', 10)
 
     // ── 2. Fetch pending data orders ─────────────────────────────────────────
@@ -142,6 +143,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
     const hendylinksOrders: OrderToFulfill[] = []
     const atishareConsoleOrders: OrderToFulfill[] = []
     const spfastitOrders: OrderToFulfill[] = []
+    const kingflexyOrders: OrderToFulfill[] = []
     let skipped = 0
 
     for (const order of pendingOrders as any[]) {
@@ -159,6 +161,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         const isHL = hendylinksNetworkSettings[order.network] === true
         const isAC = atishareConsoleNetworkSettings[order.network] === true
         const isSF = spfastitNetworkSettings[order.network] === true
+        const isKF = kingflexyNetworkSettings[order.network] === true
         const enabledSuppliers = resolveEnabledSuppliers(
             dbFulfillmentSettings as FulfillmentNetworkSettings,
             order.network
@@ -209,9 +212,10 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         else if (isHL) hendylinksOrders.push(orderData)
         else if (isAC) atishareConsoleOrders.push(orderData)
         else if (isSF) spfastitOrders.push(orderData)
+        else if (isKF) kingflexyOrders.push(orderData)
     }
 
-    const allEligible = [...datakazinaOrders, ...codeCraftOrders, ...xpressOrders, ...ghdataOrders, ...agentportalOrders, ...bundleportalOrders, ...hendylinksOrders, ...atishareConsoleOrders, ...spfastitOrders]
+    const allEligible = [...datakazinaOrders, ...codeCraftOrders, ...xpressOrders, ...ghdataOrders, ...agentportalOrders, ...bundleportalOrders, ...hendylinksOrders, ...atishareConsoleOrders, ...spfastitOrders, ...kingflexyOrders]
     if (allEligible.length === 0) {
         return { success: true, count: pendingOrders.length, fulfilled: 0, skipped, failed: 0, message: 'All orders skipped (no active supplier or cooldown)' }
     }
@@ -227,7 +231,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
     const lockBucket = async (bucket: OrderToFulfill[], label: string): Promise<Set<string>> =>
         claimBulkForDispatch(supabaseAdmin, bucket.map(o => o.id), label)
 
-    const [lockedDKIds, lockedCCIds, lockedXPIds, lockedGHIds, lockedAPIds, lockedBPIds, lockedHLIds, lockedACIds, lockedSFIds] = await Promise.all([
+    const [lockedDKIds, lockedCCIds, lockedXPIds, lockedGHIds, lockedAPIds, lockedBPIds, lockedHLIds, lockedACIds, lockedSFIds, lockedKFIds] = await Promise.all([
         lockBucket(datakazinaOrders, 'datakazina'),
         lockBucket(codeCraftOrders, 'codecraft'),
         lockBucket(xpressOrders, 'xpress'),
@@ -237,9 +241,10 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         lockBucket(hendylinksOrders, 'hendylinks'),
         lockBucket(atishareConsoleOrders, 'atishare_console'),
         lockBucket(spfastitOrders, 'spfastit'),
+        lockBucket(kingflexyOrders, 'kingflexy'),
     ])
 
-    const lockedIds = new Set<string>([...lockedDKIds, ...lockedCCIds, ...lockedXPIds, ...lockedGHIds, ...lockedAPIds, ...lockedBPIds, ...lockedHLIds, ...lockedACIds, ...lockedSFIds])
+    const lockedIds = new Set<string>([...lockedDKIds, ...lockedCCIds, ...lockedXPIds, ...lockedGHIds, ...lockedAPIds, ...lockedBPIds, ...lockedHLIds, ...lockedACIds, ...lockedSFIds, ...lockedKFIds])
     const notLocked = allEligible.length - lockedIds.size
     skipped += notLocked
 
@@ -252,6 +257,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
     const lockedHL = hendylinksOrders.filter(o => lockedHLIds.has(o.id))
     const lockedAC = atishareConsoleOrders.filter(o => lockedACIds.has(o.id))
     const lockedSF = spfastitOrders.filter(o => lockedSFIds.has(o.id))
+    const lockedKF = kingflexyOrders.filter(o => lockedKFIds.has(o.id))
 
     if (lockedIds.size === 0) {
         return { success: true, count: pendingOrders.length, fulfilled: 0, skipped, failed: 0, message: 'All eligible orders were locked by a concurrent process' }
@@ -274,6 +280,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         setFulfilledBy(lockedHL, 'hendylinks'),
         setFulfilledBy(lockedAC, 'atishare_console'),
         setFulfilledBy(lockedSF, 'spfastit'),
+        setFulfilledBy(lockedKF, 'kingflexy'),
     ])
 
     // ── 7. Import bulk dispatch functions ────────────────────────────────────
@@ -778,7 +785,60 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         }
     }
 
-    const allResults: BulkOrderResult[] = [...dkResults, ...ccResults, ...xpResults, ...ghResults, ...apResults, ...bpResults, ...hlResults, ...atishareConsoleResults, ...spfastitResults]
+    // ── KingFlexy data dispatch (per-order — single-order placeOrder, no bulk API) ──
+    // Thin mirror of the SPFastIT loop. Never a fallback source/target. prepareKingflexyDispatch
+    // reports bad network/size/phone as a plain definite failure (no supplier call, no early
+    // return after the claim). Ruling 11: an accepted placement is persisted as 'processing'
+    // regardless of the returned status; completion is applied by the webhook/sync via
+    // applyKingflexyOutcome. Reference uses order.retry_count (never a cron-advanced counter).
+    const kingflexyResults: BulkOrderResult[] = []
+    if (lockedKF.length > 0) {
+        const { placeOrder: kfPlaceOrder, prepareKingflexyDispatch } =
+            await import('@/lib/kingflexy-data-service')
+
+        for (const order of lockedKF) {
+            const prep = prepareKingflexyDispatch({
+                network: order.network,
+                size: order.size,
+                phone: order.phone_number,
+                orderId: order.id,
+                retryCount: order.retry_count ?? 0,
+            })
+            if (!prep.ok) {
+                kingflexyResults.push({ orderId: order.id, success: false, error: prep.error })
+                continue
+            }
+
+            const result = await kfPlaceOrder({
+                recipient: prep.recipient,
+                network: prep.network,
+                volumeGb: prep.volumeGb,
+                reference: prep.reference,
+            })
+
+            if (result.success) {
+                // Persist immediately, per order, guarded on status='processing' so it can
+                // never resurrect an order a webhook already resolved (same as SPFastIT).
+                const { error: earlyWriteError } = await supabaseAdmin.from('orders').update({
+                    kingflexy_reference: prep.reference,
+                }).eq('id', order.id).eq('status', 'processing')
+                if (earlyWriteError) console.error(`[ProcessRefulfill] Early kingflexy_reference write failed for ${order.id}:`, earlyWriteError.message)
+            }
+
+            kingflexyResults.push({
+                orderId: order.id,
+                success: result.success,
+                reference: prep.reference,
+                error: result.error,
+                apiResponse: result.apiResponse,
+                // Only a transport fault / unclassifiable reply is ambiguous; all other
+                // non-accepted outcomes are definite failures that release the claim.
+                ambiguous: result.outcome === 'ambiguous',
+            })
+        }
+    }
+
+    const allResults: BulkOrderResult[] = [...dkResults, ...ccResults, ...xpResults, ...ghResults, ...apResults, ...bpResults, ...hlResults, ...atishareConsoleResults, ...spfastitResults, ...kingflexyResults]
 
     // ── 9. Segregate successes and failures ───────────────────────────────────
     const successes = allResults.filter(r => r.success)
@@ -786,7 +846,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
 
     // Quick lookup maps
     const orderMap = new Map<string, OrderToFulfill>(allEligible.map(o => [o.id, o]))
-    type KnownSupplier = 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'agentportal' | 'bundleportal' | 'hendylinks' | 'atishare_console' | 'spfastit'
+    type KnownSupplier = 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'agentportal' | 'bundleportal' | 'hendylinks' | 'atishare_console' | 'spfastit' | 'kingflexy'
     const supplierOf = new Map<string, KnownSupplier>([
         ...lockedDK.map(o => [o.id, 'datakazina'] as [string, KnownSupplier]),
         ...lockedCC.map(o => [o.id, fallbackUsedOrderIds.has(o.id) ? fallbackSupplier! : 'codecraft'] as [string, KnownSupplier]),
@@ -797,6 +857,7 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         ...lockedHL.map(o => [o.id, hendylinksFallbackUsedOrderIds.has(o.id) ? hendylinksFallbackSupplier! : 'hendylinks'] as [string, KnownSupplier]),
         ...lockedAC.map(o => [o.id, 'atishare_console'] as [string, KnownSupplier]),
         ...lockedSF.map(o => [o.id, 'spfastit'] as [string, KnownSupplier]),
+        ...lockedKF.map(o => [o.id, 'kingflexy'] as [string, KnownSupplier]),
     ])
 
     // ── 10. Bulk insert tracking rows (one INSERT for all results) ────────────
@@ -898,6 +959,25 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
         const ambiguousSpfastitFailures = ambiguousFailures.filter(
             r => supplierOf.get(r.orderId) === 'spfastit' && r.reference && ambiguousAcceptedIds.has(r.orderId)
         )
+        // KingFlexy: same — the reference is generated before dispatch, so persist it for an
+        // ambiguous outcome so the sync/reconcile paths can find the order.
+        const ambiguousKingflexyFailures = ambiguousFailures.filter(
+            r => supplierOf.get(r.orderId) === 'kingflexy' && r.reference && ambiguousAcceptedIds.has(r.orderId)
+        )
+        if (ambiguousKingflexyFailures.length > 0) {
+            await Promise.allSettled(
+                ambiguousKingflexyFailures.map(r =>
+                    supabaseAdmin.from('orders')
+                        .update({ kingflexy_reference: r.reference })
+                        .eq('id', r.orderId)
+                        .eq('status', 'processing')
+                        .then(({ error }: any) => {
+                            if (error) console.error(`[ProcessRefulfill] Ambiguous kingflexy_reference write failed for ${r.orderId}:`, error.message)
+                        })
+                )
+            )
+        }
+
         if (ambiguousSpfastitFailures.length > 0) {
             await Promise.allSettled(
                 ambiguousSpfastitFailures.map(r =>
@@ -983,6 +1063,8 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
                         : r.transactionId
                 } else if (supplier === 'spfastit' && r.reference) {
                     update.spfastit_reference = r.reference
+                } else if (supplier === 'kingflexy' && r.reference) {
+                    update.kingflexy_reference = r.reference
                 }
                 const { fulfillment_method: fm, ...referenceColumns } = update
                 return acceptDispatch(supabaseAdmin, r.orderId, fm ?? supplier ?? 'unknown', referenceColumns)
