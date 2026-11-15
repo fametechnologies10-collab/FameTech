@@ -816,14 +816,15 @@ export async function processRefulfillment(isCron: boolean, orderIds?: string[])
                 reference: prep.reference,
             })
 
-            if (result.success) {
-                // Persist immediately, per order, guarded on status='processing' so it can
-                // never resurrect an order a webhook already resolved (same as SPFastIT).
-                const { error: earlyWriteError } = await supabaseAdmin.from('orders').update({
-                    kingflexy_reference: prep.reference,
-                }).eq('id', order.id).eq('status', 'processing')
-                if (earlyWriteError) console.error(`[ProcessRefulfill] Early kingflexy_reference write failed for ${order.id}:`, earlyWriteError.message)
-            }
+            // No early reference write here (deliberate): the order is still 'pending' until the
+            // batched accept step, which persists the reference and status='processing' together
+            // (and the ambiguous bookkeeping step does so for ambiguous results). A KingFlexy
+            // webhook arriving before then is recovered: the webhook route returns 500 (so
+            // KingFlexy redelivers, first retry ~5 min later) when no order has that reference
+            // and the event is under 10 minutes old, and the 10-minute sync sweep polls any
+            // processing order that has a reference. Writing the reference while still pending
+            // would make the webhook see a known reference with applied=0 and ack 200,
+            // dropping the event.
 
             kingflexyResults.push({
                 orderId: order.id,
