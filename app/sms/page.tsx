@@ -196,7 +196,7 @@ export default function SmsPage() {
                     <Link href="/" className="flex items-center gap-2 flex-shrink-0">
                         <BrandLogo width={36} height={36} className="w-8 h-8 sm:w-9 sm:h-9" />
                         <span className="font-black tracking-tight text-slate-900 dark:text-white text-sm sm:text-base">
-                            KFT <span className="text-[#0056B3] dark:text-[#4da6ff]">SMS</span>
+                            FTGH <span className="text-[#0056B3] dark:text-[#4da6ff]">SMS</span>
                         </span>
                     </Link>
                     <div className="flex items-center gap-1.5 sm:gap-2">
@@ -224,7 +224,7 @@ export default function SmsPage() {
                 <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.05fr_1fr] gap-10 lg:gap-14 items-center">
                     <Reveal>
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0056B3]/10 text-[#0056B3] dark:text-[#4da6ff] text-[11px] font-black uppercase tracking-widest mb-5">
-                            <Sparkles className="w-3.5 h-3.5" /> KFT SMS · Bulk &amp; transactional
+                            <Sparkles className="w-3.5 h-3.5" /> FTGH SMS · Bulk &amp; transactional
                         </div>
                         <h1 className="text-4xl sm:text-5xl lg:text-[3.4rem] font-black tracking-tight leading-[1.05] text-slate-900 dark:text-white">
                             Reach every customer<br className="hidden sm:block" /> by SMS, in seconds
@@ -464,7 +464,7 @@ export default function SmsPage() {
                                 <div className="w-14 h-14 mx-auto rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center mb-5">
                                     <Send className="w-7 h-7 text-white" />
                                 </div>
-                                <h2 className="text-3xl md:text-4xl font-black text-white mb-3">Start sending with KFT SMS</h2>
+                                <h2 className="text-3xl md:text-4xl font-black text-white mb-3">Start sending with FTGH SMS</h2>
                                 <p className="text-white/90 max-w-xl mx-auto mb-8">Buy your first credits, add a contact group, and send in minutes — or wire it into your app over the API.</p>
                                 <div className="flex flex-col sm:flex-row justify-center gap-3">
                                     <Link href="/dashboard/sms" className="w-full sm:w-auto">

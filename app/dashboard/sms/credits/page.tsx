@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * KFT SMS — Buy Credits + Ledger History.
+ * FTGH SMS — Buy Credits + Ledger History.
  * Wallet hero, premium bundle grid (business-mode pricing aware), idempotent
  * purchase flow (client-generated clientKey reused on retry), full credit
  * ledger with kind icons. Read spec: GET /api/sms/account, POST /api/sms/purchase.
@@ -260,7 +260,7 @@ export default function SmsCreditsPage() {
                 <div>
                     <Link href="/dashboard/sms">
                         <Button variant="ghost" size="sm" className="w-fit gap-2 -ml-2 h-10 text-muted-foreground hover:text-emerald-600">
-                            <ArrowLeft className="w-4 h-4" /> Back to KFT SMS
+                            <ArrowLeft className="w-4 h-4" /> Back to FTGH SMS
                         </Button>
                     </Link>
                     <h1 className="text-xl font-bold flex items-center gap-2 mt-1">

@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * KFT SMS — Campaign Composer (/dashboard/sms/compose)
+ * FTGH SMS — Campaign Composer (/dashboard/sms/compose)
  *
  * Premium composer for the user SMS platform: sender identity card,
  * 3-source recipient builder (manual paste / contact groups / CSV upload),
@@ -437,7 +437,7 @@ export default function SmsComposePage() {
         if (suspended) return 'Blocked — your SMS account is suspended.'
         if (policyBlocked) {
             return platformDisabled
-                ? "Blocked — KFT SMS is not live yet. You'll be able to send once the admin switches it on."
+                ? "Blocked — FTGH SMS is not live yet. You'll be able to send once the admin switches it on."
                 : (data.policy.message || 'Blocked — no sender ID is available for your account yet.')
         }
         if (allRecipients.length === 0) return 'Add at least one recipient to enable sending.'
@@ -713,7 +713,7 @@ export default function SmsComposePage() {
                 <div className="w-14 h-14 mx-auto rounded-full bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
                     <AlertCircle className="w-6 h-6 text-red-500" />
                 </div>
-                <p className="font-semibold">Could not load KFT SMS</p>
+                <p className="font-semibold">Could not load FTGH SMS</p>
                 <p className="text-sm text-muted-foreground">{loadError || 'Something went wrong.'}</p>
                 <Button
                     variant="outline"
@@ -837,7 +837,7 @@ export default function SmsComposePage() {
                                     <Megaphone className="w-4 h-4" /> Compose another campaign
                                 </Button>
                                 <Link href="/dashboard/sms" className="block">
-                                    <Button variant="ghost" className="w-full h-10 text-muted-foreground">Back to KFT SMS</Button>
+                                    <Button variant="ghost" className="w-full h-10 text-muted-foreground">Back to FTGH SMS</Button>
                                 </Link>
                             </div>
                         </CardContent>
@@ -859,7 +859,7 @@ export default function SmsComposePage() {
                 <div>
                     <Link href="/dashboard/sms">
                         <Button variant="ghost" size="sm" className="w-fit gap-2 -ml-2 text-muted-foreground hover:text-emerald-600">
-                            <ArrowLeft className="w-4 h-4" /> KFT SMS
+                            <ArrowLeft className="w-4 h-4" /> FTGH SMS
                         </Button>
                     </Link>
                     <h1 className="text-xl font-bold flex items-center gap-2 mt-1">
@@ -889,7 +889,7 @@ export default function SmsComposePage() {
                 <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                     <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div className="text-xs text-amber-800 dark:text-amber-300">
-                        <p className="font-bold">{platformDisabled ? 'KFT SMS is not live yet' : 'Sending is unavailable right now'}</p>
+                        <p className="font-bold">{platformDisabled ? 'FTGH SMS is not live yet' : 'Sending is unavailable right now'}</p>
                         <p className="mt-0.5">
                             {platformDisabled
                                 ? "The platform is currently switched off by the admin. You'll be able to send once it launches."

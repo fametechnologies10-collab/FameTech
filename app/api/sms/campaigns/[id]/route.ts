@@ -1,5 +1,5 @@
 /**
- * /api/sms/campaigns/[id] — campaign detail + cancel (KFT SMS).
+ * /api/sms/campaigns/[id] — campaign detail + cancel (FTGH SMS).
  *
  * GET   : campaign + delivery-status rollup (aggregated on read — no stored
  *         counters to corrupt) + paginated per-recipient rows.

@@ -64,7 +64,7 @@ export const SMS_API_ENDPOINTS: SmsApiEndpointDoc[] = [
         method: 'GET',
         path: '/api/v2/sms/senders',
         description: 'List the sender IDs this API key may send under — your approved own sender IDs plus the shared pool senders. Use these exact values for the sender field.',
-        responseBody: `{\n  "success": true,\n  "data": {\n    "mode": "business",\n    "defaultSender": "AcmeGH",\n    "senders": [\n      { "sender": "AcmeGH", "type": "own", "isDefault": true },\n      { "sender": "KFT SMS", "type": "pool", "isDefault": false }\n    ]\n  }\n}`,
+        responseBody: `{\n  "success": true,\n  "data": {\n    "mode": "business",\n    "defaultSender": "AcmeGH",\n    "senders": [\n      { "sender": "AcmeGH", "type": "own", "isDefault": true },\n      { "sender": "FTGH SMS", "type": "pool", "isDefault": false }\n    ]\n  }\n}`,
         notes: [
             'type "own" = a sender ID approved for your business; "pool" = a shared platform sender any approved business may use.',
         ],

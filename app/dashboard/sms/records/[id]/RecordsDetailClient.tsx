@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Campaign delivery drill-down (KFT SMS).
+ * Campaign delivery drill-down (FTGH SMS).
  * Summary card (full message, sender, cost, status) + delivery rollup stat
  * tiles with delivery-rate %, a per-recipient table with status filter and
  * pagination, and a client-side CSV export (all pages, capped at 2000 rows).

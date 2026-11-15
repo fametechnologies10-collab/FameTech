@@ -1,7 +1,7 @@
 /**
- * KFT SMS v2 — confirmation-sender resolvers.
+ * FTGH SMS v2 — confirmation-sender resolvers.
  *
- * A KFT SMS user (or shop, added by Task F3) with an approved sender ID may
+ * A FTGH SMS user (or shop, added by Task F3) with an approved sender ID may
  * opt in to having THEIR OWN sender used on order-confirmation/completion SMS
  * for THEIR OWN orders (data/RC/airtime/mashup), instead of the platform
  * sender. This file is the single seam every confirmation call site resolves
@@ -44,7 +44,7 @@ interface ConfirmationSenderRow {
 }
 
 /**
- * Resolves the sender text a KFT SMS user should see on THEIR OWN
+ * Resolves the sender text a FTGH SMS user should see on THEIR OWN
  * order-confirmation/completion SMS, or `null` to fall back to the platform
  * sender.
  *

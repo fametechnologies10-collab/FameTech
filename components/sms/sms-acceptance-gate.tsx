@@ -53,10 +53,10 @@ const SHOP_DISALLOWED: DisallowedItem[] = [
 
 const COPY: Record<SmsAcceptanceProduct, { heading: string; intro: string; items: DisallowedItem[]; warning: string }> = {
     kft: {
-        heading: 'Before you send with KFT SMS',
-        intro: 'KFT SMS may never be used to send:',
+        heading: 'Before you send with FTGH SMS',
+        intro: 'FTGH SMS may never be used to send:',
         items: KFT_DISALLOWED,
-        warning: 'Abuse of KFT SMS can lead to suspension of your KFT account.',
+        warning: 'Abuse of FTGH SMS can lead to suspension of your FTGH account.',
     },
     shop: {
         heading: 'Before you message your customers',
