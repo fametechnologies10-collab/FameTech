@@ -275,8 +275,10 @@ export async function placeOrder(input: {
     }
 
     const { outcome, status } = classifyPurchase(r.status, r.body)
+    // Only outcomes proving the supplier answered a real purchase request touch breaker health.
+    // config_error / rate_limited / paused prove nothing: leave breaker state untouched.
     if (outcome === 'ambiguous') recordFailure()
-    else recordSuccess()
+    else if (outcome === 'accepted' || outcome === 'rejected' || outcome === 'retryable_hold') recordSuccess()
 
     if (outcome === 'accepted') return { success: true, outcome, status, apiResponse: r.body }
     return {

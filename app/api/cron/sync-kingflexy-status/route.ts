@@ -14,7 +14,16 @@ export async function GET(request: NextRequest) {
     const authError = validateCronAuth(request)
     if (authError) return authError
 
-    const { checked, updated, failed, errors } = await syncKingflexyProcessingOrders(createServerClient())
+    let checked = 0, updated = 0, failed = 0
+    const errors: string[] = []
+    try {
+        const r = await syncKingflexyProcessingOrders(createServerClient())
+        checked = r.checked; updated = r.updated; failed = r.failed
+        errors.push(...r.errors)
+    } catch (e: any) {
+        console.error('[CronSyncKingflexy] Fatal:', e?.message || 'unknown')
+        errors.push(`Fatal: ${e?.message || 'unknown'}`)
+    }
     console.log(`[CronSyncKingflexy] Done. checked=${checked}, updated=${updated}, failed=${failed}`)
     return NextResponse.json({ success: true, checked, updated, failed, errors })
 }

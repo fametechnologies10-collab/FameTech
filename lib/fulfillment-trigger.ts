@@ -700,7 +700,10 @@ export async function triggerFulfillment(
                 order_id: orderId,
                 status: 'failed',
                 retry_count: (order as any).retry_count ?? 0,
-                api_response: { error: result.error, ambiguous: true, supplier: supplierLabel, network, ...result.apiResponse },
+                // kingflexy: spread FIRST so a vendor `supplier`/`error` key can never override ours.
+                api_response: supplierLabel === 'kingflexy'
+                    ? { ...result.apiResponse, error: result.error, ambiguous: true, supplier: supplierLabel, network }
+                    : { error: result.error, ambiguous: true, supplier: supplierLabel, network, ...result.apiResponse },
             })
         } else {
             console.warn(`[Fulfillment] Supplier ${supplierLabel} failed for order ${orderId}: ${result.error}`)
@@ -714,7 +717,9 @@ export async function triggerFulfillment(
                 order_id: orderId,
                 status: 'failed',
                 retry_count: (order as any).retry_count ?? 0,
-                api_response: { error: result.error, supplier: supplierLabel, network, ...result.apiResponse },
+                api_response: supplierLabel === 'kingflexy'
+                    ? { ...result.apiResponse, error: result.error, supplier: supplierLabel, network }
+                    : { error: result.error, supplier: supplierLabel, network, ...result.apiResponse },
             })
 
             return {

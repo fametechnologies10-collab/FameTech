@@ -15,6 +15,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const { checked, updated, failed, errors } = await syncKingflexyProcessingOrders(createServerClient())
+    let checked = 0, updated = 0, failed = 0
+    const errors: string[] = []
+    try {
+        const r = await syncKingflexyProcessingOrders(createServerClient())
+        checked = r.checked; updated = r.updated; failed = r.failed
+        errors.push(...r.errors)
+    } catch (e: any) {
+        console.error('[AdminSyncKingflexy] Fatal:', e?.message || 'unknown')
+        errors.push(`Fatal: ${e?.message || 'unknown'}`)
+    }
     return NextResponse.json({ checked, updated, failed, errors })
 }

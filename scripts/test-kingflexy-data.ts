@@ -209,6 +209,34 @@ async function ioTests() {
         assertEqual(noKey(r), true, `${st} no key leak`)
     }
 
+    // Breaker reset only by outcomes that prove the supplier answered a purchase (accepted/rejected/hold)
+    {
+        const seq = async (codes: number[]) => {
+            __resetKingflexyBreakerForTests()
+            let i = 0
+            stub(() => { const c = codes[i++]; return json(c, { success: false, error: { code: c, message: 'x' } }) })
+            for (let k = 0; k < codes.length; k++) await placeOrder(input)
+            return calls.length
+        }
+        // 4x502, 429, 502 => 5th failure opens breaker; a following call makes no fetch
+        await seq([502, 502, 502, 502, 429, 502])
+        const n1 = calls.length
+        await placeOrder(input)
+        assertEqual(calls.length, n1, '429 does not reset failure count: breaker open after 5th 502')
+        // 401 between failures does not reset
+        await seq([502, 502, 502, 401, 502, 502])
+        const n2 = calls.length
+        await placeOrder(input)
+        assertEqual(calls.length, n2, '401 does not reset failure count')
+        // 400 (rejected) DOES reset: 4x502, 400, then 502 => still closed
+        await seq([502, 502, 502, 502, 400, 502])
+        const n3 = calls.length
+        stub(() => json(502, {}))
+        await placeOrder(input)
+        assertEqual(calls.length, 1, '400 resets failure count: breaker still closed (fetch made)')
+        void n3
+    }
+
     // checkOrderStatus
     stub(() => json(200, { success: true, data: { order_id: 'o1', reference: 'a/b', status: 'completed' } }))
     let s = await checkOrderStatus('a/b')

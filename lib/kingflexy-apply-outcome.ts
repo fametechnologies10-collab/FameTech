@@ -25,6 +25,76 @@ export interface KingflexyOutcomeDeps {
     syncShopOrderStatus: (orderId: string, status: string) => Promise<unknown>
     sendCompletedPush: (orderId: string) => Promise<unknown>
     notifyOrderWebhook: (supabase: any, orderId: string, event: 'order.completed' | 'order.failed') => void
+    /** Internal-only admin alert for an anomaly worth a human look. Must never throw. */
+    alertAdmin: (supabase: any, orderId: string, reference: string, reason: string) => Promise<unknown>
+}
+
+/**
+ * Default admin alert: the same push-alert helper the other suppliers use (sendAdminNewOrderAlert,
+ * dedupes 6h per referenceCode). Loaded lazily; internal text only, never any key. Never throws.
+ */
+export async function defaultKingflexyAlertAdmin(supabase: any, orderId: string, reference: string, reason: string) {
+    try {
+        const { sendAdminNewOrderAlert } = await import('@/lib/email-service')
+        let o: any = null
+        try {
+            const { data } = await supabase
+                .from('orders')
+                .select('phone_number, network, size, price')
+                .eq('id', orderId)
+                .limit(1)
+            o = Array.isArray(data) ? data[0] : null
+        } catch { /* details are best-effort */ }
+        await sendAdminNewOrderAlert({
+            referenceCode: `KINGFLEXY-${orderId}-${reason.slice(0, 20).replace(/\W+/g, '-')}`,
+            phoneNumber: o?.phone_number ?? 'unknown',
+            network: o?.network ?? 'unknown',
+            size: String(o?.size ?? 'unknown'),
+            price: Number(o?.price) || 0,
+            customerName: 'n/a',
+            customerEmail: 'n/a',
+            source: 'main_site',
+            reason: `KingFlexy: ${reason} - order ${orderId}, reference ${reference}`,
+        })
+    } catch (e: any) {
+        console.error('[KingflexyApply] Admin alert failed:', e?.message || 'unknown')
+    }
+}
+
+/**
+ * Records ONE deduped anomaly marker row (per order + note) and raises ONE admin alert, only at the
+ * moment the row is first inserted. Status is neutral ('pending'): mtn_fulfillment_tracking.status
+ * is unconstrained text, and 'failed' would make admin log views show a live/completed order as
+ * failed. Never throws, never changes the order.
+ */
+export async function recordKingflexyAnomaly(
+    supabase: any,
+    args: { orderId: string; reference: string; source: string; note: string; alertReason: string },
+    alertAdmin: KingflexyOutcomeDeps['alertAdmin'] = defaultKingflexyAlertAdmin,
+): Promise<void> {
+    try {
+        const { data: existing, error: lookupError } = await supabase
+            .from('mtn_fulfillment_tracking')
+            .select('id')
+            .eq('order_id', args.orderId)
+            .contains('api_response', { note: args.note })
+            .limit(1)
+        if (lookupError || (existing && existing.length > 0)) return
+        const { error } = await supabase.from('mtn_fulfillment_tracking').insert({
+            order_id: args.orderId,
+            status: 'pending',
+            api_response: { supplier: 'kingflexy', source: args.source, note: args.note, reference: args.reference },
+        })
+        if (error) {
+            console.error(`[KingflexyApply] Anomaly tracking insert failed for ${args.orderId}:`, error.message)
+            return
+        }
+        await Promise.resolve(alertAdmin(supabase, args.orderId, args.reference, args.alertReason)).catch(e =>
+            console.error(`[KingflexyApply] Alert failed for ${args.orderId}:`, e?.message || 'unknown'),
+        )
+    } catch (e: any) {
+        console.error(`[KingflexyApply] Anomaly record failed for ${args.orderId}:`, e?.message || 'unknown')
+    }
 }
 
 const defaultDeps: KingflexyOutcomeDeps = {
@@ -36,6 +106,7 @@ const defaultDeps: KingflexyOutcomeDeps = {
         const { sendOrderCompletedPushNotification } = await import('@/lib/push-service')
         return sendOrderCompletedPushNotification(id)
     },
+    alertAdmin: defaultKingflexyAlertAdmin,
     notifyOrderWebhook: (supabase, id, event) => {
         // Lazy so pure tests never load @vercel/functions / the webhook module.
         void (async () => {
@@ -134,6 +205,37 @@ export async function applyKingflexyOutcome(
             d.notifyOrderWebhook(supabase, id, resolved === 'completed' ? 'order.completed' : 'order.failed')
         } catch (e) {
             console.error(`[KingflexyApply] notify failed for ${id}:`, e)
+        }
+    }
+
+    // Spec s5: a `completed` arriving after we already marked the order `failed` is never auto-applied,
+    // but must be recorded + alerted. One cheap SELECT, only for an unapplied `completed`.
+    if (resolved === 'completed' && ids.length === 0) {
+        try {
+            const { data: lateRows, error: lateError } = await supabase
+                .from('orders')
+                .select('id')
+                .eq('kingflexy_reference', reference)
+                .eq('fulfillment_method', 'kingflexy')
+                .eq('status', 'failed')
+                .limit(1)
+            if (lateError) throw new Error(lateError.message)
+            const lateId = Array.isArray(lateRows) && lateRows[0]?.id
+            if (lateId) {
+                await recordKingflexyAnomaly(
+                    supabase,
+                    {
+                        orderId: lateId,
+                        reference,
+                        source,
+                        note: 'late_completed_after_failure',
+                        alertReason: 'supplier reports COMPLETED for an order we already marked failed (not reversed automatically; verify delivery and refund state)',
+                    },
+                    d.alertAdmin,
+                )
+            }
+        } catch (e: any) {
+            console.error('[KingflexyApply] Late-completed check failed:', e?.message || 'unknown', 'reference:', reference)
         }
     }
 

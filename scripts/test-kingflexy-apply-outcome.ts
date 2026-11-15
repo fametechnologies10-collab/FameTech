@@ -173,8 +173,10 @@ async function main() {
             [`${C}-r0`]: { success: false, found: false, error: 'x' },
             [`${D}-r0`]: { success: true, found: false },
         }
+        const alerts: string[] = []
         const run = () => syncKingflexyProcessingOrders(fake, {
             nowMs: now,
+            alertAdmin: async (_s, id, ref, reason) => { alerts.push(`${id}|${ref}|${reason}`) },
             checkStatus: async ref => statuses[ref],
             apply: (s, a) => applyKingflexyOutcome(s, a, deps),
         })
@@ -186,8 +188,12 @@ async function main() {
         const nf = fake.trackingInserts.filter(t => t.api_response?.note === 'not_found_at_supplier')
         assertEqual(nf.map(t => t.order_id), [B], 'not-found tracking only for >15min order (not D, not API errors)')
         assertEqual(nf[0].api_response.source, 'cron_sweep', 'tracking source cron_sweep')
+        assertEqual(nf[0].status, 'pending', 'not-found marker uses neutral status (order still processing)')
+        assertEqual(alerts.length, 1, 'one admin alert on first not-found marker')
+        assertEqual(alerts[0].startsWith(`${B}|${B}-r0|`), true, 'alert names order id and reference')
         await run()
         assertEqual(fake.trackingInserts.filter(t => t.api_response?.note === 'not_found_at_supplier').length, 1, 'not-found tracking deduped on rerun')
+        assertEqual(alerts.length, 1, 'no repeat alert on rerun')
     }
 
     // 11. webhook handler: errors -> 500 (redelivery), no-ops -> 200
@@ -207,6 +213,45 @@ async function main() {
         assertEqual(await h(p(), { apply: () => ok(0), referenceExists: async () => true }), 200, 'already applied (order found) -> 200')
         assertEqual(await h(p(), { apply: () => ok(0), referenceExists: async () => false }), 500, 'race, recent event -> 500')
         assertEqual(await h(p({ timestamp: '2026-11-15T11:00:00Z' }), { apply: () => ok(0), referenceExists: async () => false }), 200, 'stray old event -> 200')
+    }
+
+    // 12. late completed after failure: record + alert once, never reverse; no false positives
+    {
+        const mkAlerts = () => { const a: string[] = []; return { a, f: async (_s: any, id: string, ref: string, reason: string) => { a.push(`${id}|${ref}|${reason}`) } } }
+        const run = async (orders: Row[], fake: any, al: any) => {
+            const { deps } = makeDeps()
+            return applyKingflexyOutcome(fake, { reference: REF0, rawStatus: 'completed', source: 'webhook' }, { ...deps, alertAdmin: al.f })
+        }
+        // failed kingflexy order -> recorded + alerted once, status untouched, deduped on redelivery
+        const orders: Row[] = [{ id: OID, status: 'failed', fulfillment_method: 'kingflexy', kingflexy_reference: REF0 }]
+        const fake = makeFake(orders); const al = mkAlerts()
+        let r = await run(orders, fake, al)
+        assertEqual([r.resolved, r.applied, orders[0].status], ['completed', 0, 'failed'], 'late completed: not applied, order stays failed')
+        const rows = fake.trackingInserts.filter(t => t.api_response?.note === 'late_completed_after_failure')
+        assertEqual(rows.length, 1, 'late completed: one tracking row')
+        assertEqual([rows[0].status, rows[0].api_response.supplier, rows[0].api_response.source, rows[0].api_response.reference], ['pending', 'kingflexy', 'webhook', REF0], 'late completed row shape')
+        assertEqual(al.a.length, 1, 'late completed: one alert')
+        assertEqual(al.a[0].startsWith(`${OID}|${REF0}|`), true, 'alert names order id and reference')
+        await run(orders, fake, al)
+        assertEqual([fake.trackingInserts.length, al.a.length], [1, 1], 'redelivery: no second row/alert')
+
+        // no false positives
+        for (const [st, fm] of [['completed', 'kingflexy'], ['processing', 'kingflexy'], ['failed', 'datakazina']] as const) {
+            const o: Row[] = [{ id: OID, status: st, fulfillment_method: fm, kingflexy_reference: REF0 }]
+            const f = makeFake(o); const a2 = mkAlerts()
+            await run(o, f, a2)
+            assertEqual([f.trackingInserts.length, a2.a.length], [0, 0], `no late-completed record for ${st}/${fm}`)
+        }
+
+        // alert/lookup failure never throws or changes the result
+        const o3: Row[] = [{ id: OID, status: 'failed', fulfillment_method: 'kingflexy', kingflexy_reference: REF0 }]
+        const f3 = makeFake(o3)
+        const { deps } = makeDeps()
+        const r3 = await applyKingflexyOutcome(f3, { reference: REF0, rawStatus: 'completed', source: 'cron' }, { ...deps, alertAdmin: async () => { throw new Error('push down') } })
+        assertEqual([r3.resolved, r3.applied], ['completed', 0], 'alert failure does not throw')
+        const broken: any = { from: (t: string) => t === 'orders' ? { update: () => ({ eq: function () { return this }, is: function () { return this }, select: () => Promise.resolve({ data: [], error: null }) }), select: () => { throw new Error('boom') } } : f3.from(t) }
+        const r4 = await applyKingflexyOutcome(broken, { reference: REF0, rawStatus: 'completed', source: 'cron' }, deps)
+        assertEqual([r4.resolved, r4.applied], ['completed', 0], 'lookup failure does not throw')
     }
 
     if (failures) { console.error(`\n${failures} FAILED`); process.exit(1) }

@@ -1,7 +1,7 @@
 // Safety-net sweep for kingflexy orders stuck in `processing` (webhook missed / never sent).
 // Shared by the cron route and admin sync (Task 7). Never fails, refunds or re-dispatches.
 import { checkOrderStatus, type KingflexyStatusResult } from '@/lib/kingflexy-data-service'
-import { applyKingflexyOutcome } from '@/lib/kingflexy-apply-outcome'
+import { applyKingflexyOutcome, recordKingflexyAnomaly, type KingflexyOutcomeDeps } from '@/lib/kingflexy-apply-outcome'
 
 const CONCURRENCY = 5
 const NOT_FOUND_GRACE_MS = 15 * 60 * 1000
@@ -14,6 +14,7 @@ export async function syncKingflexyProcessingOrders(
         checkStatus?: (reference: string) => Promise<KingflexyStatusResult>
         apply?: typeof applyKingflexyOutcome
         nowMs?: number
+        alertAdmin?: KingflexyOutcomeDeps['alertAdmin']
     } = {},
 ): Promise<{ checked: number; updated: number; failed: number; errors: string[] }> {
     const limit = opts.limit && opts.limit > 0 ? opts.limit : 100
@@ -44,7 +45,17 @@ export async function syncKingflexyProcessingOrders(
 
             if (!st.found) {
                 const age = nowMs - Date.parse(o.created_at || '')
-                if (Number.isFinite(age) && age > NOT_FOUND_GRACE_MS) await recordNotFound(supabase, o.id, o.kingflexy_reference)
+                if (Number.isFinite(age) && age > NOT_FOUND_GRACE_MS) await recordKingflexyAnomaly(
+                        supabase,
+                        {
+                            orderId: o.id,
+                            reference: o.kingflexy_reference,
+                            source: 'cron_sweep',
+                            note: 'not_found_at_supplier',
+                            alertReason: 'supplier has no record of this order after 15+ min; placement may never have reached KingFlexy. Order left in processing, check manually',
+                        },
+                        opts.alertAdmin,
+                    )
                 return
             }
 
@@ -65,22 +76,4 @@ export async function syncKingflexyProcessingOrders(
         await Promise.allSettled(orders.slice(i, i + CONCURRENCY).map(one))
     }
     return result
-}
-
-/** One tracking row per order (deduped) so an admin can see the supplier has no record. */
-async function recordNotFound(supabase: any, orderId: string, reference: string) {
-    const marker = { supplier: 'kingflexy', source: 'cron_sweep', note: 'not_found_at_supplier' }
-    const { data: existing, error: lookupError } = await supabase
-        .from('mtn_fulfillment_tracking')
-        .select('id')
-        .eq('order_id', orderId)
-        .contains('api_response', { note: marker.note })
-        .limit(1)
-    if (lookupError || (existing && existing.length > 0)) return
-    const { error } = await supabase.from('mtn_fulfillment_tracking').insert({
-        order_id: orderId,
-        status: 'failed',
-        api_response: { ...marker, reference },
-    })
-    if (error) console.error(`[KingflexySync] Tracking insert failed for ${orderId}:`, error.message)
 }
