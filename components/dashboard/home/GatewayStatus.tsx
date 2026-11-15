@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { NetworkIcon } from '@/components/network-icon'
 import { useGatewayStatus } from '@/hooks/use-gateway-status'
 import {
   ageOffsetSeconds,
@@ -26,13 +27,8 @@ const SKELETON = 'bg-muted rounded-xl motion-safe:animate-pulse'
 const CARD = 'rounded-xl border border-border bg-card'
 const TICK_MS = 5_000
 
-// Simple brand-tinted initial avatars (no image assets).
-const AVATAR_CLASS: Record<string, string> = {
-  MTN: 'bg-yellow-400 text-black',
-  Telecel: 'bg-red-600 text-white',
-  'AT-iShare': 'bg-blue-600 text-white',
-  'AT-BigTime': 'bg-sky-600 text-white',
-}
+// Channels with a real network logo (public/images/networks); others get an initial avatar.
+const LOGO_NETWORKS = new Set(['MTN', 'Telecel', 'AT-iShare', 'AT-BigTime'])
 
 /** Visible label for a channel: tier for live, fixed texts for none/down. */
 function stateLabel(v: ChannelView): string {
@@ -46,11 +42,17 @@ function styleKey(v: ChannelView): StrengthTier | 'down' | 'none' {
 }
 
 function Avatar({ view }: { view: ChannelView }) {
-  const cls = AVATAR_CLASS[view.key] ?? 'bg-muted text-foreground'
+  if (LOGO_NETWORKS.has(view.key)) {
+    return (
+      <span aria-hidden="true" className="shrink-0">
+        <NetworkIcon network={view.key} size={28} />
+      </span>
+    )
+  }
   return (
     <span
       aria-hidden="true"
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${cls}`}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground"
     >
       {view.label.charAt(0).toUpperCase()}
     </span>
