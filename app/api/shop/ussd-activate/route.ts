@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase'
 import { z } from 'zod'
 import { consumeRateLimit } from '@/lib/simple-rate-limit'
 import { generateUssdCode } from '@/lib/ussd/code-generator'
+import { getAdminSetting } from '@/lib/admin-settings-cache'
 
 const activateSchema = z.object({
     paidFrom: z.enum(['wallet', 'profit']),
@@ -56,7 +57,9 @@ export async function GET() {
         // balances are best-effort — keep 0/0 on any auth/read failure
     }
 
-    return NextResponse.json({ fee, walletBalance, profitBalance })
+    const enabled = (await getAdminSetting('ussd_enabled')) !== 'false'
+
+    return NextResponse.json({ fee, walletBalance, profitBalance, enabled })
 }
 
 // POST — one-time paid activation, debiting WALLET or PROFIT. All money
@@ -68,6 +71,14 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser()
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Master kill switch — never take the one-time fee while USSD is switched off.
+    if ((await getAdminSetting('ussd_enabled')) === 'false') {
+        return NextResponse.json(
+            { error: 'USSD storefront is temporarily unavailable. Please check back later.' },
+            { status: 503 },
+        )
     }
 
     const rl = consumeRateLimit(`ussd-activate:${user.id}`, 5, 60 * 60 * 1000)

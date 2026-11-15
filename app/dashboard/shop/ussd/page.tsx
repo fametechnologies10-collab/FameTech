@@ -44,6 +44,7 @@ export default function ShopUssdPage() {
 
     // Activation
     const [activationFee, setActivationFee] = useState<number>(50)
+    const [ussdEnabled, setUssdEnabled] = useState(true)
     const [activating, setActivating] = useState(false)
     // Synchronous in-flight lock: `activating` only disables the button after a
     // re-render, so two rapid taps could otherwise both send a (paid) activation.
@@ -108,7 +109,8 @@ export default function ShopUssdPage() {
             try {
                 const feeRes = await fetch('/api/shop/ussd-activate')
                 if (feeRes.ok) {
-                    const { fee, walletBalance: wb, profitBalance: pb } = await feeRes.json()
+                    const { fee, walletBalance: wb, profitBalance: pb, enabled } = await feeRes.json()
+                    setUssdEnabled(enabled !== false)
                     const feeVal = typeof fee === 'number' ? fee : 50
                     const wallet = typeof wb === 'number' ? wb : 0
                     const profit = typeof pb === 'number' ? pb : 0
@@ -308,6 +310,14 @@ export default function ShopUssdPage() {
                         <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                         <p className="text-sm text-amber-800 dark:text-amber-300">
                             Your shop must be approved and active before you can activate USSD.
+                        </p>
+                    </div>
+                ) : !ussdActive && !ussdEnabled ? (
+                    <div className="flex items-start gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 p-4">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-amber-800 dark:text-amber-300">
+                            USSD storefront is temporarily unavailable. Activation is paused and you
+                            won&apos;t be charged. We&apos;ll let you know when it&apos;s back.
                         </p>
                     </div>
                 ) : !ussdActive ? (
