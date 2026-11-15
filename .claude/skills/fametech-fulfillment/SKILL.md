@@ -62,6 +62,7 @@ If `isRateLimited: true`, back off and retry — do not mark the order failed im
 | `lib/bundleportal-service.ts` | Bundle Portal | MTN/Telecel/AT-iShare data bundles (single action-based endpoint, no AT-BigTime support) |
 | `lib/hendylinks-service.ts` | HendyLinks | MTN/Telecel/AT-iShare/AT-BigTime data bundles. No client-supplied idempotency key on order placement, so its dispatch functions surface `ambiguous: true` when a transport failure can't be reconciled via order-history scan (see the "Adding a new supplier" checklist, item 7, and Gotchas below). Has webhooks (HMAC-SHA256) — completion is webhook-first, not polled. |
 | `lib/atishare-console-service.ts` | AT-iShare Console (SPFastIT) | AT-iShare network only — no MTN, Telecel, or AT-BigTime. Poll-only, no webhook; completion is discovered by `app/api/cron/sync-atishare-console-status/route.ts` calling `check_order_status.php`. (Bundle Portal used to be the other poll-only supplier this compared to — it moved to a webhook in its v2 migration, see `app/api/webhooks/bundleportal/route.ts`.) See Gotchas below. |
+| `lib/kingflexy-data-service.ts` | KingFlexyGH Standard data API | Per-network data supplier (MTN/Telecel/AT-iShare/AT-BigTime). Webhook-first (`app/api/webhooks/kingflexy-data/route.ts`, HMAC-SHA256 in `X-KFT-Signature`) with a 10-min sweep (`app/api/cron/sync-kingflexy-status/route.ts`, `lib/kingflexy-sync.ts`) and admin twin. Has a client idempotency key, so `ambiguous` only on transport fault/5xx. Env `KINGFLEXY_DATA_API_KEY` / `KINGFLEXY_DATA_WEBHOOK_SECRET`. **Name trap:** NOT the KingFlexy commission (airtime/utilities/Standard Bundles) or SMS integration. |
 | `lib/shop-order-processor.ts` | — | Processes orders placed through shop storefronts |
 
 ## Paystack webhooks (`/api/webhooks/paystack`)
@@ -125,6 +126,10 @@ Do all twenty-five of these in the SAME PR that adds the supplier, not as a foll
    stale reference forever, exactly the bug this checklist exists to prevent. Current full
    column list to keep in sync: `fulfillment_method`, `codecraft_reference`,
    `dakazina_reference`, `ghdata_order_id`, `bundleportal_reference`, `hendylinks_order_id`.
+   *Note (KingFlexy, 2026-11):* this no longer matches the code. Dispatch failure paths now call
+   `releaseClaim`/`releaseBulkClaims`, which clear only the claim + `fulfillment_method`, and
+   supplier reference columns are written ONLY at accept/ambiguous time — so there is nothing to
+   null on revert. Check how the current code releases a claim before applying this item literally.
 4. **`lib/refulfillment-service.ts`**: add the same column to its own step-11 revert UPDATE
    ("revert DEFINITE failures to pending") — same column list as item 3. The two files
    intentionally keep separate inline copies (single-order vs. bulk dispatch paths); they must
@@ -295,6 +300,11 @@ Do all twenty-five of these in the SAME PR that adds the supplier, not as a foll
    "no order found" branch distinguish a **race** from a **stray** using the event's own
    timestamp — redeliver (500) if the event is recent, ack only if it is old — otherwise the
    race silently eats outcomes with nothing in the logs to explain it.
+   *Note (KingFlexy, 2026-11):* in the bulk path status stays `pending` until the batched accept
+   step, so an early reference write guarded on `status='processing'` is dead code — and writing
+   the reference while still `pending` would make a webhook see a known reference with applied=0
+   and ack 200, dropping the event. KingFlexy's recovery design instead is webhook 500 on an
+   unknown reference when the event is <10 min old (supplier redelivers) plus the 10-min sweep.
 19. **Paginate any supplier history sweep, and drive it off their `total`.** A single-page
    fetch stops covering the history the moment it grows past the page size, and a stuck order
    is by definition an OLD one — precisely the row that drops off first. Treat a short page as
@@ -342,6 +352,10 @@ Do all twenty-five of these in the SAME PR that adds the supplier, not as a foll
    and initially omitted it in the admin sync twin; the two routes are separate files with
    separate UPDATE statements, so having it in one is no evidence it's in the other — diff them
    against each other, not just against the checklist.
+   *Note (KingFlexy, 2026-11):* the cleanest way to guarantee this is a shared outcome module —
+   `lib/kingflexy-apply-outcome.ts` (`applyKingflexyOutcome`, `handleKingflexyWebhookPayload`) is
+   used by the webhook, the cron sweep and the admin sync, so parity holds by construction. Also:
+   a webhook route must return 500 (not 200) on DB/apply exceptions so the supplier redelivers.
 24. **Never `return` from a dispatch branch after the order has been atomically claimed.** The
    claim step (see item 6's reference to the claim-time comment in `fulfillment-trigger.ts`)
    flips the order to `processing` BEFORE the supplier call happens, specifically so a crash
@@ -364,6 +378,7 @@ Do all twenty-five of these in the SAME PR that adds the supplier, not as a foll
 
 ## Gotchas
 
+- KingFlexy Standard data supplier (`lib/kingflexy-data-service.ts`): THREE distinct KingFlexy keys exist (SMS `KINGFLEXY_API_KEY` `kf_sms_live_…`; commission `KINGFLEXY_COMMISSION_*`; Standard data `KINGFLEXY_DATA_API_KEY`/`KINGFLEXY_DATA_WEBHOOK_SECRET`) and each key type 403s on the others' endpoints — never reuse a name. Webhook URL `https://fametechgh.com/api/webhooks/kingflexy-data` (apex, no www), registered once per key; fail-closed 503 if the secret is unset. For data orders `order.failed` is NOT final (KingFlexy retries); only `refunded` is a terminal failure (order -> `failed`; the admin refund flow handles customer money). Reference is `<orderId>-r<retry_count>`. One supplier per network, no failover, not in `AnySupplier`/MTN fallbacks. Webhook returns 500 on DB errors and when no order has the reference and the event is <10 min old. Sandbox key `kf_test_…` decides the outcome by the last 4 digits of the recipient phone (0001 ok, 0002 fail+refund, 0003 stuck, 0004 held). `scripts/test-*.ts` are gitignored — force-add new tests (`git add -f`).
 - DataKazina uses numeric package IDs, not volume strings. Always resolve `volume → packageId` via `fetchAllBundleMappings()` before calling the API.
 - The `isRateLimited` flag in FulfillmentResponse is distinct from circuit open state. Handle both.
 - XPress and Moolre webhooks have their own signature verification in `/api/webhooks/xpress` and `/api/webhooks/sms-forward`. Don't mix them up with Paystack's HMAC.
