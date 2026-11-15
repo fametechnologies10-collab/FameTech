@@ -85,6 +85,7 @@ interface FulfillmentSettings {
     hendylinks_networks: Record<string, boolean>
     atishare_console_networks: Record<string, boolean>
     spfastit_networks: Record<string, boolean>
+    kingflexy_networks: Record<string, boolean>
     mtn_codecraft_fallback: 'none' | 'datakazina' | 'xpress' | 'ghdata' | 'agentportal' | 'bundleportal' | 'hendylinks'
     mtn_agentportal_fallback: 'none' | 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'bundleportal' | 'hendylinks'
     mtn_bundleportal_fallback: 'none' | 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'agentportal' | 'hendylinks'
@@ -113,12 +114,15 @@ const ATISHARE_CONSOLE_SUPPORTED_NETWORKS = ['AT-iShare']
 // competitive) — presenting a toggle for MTN/AT-iShare/AT-BigTime here would offer
 // something that can never work, not just something that's off.
 const SPFASTIT_SUPPORTED_NETWORKS = ['Telecel']
+
+// KingFlexy (Standard-key data API) serves all four networks.
+const KINGFLEXY_SUPPORTED_NETWORKS = NETWORKS
 const PAGE_SIZE = 10
 
 // Suppliers app/api/admin/orders/sync-selection knows how to re-check — see that route.
 // A mixed-supplier selection has no single lookup endpoint to check against, so the "Sync"
 // button below requires every selected order to share one of these.
-const SYNC_SUPPORTED_SUPPLIERS = new Set<SupplierTag>(['agentportal', 'hendylinks', 'spfastit'])
+const SYNC_SUPPORTED_SUPPLIERS = new Set<SupplierTag>(['agentportal', 'hendylinks', 'spfastit', 'kingflexy'])
 
 // Order channel (origin) — a clean 3-way partition for the Channel filter buttons.
 // Actual filtering now happens server-side in /api/admin/fulfillment (see the `channel`
@@ -166,6 +170,7 @@ export default function FulfillmentPage() {
         hendylinks_networks: NETWORKS.reduce((acc, n) => ({ ...acc, [n]: false }), {}),
         atishare_console_networks: NETWORKS.reduce((acc, n) => ({ ...acc, [n]: false }), {}),
         spfastit_networks: NETWORKS.reduce((acc, n) => ({ ...acc, [n]: false }), {}),
+        kingflexy_networks: NETWORKS.reduce((acc, n) => ({ ...acc, [n]: false }), {}),
         mtn_codecraft_fallback: 'none',
         mtn_agentportal_fallback: 'none',
         mtn_bundleportal_fallback: 'none',
@@ -189,6 +194,7 @@ export default function FulfillmentPage() {
     const [bundleportalBalance, setBundleportalBalance] = useState<{ amount: number; currency: string } | null>(null)
     const [hendylinksBalance, setHendylinksBalance] = useState<{ amount: number; currency: string } | null>(null)
     const [spfastitBalance, setSpfastitBalance] = useState<{ amount: number; currency: string } | null>(null)
+    const [kingflexyBalance, setKingflexyBalance] = useState<{ amount: number; currency: string } | null>(null)
     const [isLoadingBalance, setIsLoadingBalance] = useState(false)
 
     // Sync CodeCraft Status state
@@ -218,6 +224,11 @@ export default function FulfillmentPage() {
     // Sync SPFastIT Status state
     const [isSyncingSpfastit, setIsSyncingSpfastit] = useState(false)
     const [spfastitSyncCooldown, setSpfastitSyncCooldown] = useState(false)
+
+    // Sync KingFlexy Status state
+    const [isSyncingKingflexy, setIsSyncingKingflexy] = useState(false)
+    const [kingflexySyncCooldown, setKingflexySyncCooldown] = useState(false)
+    const [isLoadingKFBalance, setIsLoadingKFBalance] = useState(false)
 
     // Individual balance loading states
     const [isLoadingDKBalance, setIsLoadingDKBalance] = useState(false)
@@ -297,6 +308,7 @@ export default function FulfillmentPage() {
             const dbHendylinksNetworks: Record<string, boolean> = dbFulfillmentSettings.hendylinks_networks || {}
             const dbAtishareConsoleNetworks: Record<string, boolean> = dbFulfillmentSettings.atishare_console_networks || {}
             const dbSpfastitNetworks: Record<string, boolean> = dbFulfillmentSettings.spfastit_networks || {}
+            const dbKingflexyNetworks: Record<string, boolean> = dbFulfillmentSettings.kingflexy_networks || {}
 
             setSettings({
                 is_global_enabled: map.auto_fulfillment_enabled !== 'false',
@@ -331,6 +343,9 @@ export default function FulfillmentPage() {
                 }), {} as Record<string, boolean>),
                 spfastit_networks: NETWORKS.reduce((acc, n) => ({
                     ...acc, [n]: dbSpfastitNetworks[n] === true
+                }), {} as Record<string, boolean>),
+                kingflexy_networks: NETWORKS.reduce((acc, n) => ({
+                    ...acc, [n]: dbKingflexyNetworks[n] === true
                 }), {} as Record<string, boolean>),
                 mtn_codecraft_fallback: (map.mtn_codecraft_fallback === 'datakazina' || map.mtn_codecraft_fallback === 'xpress' || map.mtn_codecraft_fallback === 'ghdata' || map.mtn_codecraft_fallback === 'agentportal' || map.mtn_codecraft_fallback === 'bundleportal' || map.mtn_codecraft_fallback === 'hendylinks')
                     ? map.mtn_codecraft_fallback
@@ -691,6 +706,29 @@ export default function FulfillmentPage() {
         }
     }
 
+    const handleSyncKingflexy = async () => {
+        if (isSyncingKingflexy || kingflexySyncCooldown) return
+        setIsSyncingKingflexy(true)
+        try {
+            const response = await fetch('/api/admin/fulfillment/sync-kingflexy', {
+                method: 'POST',
+            })
+            const result = await response.json()
+            if (!response.ok) {
+                toast.error('Sync failed: ' + (result.error || 'Unknown error'))
+            } else {
+                toast.success(`${result.checked} checked, ${result.updated} updated, ${result.failed} failed`)
+                await fetchOrders()
+            }
+        } catch (err: any) {
+            toast.error('Sync error: ' + err.message)
+        } finally {
+            setIsSyncingKingflexy(false)
+            setKingflexySyncCooldown(true)
+            setTimeout(() => setKingflexySyncCooldown(false), 30000)
+        }
+    }
+
     const fetchOrders = async (isNewFilter = false, silent = false) => {
         if (!silent) setIsLoadingOrders(true)
         try {
@@ -756,6 +794,9 @@ export default function FulfillmentPage() {
             }
             if (data.spfastit_currency !== undefined) {
                 setSpfastitBalance({ amount: data.spfastit_balance, currency: data.spfastit_currency })
+            }
+            if (data.kingflexy_currency !== undefined) {
+                setKingflexyBalance({ amount: data.kingflexy_balance, currency: data.kingflexy_currency })
             }
         } catch (error: any) {
             console.error('Balance fetch error:', error)
@@ -835,6 +876,16 @@ export default function FulfillmentPage() {
             else toast.error('SPFastIT balance error: ' + (data.error || 'Unknown'))
         } catch (err: any) { toast.error('Balance error: ' + err.message) }
         finally { setIsLoadingSFBalance(false) }
+    }
+    const fetchKFBalance = async () => {
+        setIsLoadingKFBalance(true)
+        try {
+            const res = await fetch('/api/admin/fulfillment/balance?supplier=kingflexy')
+            const data = await res.json()
+            if (res.ok) setKingflexyBalance({ amount: data.kingflexy_balance, currency: data.kingflexy_currency })
+            else toast.error('KingFlexy balance error: ' + (data.error || 'Unknown'))
+        } catch (err: any) { toast.error('Balance error: ' + err.message) }
+        finally { setIsLoadingKFBalance(false) }
     }
     const fetchHendyLinksBalance = async () => {
         setIsLoadingHLBalance(true)
@@ -1411,6 +1462,36 @@ export default function FulfillmentPage() {
                                 <Button onClick={handleSyncSpfastit} disabled={isSyncingSpfastit || spfastitSyncCooldown} variant="secondary" size="sm"
                                     className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
                                     {isSyncingSpfastit ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
+                                    <span>Sync</span>
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* KingFlexy — Standard-key data API; admin sync mirrors the sync-kingflexy route
+                    (see app/api/admin/fulfillment/sync-kingflexy). */}
+                <Card className="bg-gradient-to-br from-sky-600 to-sky-800 text-white border-none shadow-lg">
+                    <CardContent className="p-3 md:p-5">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                                <div className="bg-white/20 p-1.5 md:p-2.5 rounded-lg shrink-0">
+                                    <Server className="w-3.5 h-3.5 md:w-5 md:h-5" />
+                                </div>
+                                <p className="text-[9px] md:text-xs font-bold uppercase tracking-wider opacity-95 leading-tight">{SUPPLIER_META.kingflexy.label}</p>
+                            </div>
+                            <p className="text-base md:text-xl font-semibold leading-none">
+                                {kingflexyBalance ? `${kingflexyBalance.currency} ${kingflexyBalance.amount.toFixed(2)}` : (isLoadingKFBalance ? '...' : 'GHS —')}
+                            </p>
+                            <div className="flex gap-1.5">
+                                <Button onClick={fetchKFBalance} disabled={isLoadingKFBalance} variant="secondary" size="sm"
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
+                                    <RefreshCw className={`w-3 h-3 mr-1 shrink-0 ${isLoadingKFBalance ? 'animate-spin' : ''}`} />
+                                    <span>Bal</span>
+                                </Button>
+                                <Button onClick={handleSyncKingflexy} disabled={isSyncingKingflexy || kingflexySyncCooldown} variant="secondary" size="sm"
+                                    className="flex-1 bg-white/20 hover:bg-white/30 text-white border-white/30 disabled:opacity-50 h-6 md:h-7 text-[9px] md:text-xs px-1.5 shadow-none">
+                                    {isSyncingKingflexy ? <Loader2 className="w-3 h-3 mr-1 shrink-0 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1 shrink-0" />}
                                     <span>Sync</span>
                                 </Button>
                             </div>
@@ -2021,6 +2102,43 @@ export default function FulfillmentPage() {
                                         <div className={`w-1.5 h-1.5 rounded-full ${settings.spfastit_networks[net] ? 'bg-orange-500' : 'bg-gray-300'}`} />
                                         <span className="font-bold text-orange-600 dark:text-orange-400">SPFastIT</span>
                                         {settings.spfastit_networks[net] && <span className="text-orange-500 font-semibold">· Active</span>}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+
+                {/* KingFlexy Row — all four networks, see KINGFLEXY_SUPPORTED_NETWORKS */}
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-muted-foreground">{SUPPLIER_META.kingflexy.label}</span>
+                        <span className="text-[10px] text-muted-foreground">(enabling a network here auto-disables others for same network)</span>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                        {KINGFLEXY_SUPPORTED_NETWORKS.map(net => (
+                            <Card key={`kingflexy-${net}`} className={`border-l-4 transition-colors ${settings.kingflexy_networks[net] ? 'border-l-sky-500' : 'border-l-gray-300 dark:border-l-gray-600'}`}>
+                                <CardContent className="p-3 md:p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Activity className={`w-3.5 h-3.5 ${settings.kingflexy_networks[net] ? 'text-sky-500' : 'text-gray-400'}`} />
+                                            <span className="font-semibold text-xs md:text-sm">{net}</span>
+                                        </div>
+                                        <Button
+                                            id={`kf-toggle-${net}`}
+                                            variant={settings.kingflexy_networks[net] ? 'outline' : 'default'}
+                                            size="sm"
+                                            className={`h-6 text-[10px] md:text-xs px-2 ${settings.kingflexy_networks[net] ? 'border-sky-500 text-sky-600' : ''}`}
+                                            onClick={() => toggleNetwork(net, 'kingflexy')}
+                                            disabled={isSavingSettings}
+                                        >
+                                            {settings.kingflexy_networks[net] ? 'Disconnect' : 'Connect'}
+                                        </Button>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${settings.kingflexy_networks[net] ? 'bg-sky-500' : 'bg-gray-300'}`} />
+                                        <span className="font-bold text-sky-600 dark:text-sky-400">{SUPPLIER_META.kingflexy.label}</span>
+                                        {settings.kingflexy_networks[net] && <span className="text-sky-500 font-semibold">· Active</span>}
                                     </div>
                                 </CardContent>
                             </Card>
