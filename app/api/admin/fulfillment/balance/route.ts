@@ -89,6 +89,14 @@ export async function GET(request: NextRequest) {
             }
             return NextResponse.json({ spfastit_balance: result.balance || 0, spfastit_currency: result.currency || 'GHS' })
         }
+        if (supplier === 'kingflexy') {
+            const { fetchSupplierBalance: fetchKF } = await import('@/lib/kingflexy-data-service')
+            const result = await fetchKF()
+            if (!result.success) {
+                return NextResponse.json({ error: result.error || 'Failed to fetch KingFlexy balance' }, { status: 502 })
+            }
+            return NextResponse.json({ kingflexy_balance: result.balance || 0, kingflexy_currency: result.currency || 'GHS' })
+        }
         if (supplier === 'atishare_console') {
             const { fetchConsoleBalance } = await import('@/lib/atishare-console-service')
             const result = await fetchConsoleBalance()
@@ -113,8 +121,9 @@ export async function GET(request: NextRequest) {
         const { fetchSupplierBalance: fetchBundlePortalBalance } = await import('@/lib/bundleportal-service')
         const { fetchSupplierBalance: fetchHendyLinksBalance } = await import('@/lib/hendylinks-service')
         const { fetchSupplierBalance: fetchSpfastitBalance } = await import('@/lib/spfastit-service')
+        const { fetchSupplierBalance: fetchKingflexyBalance } = await import('@/lib/kingflexy-data-service')
 
-        const [dakazinaResult, codecraftResult, xpressResult, ghdataResult, agentportalResult, bundleportalResult, hendylinksResult, spfastitResult] = await Promise.all([
+        const [dakazinaResult, codecraftResult, xpressResult, ghdataResult, agentportalResult, bundleportalResult, hendylinksResult, spfastitResult, kingflexyResult] = await Promise.all([
             fetchSupplierBalance(),
             fetchCodeCraftBalance(),
             fetchXpressBalance(),
@@ -123,9 +132,10 @@ export async function GET(request: NextRequest) {
             fetchBundlePortalBalance(),
             fetchHendyLinksBalance(),
             fetchSpfastitBalance(),
+            fetchKingflexyBalance(),
         ])
 
-        if (!dakazinaResult.success && !codecraftResult.success && !xpressResult.success && !ghdataResult.success && !agentportalResult.success && !bundleportalResult.success && !hendylinksResult.success && !spfastitResult.success) {
+        if (!dakazinaResult.success && !codecraftResult.success && !xpressResult.success && !ghdataResult.success && !agentportalResult.success && !bundleportalResult.success && !hendylinksResult.success && !spfastitResult.success && !kingflexyResult.success) {
             return NextResponse.json({ error: 'Failed to fetch balances from all suppliers' }, { status: 500 })
         }
 
@@ -146,6 +156,8 @@ export async function GET(request: NextRequest) {
             hendylinks_currency: hendylinksResult.currency || 'GHS',
             spfastit_balance: spfastitResult.balance || 0,
             spfastit_currency: spfastitResult.currency || 'GHS',
+            kingflexy_balance: kingflexyResult.balance || 0,
+            kingflexy_currency: kingflexyResult.currency || 'GHS',
         })
 
     } catch (error: any) {

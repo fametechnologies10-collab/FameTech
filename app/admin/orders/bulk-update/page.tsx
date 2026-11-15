@@ -49,7 +49,7 @@ interface LookupOrder {
 
 // Suppliers the selection-sync button knows how to re-check. Anything else (or a mixed
 // selection) disables the button — see syncEligibility below.
-const SYNC_SUPPORTED_SUPPLIERS = new Set(['agentportal', 'hendylinks'])
+const SYNC_SUPPORTED_SUPPLIERS = new Set(['agentportal', 'hendylinks', 'kingflexy'])
 
 const NETWORKS = ['MTN', 'Telecel', 'AT-iShare', 'AT-BigTime']
 const BROWSE_STATUSES = ['All', 'Pending', 'Queued', 'Processing', 'Completed', 'Failed', 'Refunded']

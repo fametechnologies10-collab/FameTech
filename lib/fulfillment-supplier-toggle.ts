@@ -17,6 +17,7 @@ export interface SupplierNetworkSettings {
     hendylinks_networks: Record<string, boolean>
     atishare_console_networks: Record<string, boolean>
     spfastit_networks: Record<string, boolean>
+    kingflexy_networks: Record<string, boolean>
 }
 
 export type ToggleSupplierNetworkResult =

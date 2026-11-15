@@ -117,7 +117,8 @@ export async function triggerFulfillment(
             hendylinks_networks: Record<string, boolean>
             atishare_console_networks: Record<string, boolean>
             spfastit_networks: Record<string, boolean>
-        } = { networks: {}, codecraft_networks: {}, xpress_networks: {}, ghdata_networks: {}, agentportal_networks: {}, bundleportal_networks: {}, hendylinks_networks: {}, atishare_console_networks: {}, spfastit_networks: {} }
+            kingflexy_networks: Record<string, boolean>
+        } = { networks: {}, codecraft_networks: {}, xpress_networks: {}, ghdata_networks: {}, agentportal_networks: {}, bundleportal_networks: {}, hendylinks_networks: {}, atishare_console_networks: {}, spfastit_networks: {}, kingflexy_networks: {} }
         try {
             if (settingsMap.fulfillment_settings) {
                 const parsed = typeof settingsMap.fulfillment_settings === 'string'
@@ -132,6 +133,7 @@ export async function triggerFulfillment(
                 fulfillmentSettings.hendylinks_networks = parsed.hendylinks_networks || {}
                 fulfillmentSettings.atishare_console_networks = parsed.atishare_console_networks || {}
                 fulfillmentSettings.spfastit_networks = parsed.spfastit_networks || {}
+                fulfillmentSettings.kingflexy_networks = parsed.kingflexy_networks || {}
             }
         } catch (e) {
             console.error('[Fulfillment] Failed to parse fulfillment_settings:', e)
@@ -146,6 +148,7 @@ export async function triggerFulfillment(
         const isHendyLinksEnabled = fulfillmentSettings.hendylinks_networks[network] === true
         const isAtiShareConsoleEnabled = fulfillmentSettings.atishare_console_networks[network] === true
         const isSpfastitEnabled = fulfillmentSettings.spfastit_networks[network] === true
+        const isKingflexyEnabled = fulfillmentSettings.kingflexy_networks[network] === true
         // Supplier selection comes from the shared registry in lib/order-supplier.ts so
         // this guard can never drift out of sync with the other dispatch paths.
         const enabledSuppliers = resolveEnabledSuppliers(
@@ -319,6 +322,40 @@ export async function triggerFulfillment(
                             // rejection is never ambiguous (design spec §7).
                             ambiguous: sendResult.transportFault === true,
                         }
+                    }
+                }
+            } else if (isKingflexyEnabled) {
+                // KingFlexy data supplier. prepareKingflexyDispatch reports bad network/size/phone
+                // through `result` (never an early return — the claim above already ran) so a
+                // mismatch flows into the normal definite-failure handling below.
+                // Ruling 11: an accepted placement is ALWAYS persisted as 'processing' even if the
+                // supplier already says completed; completion is applied later by the webhook/sync.
+                const { placeOrder, prepareKingflexyDispatch } = await import('@/lib/kingflexy-data-service')
+                const prep = prepareKingflexyDispatch({
+                    network,
+                    size: (order as any).size,
+                    phone: (order as any).phone_number,
+                    orderId: orderId,
+                    retryCount: (order as any).retry_count ?? 0,
+                })
+                if (!prep.ok) {
+                    result = { success: false, error: prep.error }
+                } else {
+                    const sendResult = await placeOrder({
+                        recipient: prep.recipient,
+                        network: prep.network,
+                        volumeGb: prep.volumeGb,
+                        reference: prep.reference,
+                    })
+                    result = {
+                        success: sendResult.success,
+                        reference: prep.reference,
+                        error: sendResult.error,
+                        apiResponse: sendResult.apiResponse,
+                        // Only a transport fault / unclassifiable reply is ambiguous; every other
+                        // non-accepted outcome (config_error/paused/rate_limited/rejected/
+                        // retryable_hold) is a definite failure that reverts to pending.
+                        ambiguous: sendResult.outcome === 'ambiguous',
                     }
                 }
             } else if (isDataKazinaEnabled) {
@@ -550,6 +587,9 @@ export async function triggerFulfillment(
             if (effectiveSupplierLabel === 'spfastit' && result.reference) {
                 ordersUpdate.spfastit_reference = result.reference
             }
+            if (effectiveSupplierLabel === 'kingflexy' && result.reference) {
+                ordersUpdate.kingflexy_reference = result.reference
+            }
             if (effectiveSupplierLabel === 'ghdata' && result.ghdataOrderId) {
                 ordersUpdate.ghdata_order_id = result.ghdataOrderId
             }
@@ -626,7 +666,8 @@ export async function triggerFulfillment(
             // this attempt, /status will simply fail to find it and the cron logs+skips; if it
             // did receive it, the cron can now reconcile it automatically.
             const ambiguousExtraColumns: Record<string, any> =
-                supplierLabel === 'spfastit' && result.reference ? { spfastit_reference: result.reference } : {}
+                supplierLabel === 'spfastit' && result.reference ? { spfastit_reference: result.reference }
+                    : supplierLabel === 'kingflexy' && result.reference ? { kingflexy_reference: result.reference } : {}
             const ambiguousAccepted = await acceptDispatch(supabase, orderId, supplierLabel, ambiguousExtraColumns)
             if (!ambiguousAccepted) {
                 console.log(`[Fulfillment] Order ${orderId} ambiguous-accept was a no-op — a webhook already resolved it`)
@@ -659,7 +700,10 @@ export async function triggerFulfillment(
                 order_id: orderId,
                 status: 'failed',
                 retry_count: (order as any).retry_count ?? 0,
-                api_response: { error: result.error, ambiguous: true, supplier: supplierLabel, network, ...result.apiResponse },
+                // kingflexy: spread FIRST so a vendor `supplier`/`error` key can never override ours.
+                api_response: supplierLabel === 'kingflexy'
+                    ? { ...result.apiResponse, error: result.error, ambiguous: true, supplier: supplierLabel, network }
+                    : { error: result.error, ambiguous: true, supplier: supplierLabel, network, ...result.apiResponse },
             })
         } else {
             console.warn(`[Fulfillment] Supplier ${supplierLabel} failed for order ${orderId}: ${result.error}`)
@@ -673,7 +717,9 @@ export async function triggerFulfillment(
                 order_id: orderId,
                 status: 'failed',
                 retry_count: (order as any).retry_count ?? 0,
-                api_response: { error: result.error, supplier: supplierLabel, network, ...result.apiResponse },
+                api_response: supplierLabel === 'kingflexy'
+                    ? { ...result.apiResponse, error: result.error, supplier: supplierLabel, network }
+                    : { error: result.error, supplier: supplierLabel, network, ...result.apiResponse },
             })
 
             return {

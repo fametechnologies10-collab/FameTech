@@ -651,7 +651,8 @@ async function triggerShopFulfillment(
             hendylinks_networks: Record<string, boolean>
             atishare_console_networks: Record<string, boolean>
             spfastit_networks: Record<string, boolean>
-        } = { networks: {}, codecraft_networks: {}, xpress_networks: {}, ghdata_networks: {}, agentportal_networks: {}, bundleportal_networks: {}, hendylinks_networks: {}, atishare_console_networks: {}, spfastit_networks: {} }
+            kingflexy_networks: Record<string, boolean>
+        } = { networks: {}, codecraft_networks: {}, xpress_networks: {}, ghdata_networks: {}, agentportal_networks: {}, bundleportal_networks: {}, hendylinks_networks: {}, atishare_console_networks: {}, spfastit_networks: {}, kingflexy_networks: {} }
 
         try {
             if (settingsMap.fulfillment_settings) {
@@ -667,6 +668,7 @@ async function triggerShopFulfillment(
                 fulfillmentSettings.hendylinks_networks = parsed.hendylinks_networks || {}
                 fulfillmentSettings.atishare_console_networks = parsed.atishare_console_networks || {}
                 fulfillmentSettings.spfastit_networks = parsed.spfastit_networks || {}
+                fulfillmentSettings.kingflexy_networks = parsed.kingflexy_networks || {}
             }
         } catch (e) { /* ignore parse failure — defaults to empty */ }
 
@@ -679,6 +681,7 @@ async function triggerShopFulfillment(
         const isHendyLinksEnabled = fulfillmentSettings.hendylinks_networks[network] === true
         const isAtiShareConsoleEnabled = fulfillmentSettings.atishare_console_networks[network] === true
         const isSpfastitEnabled = fulfillmentSettings.spfastit_networks[network] === true
+        const isKingflexyEnabled = fulfillmentSettings.kingflexy_networks[network] === true
         // Supplier selection comes from the shared registry in lib/order-supplier.ts so
         // this guard can never drift out of sync with the other dispatch paths.
         const enabledSuppliers = resolveEnabledSuppliers(
@@ -840,6 +843,40 @@ async function triggerShopFulfillment(
                         }
                     }
                 }
+            } else if (isKingflexyEnabled) {
+                // KingFlexy data supplier. prepareKingflexyDispatch reports bad network/size/phone
+                // through `result` (never an early return — the claim above already ran) so a
+                // mismatch flows into the normal definite-failure handling below.
+                // Ruling 11: an accepted placement is ALWAYS persisted as 'processing' even if the
+                // supplier already says completed; completion is applied later by the webhook/sync.
+                const { placeOrder, prepareKingflexyDispatch } = await import('./kingflexy-data-service')
+                const prep = prepareKingflexyDispatch({
+                    network,
+                    size: extra.size || '',
+                    phone: phone,
+                    orderId: internalOrderId,
+                    retryCount: 0,
+                })
+                if (!prep.ok) {
+                    result = { success: false, error: prep.error }
+                } else {
+                    const sendResult = await placeOrder({
+                        recipient: prep.recipient,
+                        network: prep.network,
+                        volumeGb: prep.volumeGb,
+                        reference: prep.reference,
+                    })
+                    result = {
+                        success: sendResult.success,
+                        reference: prep.reference,
+                        error: sendResult.error,
+                        apiResponse: sendResult.apiResponse,
+                        // Only a transport fault / unclassifiable reply is ambiguous; every other
+                        // non-accepted outcome (config_error/paused/rate_limited/rejected/
+                        // retryable_hold) is a definite failure that reverts to pending.
+                        ambiguous: sendResult.outcome === 'ambiguous',
+                    }
+                }
             } else if (isDataKazinaEnabled) {
                 const { fulfillOrder: dkFulfill } = await import('./fulfillment-service')
                 result = await dkFulfill(network, phone, extra.size || '', orderId)
@@ -902,6 +939,9 @@ async function triggerShopFulfillment(
             }
             if (isSpfastitEnabled && result.reference) {
                 referenceColumns.spfastit_reference = result.reference
+            }
+            if (isKingflexyEnabled && result.reference) {
+                referenceColumns.kingflexy_reference = result.reference
             }
             if (isDataKazinaEnabled && (result.transactionId || result.reference)) {
                 referenceColumns.dakazina_reference = result.transactionId || result.reference
@@ -985,7 +1025,8 @@ async function triggerShopFulfillment(
             // spfastit_reference IS NOT NULL); otherwise it's stuck in 'processing' forever
             // with only the webhook's thin by-id fallback as a safety net.
             const ambiguousExtraColumns: Record<string, any> =
-                supplierLabel === 'spfastit' && result.reference ? { spfastit_reference: result.reference } : {}
+                supplierLabel === 'spfastit' && result.reference ? { spfastit_reference: result.reference }
+                    : supplierLabel === 'kingflexy' && result.reference ? { kingflexy_reference: result.reference } : {}
             const ambiguousAccepted = await acceptDispatch(db, internalOrderId, supplierLabel, ambiguousExtraColumns)
             if (!ambiguousAccepted) {
                 console.log(`[Shop Order Processor] Ambiguous-accept was a no-op for order ${orderId} — a webhook already resolved it`)

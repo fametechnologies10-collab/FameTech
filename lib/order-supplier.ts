@@ -4,19 +4,19 @@
 // `orders` and `mtn_fulfillment_tracking`. No DB migration involved.
 // See docs/superpowers/specs/2026-07-28-fulfillment-supplier-tag-design.md.
 
-export type SupplierTag = 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'agentportal' | 'datagod' | 'bundleportal' | 'hendylinks' | 'atishare_console' | 'spfastit' | 'exported'
+export type SupplierTag = 'datakazina' | 'codecraft' | 'xpress' | 'ghdata' | 'agentportal' | 'datagod' | 'bundleportal' | 'hendylinks' | 'atishare_console' | 'spfastit' | 'kingflexy' | 'exported'
 
 export interface TrackingRowForSupplier {
     api_response?: { supplier?: string | null } | null
     created_at?: string | null
 }
 
-const KNOWN_SUPPLIERS: ReadonlySet<string> = new Set(['datakazina', 'codecraft', 'xpress', 'ghdata', 'agentportal', 'datagod', 'bundleportal', 'hendylinks', 'atishare_console', 'spfastit'])
+const KNOWN_SUPPLIERS: ReadonlySet<string> = new Set(['datakazina', 'codecraft', 'xpress', 'ghdata', 'agentportal', 'datagod', 'bundleportal', 'hendylinks', 'atishare_console', 'spfastit', 'kingflexy'])
 
 // Real suppliers `orders.fulfillment_method` can hold (its CHECK constraint also allows
 // 'auto' / 'manual', which are dispatch-mode markers, not supplier identities — never
 // treated as a resolved supplier here).
-const KNOWN_FULFILLMENT_METHODS: ReadonlySet<string> = new Set(['datakazina', 'codecraft', 'xpress', 'ghdata', 'agentportal', 'datagod', 'bundleportal', 'hendylinks', 'atishare_console', 'spfastit'])
+const KNOWN_FULFILLMENT_METHODS: ReadonlySet<string> = new Set(['datakazina', 'codecraft', 'xpress', 'ghdata', 'agentportal', 'datagod', 'bundleportal', 'hendylinks', 'atishare_console', 'spfastit', 'kingflexy'])
 
 /**
  * Resolves the supplier tag for an order. There is no default supplier: every
@@ -112,6 +112,7 @@ export const SUPPLIER_META: Record<SupplierTag | 'na', { label: string; badgeCla
     hendylinks: { label: 'HendyLinks', badgeClass: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-900/40' },
     atishare_console: { label: 'AT-iShare Console', badgeClass: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-900/40' },
     spfastit: { label: 'SPFastIT', badgeClass: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/40' },
+    kingflexy: { label: 'KingFlexy', badgeClass: 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-900/40' },
     exported: { label: 'Exported', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700' },
     na: { label: 'N/A', badgeClass: 'bg-muted text-muted-foreground border-transparent' },
 }
@@ -128,6 +129,7 @@ export const SUPPLIER_FILTERS: Array<{ key: 'all' | SupplierTag | 'na'; label: s
     { key: 'hendylinks', label: 'HendyLinks' },
     { key: 'atishare_console', label: 'AT-iShare Console' },
     { key: 'spfastit', label: 'SPFastIT' },
+    { key: 'kingflexy', label: 'KingFlexy' },
     { key: 'exported', label: 'Exported' },
     { key: 'na', label: 'N/A' },
 ]
@@ -150,6 +152,7 @@ export const SUPPLIER_NETWORK_SETTING_KEYS = {
     hendylinks: 'hendylinks_networks',
     atishare_console: 'atishare_console_networks',
     spfastit: 'spfastit_networks',
+    kingflexy: 'kingflexy_networks',
 } as const
 
 export type SupplierKey = keyof typeof SUPPLIER_NETWORK_SETTING_KEYS

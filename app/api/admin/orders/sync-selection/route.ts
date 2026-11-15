@@ -6,6 +6,8 @@ import { syncAgentPortalOrdersById } from '@/lib/agentportal-reconcile'
 import { fetchAllOrderHistory, applyHendyLinksHistoryMatch } from '@/lib/hendylinks-service'
 import { checkOrderStatus, mapSpfastitStatus } from '@/lib/spfastit-service'
 import { syncShopOrderStatus } from '@/lib/shop-service'
+import { checkOrderStatus as checkKingflexyStatus } from '@/lib/kingflexy-data-service'
+import { applyKingflexyOutcome } from '@/lib/kingflexy-apply-outcome'
 
 /**
  * POST /api/admin/orders/sync-selection
@@ -26,11 +28,16 @@ import { syncShopOrderStatus } from '@/lib/shop-service'
  * (lib/spfastit-service.ts checkOrderStatus), so its branch here is a plain per-order check
  * scoped to the selection, no history walk or phone search needed.
  *
+ * KingFlexy (data supplier) also has a direct per-reference status lookup; its branch checks
+ * each selected order and resolves it through the SHARED applyKingflexyOutcome (same CAS filters
+ * and rows-affected side-effect gating as the webhook and cron). A not-found / failed lookup is
+ * skipped - never failed or refunded from here.
+ *
  * JSON body: { orderIds: string[] }
  */
 
 const MAX_SELECTION = 200
-const SUPPORTED_SUPPLIERS = new Set(['agentportal', 'hendylinks', 'spfastit'])
+const SUPPORTED_SUPPLIERS = new Set(['agentportal', 'hendylinks', 'spfastit', 'kingflexy'])
 const HISTORY_PAGE_SIZE = 100
 
 export async function POST(request: NextRequest) {
@@ -171,6 +178,52 @@ export async function POST(request: NextRequest) {
                         sendOrderCompletedPushNotification(order.id).catch(e => console.error('[SyncSelection] Push error:', e))
                     }
                     updated++
+                } catch (orderErr: any) {
+                    errors.push(`Exception for ${order.id}: ${orderErr.message}`)
+                    failed++
+                }
+            }))
+
+            return NextResponse.json({ success: true, checked, updated, failed, notFoundInDbIds, errors })
+        }
+
+        if (supplier === 'kingflexy') {
+            const targets = (orderRows as Array<{ id: string; status: string; fulfillment_method: string }>)
+                .filter(o => o.fulfillment_method === 'kingflexy')
+
+            const { data: withRefs, error: refLookupError } = await (supabase.from('orders') as any)
+                .select('id, status, kingflexy_reference')
+                .in('id', targets.map(o => o.id))
+                .eq('fulfillment_method', 'kingflexy')
+                .eq('status', 'processing')
+                .not('kingflexy_reference', 'is', null)
+
+            if (refLookupError) {
+                console.error('[SyncSelection] KingFlexy reference lookup failed:', refLookupError.message)
+                return NextResponse.json({ success: false, error: 'Order lookup failed — please retry' }, { status: 500 })
+            }
+
+            const checked = (withRefs || []).length
+            if (checked === 0) {
+                return NextResponse.json({ success: true, checked: 0, updated: 0, failed: 0, notFoundInDbIds, errors: [] })
+            }
+
+            const errors: string[] = []
+            let updated = 0
+            let failed = 0
+
+            await Promise.allSettled((withRefs as Array<{ id: string; kingflexy_reference: string }>).map(async (order) => {
+                try {
+                    const statusResult = await checkKingflexyStatus(order.kingflexy_reference)
+                    // found:false / success:false => skip. Never fail or refund from a sync.
+                    if (!statusResult.success || !statusResult.found) return
+
+                    const outcome = await applyKingflexyOutcome(supabase, {
+                        reference: order.kingflexy_reference,
+                        rawStatus: statusResult.status,
+                        source: 'admin_sync',
+                    })
+                    if (outcome.applied > 0) updated++
                 } catch (orderErr: any) {
                     errors.push(`Exception for ${order.id}: ${orderErr.message}`)
                     failed++
