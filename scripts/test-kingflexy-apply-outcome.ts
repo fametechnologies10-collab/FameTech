@@ -5,7 +5,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANO
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
 
 import {
-    applyKingflexyOutcome, kingflexyReferenceExists, decideWebhookStatus,
+    applyKingflexyOutcome, kingflexyReferenceExists, decideWebhookStatus, handleKingflexyWebhookPayload,
 } from '../lib/kingflexy-apply-outcome'
 import { syncKingflexyProcessingOrders } from '../lib/kingflexy-sync'
 
@@ -188,6 +188,25 @@ async function main() {
         assertEqual(nf[0].api_response.source, 'cron_sweep', 'tracking source cron_sweep')
         await run()
         assertEqual(fake.trackingInserts.filter(t => t.api_response?.note === 'not_found_at_supplier').length, 1, 'not-found tracking deduped on rerun')
+    }
+
+    // 11. webhook handler: errors -> 500 (redelivery), no-ops -> 200
+    {
+        const now = Date.parse('2026-11-15T12:00:00Z')
+        const recent = '2026-11-15T11:55:00Z'
+        const p = (o: Row = {}) => ({ event: 'order.completed', product: 'data', reference: REF0, status: 'completed', timestamp: recent, ...o })
+        const boom = async () => { throw new Error('db down') }
+        const ok = async (applied: number) => ({ resolved: 'completed' as const, applied })
+        const h = (payload: any, seams: any) => handleKingflexyWebhookPayload({}, payload, now, seams).then(r => r.status)
+        assertEqual(await h(p(), { apply: boom }), 500, 'apply throwing -> 500')
+        assertEqual(await h(p(), { apply: () => ok(0), referenceExists: boom }), 500, 'referenceExists throwing -> 500')
+        assertEqual(await h(p(), { apply: () => ok(1) }), 200, 'terminal outcome applied -> 200')
+        assertEqual(await h(p({ event: 'webhook.test' }), { apply: boom }), 200, 'webhook.test -> 200 without order logic')
+        assertEqual(await h(p({ product: 'airtime' }), { apply: boom }), 200, 'non-data product -> 200')
+        assertEqual(await h(p({ reference: '' }), { apply: boom }), 200, 'no reference -> 200')
+        assertEqual(await h(p(), { apply: () => ok(0), referenceExists: async () => true }), 200, 'already applied (order found) -> 200')
+        assertEqual(await h(p(), { apply: () => ok(0), referenceExists: async () => false }), 500, 'race, recent event -> 500')
+        assertEqual(await h(p({ timestamp: '2026-11-15T11:00:00Z' }), { apply: () => ok(0), referenceExists: async () => false }), 200, 'stray old event -> 200')
     }
 
     if (failures) { console.error(`\n${failures} FAILED`); process.exit(1) }

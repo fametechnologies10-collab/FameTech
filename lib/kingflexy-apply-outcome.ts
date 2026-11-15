@@ -166,3 +166,37 @@ export function decideWebhookStatus(input: {
     if (input.applied > 0 || input.referenceKnown) return 200
     return shouldRedeliver(input.timestamp, input.nowMs) ? 500 : 200
 }
+
+/**
+ * Whole post-verification webhook decision (payload already signature-checked and JSON-parsed).
+ * Returns the HTTP status. Deliberate no-ops are 200; ANY thrown error (DB/apply/lookup) is 500 so
+ * KingFlexy redelivers (it retries on non-2xx); the CAS update makes redelivery idempotent.
+ * Logs only the error message and reference, never the secret, signature or raw body.
+ */
+export async function handleKingflexyWebhookPayload(
+    supabase: any,
+    payload: any,
+    nowMs: number,
+    seams: {
+        apply?: typeof applyKingflexyOutcome
+        referenceExists?: typeof kingflexyReferenceExists
+    } = {},
+): Promise<{ status: 200 | 500; applied: number }> {
+    if (!payload || typeof payload !== 'object' || payload.event === 'webhook.test' || payload.product !== 'data') {
+        return { status: 200, applied: 0 }
+    }
+    const reference = payload.reference
+    if (typeof reference !== 'string' || reference.length === 0) return { status: 200, applied: 0 }
+
+    const apply = seams.apply ?? applyKingflexyOutcome
+    const referenceExists = seams.referenceExists ?? kingflexyReferenceExists
+    try {
+        const { applied } = await apply(supabase, { reference, rawStatus: payload.status, source: 'webhook' })
+        if (applied > 0) return { status: 200, applied }
+        const referenceKnown = await referenceExists(supabase, reference)
+        return { status: decideWebhookStatus({ applied, referenceKnown, timestamp: payload.timestamp, nowMs }), applied }
+    } catch (e: any) {
+        console.error('[KingflexyApply] webhook processing failed (returning 500 for redelivery):', e?.message || 'unknown', 'reference:', reference)
+        return { status: 500, applied: 0 }
+    }
+}

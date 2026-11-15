@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { verifyWebhookSignature } from '@/lib/kingflexy-data-service'
-import {
-    applyKingflexyOutcome,
-    kingflexyReferenceExists,
-    decideWebhookStatus,
-} from '@/lib/kingflexy-apply-outcome'
+import { handleKingflexyWebhookPayload } from '@/lib/kingflexy-apply-outcome'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,36 +31,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 })
     }
 
-    if (!payload || typeof payload !== 'object' || payload.event === 'webhook.test' || payload.product !== 'data') {
-        return NextResponse.json({ success: true }, { status: 200 })
+    const supabase: any = createServerClient()
+    const { status, applied } = await handleKingflexyWebhookPayload(supabase, payload, Date.now())
+    if (status === 500) {
+        // 500 makes KingFlexy redeliver (non-2xx -> retries); the CAS update keeps redelivery idempotent.
+        return NextResponse.json({ success: false, error: 'Temporary error' }, { status: 500 })
     }
-
-    const reference = payload.reference
-    if (typeof reference !== 'string' || reference.length === 0) {
-        console.warn(LOG, 'Payload has no usable reference')
-        return NextResponse.json({ success: true }, { status: 200 })
-    }
-
-    try {
-        const supabase: any = createServerClient()
-        const { applied } = await applyKingflexyOutcome(supabase, {
-            reference,
-            rawStatus: payload.status,
-            source: 'webhook',
-        })
-
-        if (applied === 0) {
-            const referenceKnown = await kingflexyReferenceExists(supabase, reference)
-            const code = decideWebhookStatus({ applied, referenceKnown, timestamp: payload.timestamp, nowMs: Date.now() })
-            if (code === 500) {
-                console.warn(LOG, 'Event beat the reference write; asking for redelivery')
-                return NextResponse.json({ success: false, error: 'Order not yet recorded' }, { status: 500 })
-            }
-        }
-        return NextResponse.json({ success: true, updated_orders: applied }, { status: 200 })
-    } catch (error: any) {
-        // The cron sweep is the safety net for anything we fail to apply here.
-        console.error(LOG, 'Unhandled exception:', error?.message || error)
-        return NextResponse.json({ success: true }, { status: 200 })
-    }
+    return NextResponse.json({ success: true, updated_orders: applied }, { status: 200 })
 }
