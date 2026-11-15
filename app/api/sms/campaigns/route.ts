@@ -1,5 +1,5 @@
 /**
- * /api/sms/campaigns — KFT SMS send choke point + history.
+ * /api/sms/campaigns — FTGH SMS send choke point + history.
  *
  * POST: create a campaign (validate → filter per policy → atomic debit →
  *       persist per-recipient rows → inline dispatch ≤500 / queue for cron).

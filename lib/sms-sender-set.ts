@@ -1,7 +1,7 @@
 /**
- * KFT SMS — merged sendable-sender set (feature-wave7).
+ * FTGH SMS — merged sendable-sender set (feature-wave7).
  *
- * A PLATFORM-mode KFT SMS account may ALSO send under its owner's own
+ * A PLATFORM-mode FTGH SMS account may ALSO send under its owner's own
  * APPROVED shop sender ID. This is the single seam that merges an account's
  * own `sms_sender_ids` rows with the caller's shop's approved
  * `shop_sender_ids` row(s) (falling back to the legacy `shop_profiles`

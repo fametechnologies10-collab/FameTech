@@ -1,5 +1,5 @@
 /**
- * /api/admin/sms-platform/bundles — admin CRUD for KFT SMS platform bundles.
+ * /api/admin/sms-platform/bundles — admin CRUD for FTGH SMS platform bundles.
  *
  * GET: list every `sms_bundles` row (all modes), ordered by mode then
  * sort_order — feeds the admin Bundles panel.
@@ -42,7 +42,7 @@ const bundleSchema = z.object({
 
 const bundleDeleteSchema = z.object({ id: z.string().uuid() })
 
-// ─── GET — list every KFT SMS bundle for the admin bundle panel ───────────────
+// ─── GET — list every FTGH SMS bundle for the admin bundle panel ───────────────
 export async function GET() {
     try {
         const auth = await requireAdmin()
@@ -77,7 +77,7 @@ export async function GET() {
     }
 }
 
-// ─── PUT — create or update a KFT SMS bundle tier ─────────────────────────────
+// ─── PUT — create or update a FTGH SMS bundle tier ─────────────────────────────
 export async function PUT(request: NextRequest) {
     try {
         const auth = await requireAdmin()
@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
     }
 }
 
-// ─── DELETE — remove a KFT SMS bundle tier ─────────────────────────────────────
+// ─── DELETE — remove a FTGH SMS bundle tier ─────────────────────────────────────
 // A bundle referenced by past purchases (sms_purchases.bundle_id) is NEVER
 // hard-deleted — that would either throw a FK violation (the column has no
 // ON DELETE clause, i.e. RESTRICT) or, if it didn't, silently orphan revenue

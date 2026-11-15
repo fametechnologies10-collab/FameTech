@@ -1,5 +1,5 @@
 /**
- * POST /api/sms/purchase — buy an SMS credit bundle (KFT SMS).
+ * POST /api/sms/purchase — buy an SMS credit bundle (FTGH SMS).
  *
  * v1 pay source: main wallet (atomic conditional debit inside
  * purchase_user_sms_credits; ledger key purchase:{client_key} makes retries

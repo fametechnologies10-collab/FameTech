@@ -1,5 +1,5 @@
 /**
- * User SMS Platform — campaign pipeline (KFT SMS).
+ * User SMS Platform — campaign pipeline (FTGH SMS).
  *
  * ONE implementation shared by the dashboard route (/api/sms/campaigns), the
  * developer API (/api/v2/sms/send) and the dispatch cron — so the policy
@@ -75,7 +75,7 @@ export async function getSmsAccountContext(
         .select('*').eq('user_id', userId).single()
     // Merged sendable set (feature-wave7): the account's own sms_sender_ids
     // rows PLUS — for PLATFORM mode only — the owner's own approved shop
-    // sender, so a platform-mode shop-owner can send KFT SMS under their
+    // sender, so a platform-mode shop-owner can send FTGH SMS under their
     // approved shop sender too. Business mode gets its own rows only.
     const [{ data: wallet }, senderRows] = await Promise.all([
         db.from('sms_wallets').select('credits, total_purchased, total_used').eq('account_id', account.id).maybeSingle(),

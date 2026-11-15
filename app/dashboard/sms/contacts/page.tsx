@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * KFT SMS — Contact Groups (/dashboard/sms/contacts)
+ * FTGH SMS — Contact Groups (/dashboard/sms/contacts)
  *
  * Manage reusable recipient lists for the user SMS platform: create / rename /
  * delete groups, add single contacts, bulk CSV import (chunked upserts with
@@ -545,7 +545,7 @@ export default function SmsContactsPage() {
                             <div>
                                 <Link href="/dashboard/sms">
                                     <Button variant="ghost" size="sm" className="w-fit gap-2 -ml-2 text-muted-foreground hover:text-emerald-600">
-                                        <ArrowLeft className="w-4 h-4" /> KFT SMS
+                                        <ArrowLeft className="w-4 h-4" /> FTGH SMS
                                     </Button>
                                 </Link>
                                 <h1 className="text-xl font-bold flex items-center gap-2 mt-1">

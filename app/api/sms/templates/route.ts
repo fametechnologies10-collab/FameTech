@@ -1,5 +1,5 @@
 /**
- * /api/sms/templates — reusable message templates (KFT SMS).
+ * /api/sms/templates — reusable message templates (FTGH SMS).
  * GET    list, POST create (cap 30), DELETE ?id= remove. Owner-scoped by
  * account; writes go through the service-role client keyed on the caller's
  * own account id (no cross-tenant access).

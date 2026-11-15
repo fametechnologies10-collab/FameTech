@@ -1,5 +1,5 @@
 /**
- * User SMS Platform — shared types (KFT SMS).
+ * User SMS Platform — shared types (FTGH SMS).
  * Mirrors supabase/migrations/20260706*, hand-maintained until the generated
  * types/supabase.ts is regenerated after the migrations are applied.
  */

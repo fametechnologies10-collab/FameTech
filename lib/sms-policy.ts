@@ -1,5 +1,5 @@
 /**
- * User SMS Platform — policy engine (KFT SMS).
+ * User SMS Platform — policy engine (FTGH SMS).
  *
  * Single source of truth for what an SMS account may do:
  *   mode → filter profile ('strict' | 'telco-only'), sender resolution

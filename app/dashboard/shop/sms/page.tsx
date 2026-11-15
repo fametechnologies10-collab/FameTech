@@ -1013,7 +1013,7 @@ export default function ShopSmsPage() {
                                 <Input
                                     value={senderInput}
                                     onChange={e => { setSenderReqError(null); setSenderInput(e.target.value.slice(0, 11)) }}
-                                    placeholder="e.g. KFT Shop"
+                                    placeholder="e.g. FTGH Shop"
                                     className="h-10 font-mono text-sm"
                                     maxLength={11}
                                     autoComplete="off"
